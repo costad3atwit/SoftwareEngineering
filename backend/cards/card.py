@@ -1,18 +1,5 @@
 from abc import ABC, abstractmethod #abc's are python's version of (AB)stract (C)lasses 
-from enum import Enum
-
-class TargetType(Enum):
-    BOARD = "BOARD"
-    PIECE = "PIECE"
-    TIMER = "TIMER"
-    TURN = "TURN"
-
-class CardType(Enum):
-    UNSTABLE = "UNSTABLE"
-    CURSE = "CURSE"
-    HIDDEN = "HIDDEN"
-    TRANSFORM = "TRANSFORM"
-    FORCED = "FORCED"
+from enums import CardType, TargetType
 
 
 class Card(ABC):

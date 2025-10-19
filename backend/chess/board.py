@@ -1,3 +1,9 @@
+from coordinate import Coordinate
+from piece import Piece
+from move import Move
+from enums import Color
+from typing import Dict
+
 class Board:
     def __init__(self):
         self.squares: Dict[Coordinate, Piece] = {}

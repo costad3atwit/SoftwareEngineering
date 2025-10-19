@@ -1,10 +1,5 @@
-class PieceType(Enum):
-    KING = "KING"
-    QUEEN = "QUEEN"
-    ROOK = "ROOK"
-    BISHOP = "BISHOP"
-    KNIGHT = "KNIGHT"
-    PAWN = "PAWN"
+from  enums import Color
+
 class Piece:
     def __init__(self, id: str, color: Color, piece_type: PieceType):
         self.id = id
