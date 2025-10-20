@@ -1,5 +1,5 @@
 from typing import List
-
+from cards import Card
 
 class Hand:
     def __init__(self):
