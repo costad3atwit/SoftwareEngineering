@@ -15,3 +15,11 @@ class Deck:
         if not self.cards:
             raise ValueError("Deck is empty.")
         return self.cards.pop()
+        def __init__(self):
+        self.cards: List[Card] = []
+
+    def shuffle(self) -> None:
+        shuffle(self.cards)
+
+    def size(self) -> int:
+        return len(self.cards)
