@@ -1,4 +1,8 @@
-from  enums import Color
+from __future__ import annotations
+from typing import List
+from enums import Color, PieceType
+from coordinate import Coordinate
+from move import Move
 
 class Piece:
     def __init__(self, id: str, color: Color, piece_type: PieceType):
@@ -9,11 +13,15 @@ class Piece:
 
     def get_legal_moves(self, board: 'Board', at: Coordinate) -> List[Move]:
         """Return a list of legal moves for this piece."""
-        raise NotImplementedError() # implement later
+        raise NotImplementedError()
 
     def clone(self) -> 'Piece':
         """Return a deep copy of the piece."""
         return Piece(self.id, self.color, self.type)
+    
+     def __str__(self):
+        """Return the name, type, and id of the piece"""
+        return f"{self.color.name.capitalize()} {self.type.name.capitalize()} ({self.id})"
 
 
 class King(Piece):
