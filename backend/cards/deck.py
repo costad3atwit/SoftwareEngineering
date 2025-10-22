@@ -1,4 +1,5 @@
 from card import Card
+import random
 
 class Deck:
     def __init__(self):
@@ -15,11 +16,10 @@ class Deck:
         if not self.cards:
             raise ValueError("Deck is empty.")
         return self.cards.pop()
-        def __init__(self):
-        self.cards: List[Card] = []
 
     def shuffle(self) -> None:
-        shuffle(self.cards)
+        self.cards = random.shuffle(self.cards)
+        
 
     def size(self) -> int:
         return len(self.cards)
