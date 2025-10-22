@@ -70,3 +70,59 @@ class Pawn(Piece):
 
     def get_legal_moves(self, board: 'Board', at: Coordinate) -> List[Move]:
         return [] # implement later
+
+
+class Peon(Piece):
+    def __init__(self, id: str, color: Color):
+        super().__init__(id, color, PieceType.PEON)
+
+    def get_legal_moves(self, board: 'Board', at: Coordinate) -> List[Move]:
+        return [] # implement later
+
+
+class Scout(Piece):
+    def __init__(self, id: str, color: Color):
+        super().__init__(id, color, PieceType.SCOUT)
+
+    def get_legal_moves(self, board: 'Board', at: Coordinate) -> List[Move]:
+        return [] # implement later
+
+
+class HeadHunter(Piece):
+    def __init__(self, id: str, color: Color):
+        super().__init__(id, color, PieceType.HEADHUNTER)
+
+    def get_legal_moves(self, board: 'Board', at: Coordinate) -> List[Move]:
+        return [] # implement later
+
+
+class Witch(Piece):
+    def __init__(self, id: str, color: Color):
+        super().__init__(id, color, PieceType.WITCH)
+
+    def get_legal_moves(self, board: 'Board', at: Coordinate) -> List[Move]:
+        return [] # implement later
+
+
+class Warlock(Piece):
+    def __init__(self, id: str, color: Color):
+        super().__init__(id, color, PieceType.WARLOCK)
+
+    def get_legal_moves(self, board: 'Board', at: Coordinate) -> List[Move]:
+        return [] # implement later
+
+
+class Cleric(Piece):
+    def __init__(self, id: str, color: Color):
+        super().__init__(id, color, PieceType.CLERIC)
+
+    def get_legal_moves(self, board: 'Board', at: Coordinate) -> List[Move]:
+        return [] # implement later
+
+
+class DarkLord(Piece):
+    def __init__(self, id: str, color: Color):
+        super().__init__(id, color, PieceType.DARKLORD)
+
+    def get_legal_moves(self, board: 'Board', at: Coordinate) -> List[Move]:
+        return [] # implement later
