@@ -11,10 +11,6 @@ class Coordinate:
     def __eq__(self, other):
         return isinstance(other, Coordinate) and self.file == other.file and self.rank == other.rank
 
-    def __str__(self):
-        """Print Coordinates"""
-        return f"Coordinate(file={self.file}, rank={self.rank})"
-
     def to_algebraic(self) -> str:
         """Convert coordinate to algebraic notation."""
         return f"{chr(self.file + ord('a'))}{self.rank + 1}"
@@ -29,3 +25,7 @@ class Coordinate:
         if 0 <= new_file <= 7 and 0 <= new_rank <= 7:
             return Coordinate(new_file, new_rank)
         return None
+
+    def __str__(self):
+        """Print Coordinates"""
+        return self.to_algebraic()
