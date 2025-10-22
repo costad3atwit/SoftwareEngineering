@@ -7,6 +7,13 @@ class PieceType(Enum):
     BISHOP = "BISHOP"
     KNIGHT = "KNIGHT"
     PAWN = "PAWN"
+    PEON = "PEON"
+    SCOUT = "SCOUT"
+    HEADHUNTER = "HEADHUNTER"
+    WITCH = "WITCH"
+    WARLOCK = "WARLOCK"
+    CLERIC = "CLERIC"
+    DARKLORD = "DARKLORD"
     
 class TargetType(Enum):
     BOARD = "BOARD"
