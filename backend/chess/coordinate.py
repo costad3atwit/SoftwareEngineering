@@ -15,6 +15,13 @@ class Coordinate:
         """Convert coordinate to algebraic notation."""
         return f"{chr(self.file + ord('a'))}{self.rank + 1}"
 
+    @staticmethod
+    def from_algebraic(notation: str) -> "Coordinate":
+        """Create a coordinate from algebraic notation (e.g., 'e4')."""
+        file = ord(notation[0]) - ord('a')
+        rank = int(notation[1]) - 1
+        return Coordinate(file, rank)
+
     def offset(self, df: int, dr: int):
         """
         Return a new coordinate offset by (df, dr).
