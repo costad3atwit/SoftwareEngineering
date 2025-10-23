@@ -1,19 +1,19 @@
 from enum import Enum
 
 class PieceType(Enum):
-    KING = "KING"
-    QUEEN = "QUEEN"
-    ROOK = "ROOK"
-    BISHOP = "BISHOP"
-    KNIGHT = "KNIGHT"
-    PAWN = "PAWN"
-    PEON = "PEON"
-    SCOUT = "SCOUT"
-    HEADHUNTER = "HEADHUNTER"
-    WITCH = "WITCH"
-    WARLOCK = "WARLOCK"
-    CLERIC = "CLERIC"
-    DARKLORD = "DARKLORD"
+    KING = "K"
+    QUEEN = "Q"
+    ROOK = "R"
+    BISHOP = "B"
+    KNIGHT = "N"
+    PAWN = "P"
+    PEON = "E" #can we find a better name than peon for clarity sake?
+    SCOUT = "S"
+    HEADHUNTER = "H"
+    WITCH = "W" #better name?
+    WARLOCK = "W" #Better name?
+    CLERIC = "C"
+    DARKLORD = "D"
     
 class TargetType(Enum):
     BOARD = "BOARD"
@@ -29,10 +29,10 @@ class CardType(Enum):
     FORCED = "FORCED"
 
 class Color(Enum):
-    WHITE = 1
-    BLACK = 0
+    WHITE = "W"
+    BLACK = "B"
 
-class GameStatus(Enum):
+class GameStatus(Enum): 
     WAITING = "WAITING"
     IN_PROGRESS = "IN PROGRESS"
     CHECK = "CHECK"

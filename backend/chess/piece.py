@@ -19,9 +19,13 @@ class Piece:
         """Return a deep copy of the piece."""
         return Piece(self.id, self.color, self.type)
     
-     def __str__(self):
+    def algebraic_notation(self) -> str:
+        """Return the algebraic notation for the piece."""
+        return self.type.value
+    
+    def __str__(self):
         """Return the name, type, and id of the piece"""
-        return f"{self.color.name.capitalize()} {self.type.name.capitalize()} ({self.id})"
+        return f"{self.color.value} {self.type.value.capitalize()} ({self.id})"
 
 
 class King(Piece):
