@@ -57,7 +57,34 @@ class Bishop(Piece):
         super().__init__(id, color, PieceType.BISHOP)
 
     def get_legal_moves(self, board: 'Board', at: Coordinate) -> List[Move]:
-        return [] # implement later
+        moves: List[Move] = []
+
+        # four diagonal directions: (file, rank)
+        directions = [
+            (1, 1),   # up-right
+            (1, -1),  # down-right
+            (-1, 1),  # up-left
+            (-1, -1)  # down-left
+        ]
+
+        for df, dr in directions:
+            next_coord = at.offset(df, dr)
+            while next_coord:
+                # empty square: can move and continue
+                if board.is_empty(next_coord):
+                    moves.append(Move(at, next_coord))
+                # enemy piece: can capture, but stop moving further
+                elif board.is_enemy(next_coord, self.color):
+                    moves.append(Move(at, next_coord))
+                    break
+                # friendly piece: cannot move past or capture
+                else:
+                    break
+
+                # Continue in the same direction
+                next_coord = next_coord.offset(df, dr)
+
+        return moves
 
 
 class Knight(Piece):
