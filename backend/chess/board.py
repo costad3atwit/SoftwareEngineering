@@ -49,7 +49,7 @@ class Board:
         self.squares[Coordinate(4, 0)] = King("wK", Color.WHITE)
         self.squares[Coordinate(4, 7)] = King("bK", Color.BLACK)
 
-    def piece_at_coord(self, coord: Coordinate) -> Piece:
+    def piece_at_coord(self, coord: Coordinate) -> Optional[Piece]:
         """Get coordinates of piece on the board"""
         return self.squares.get(coord)
     
@@ -62,7 +62,7 @@ class Board:
         piece = self.squares.get(coord)
         return piece is not None and piece.color != color
     
-    def move_piece(self, move: Move) -> None:
+    def move_piece(self, move: Move) -> Optional[Piece]:
         """Move a piece from one coordinate to another. Return captured piece if any."""
         src = move.from_coord
         dest = move.to_coord
