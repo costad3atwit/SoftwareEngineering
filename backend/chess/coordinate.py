@@ -29,7 +29,7 @@ class Coordinate:
         """
         new_file = self.file + df
         new_rank = self.rank + dr
-        if 0 <= new_file <= 7 and 0 <= new_rank <= 7:
+        if 0 <= new_file <= 9 and 0 <= new_rank <= 9:
             return Coordinate(new_file, new_rank)
         return None
 
