@@ -1,0 +1,102 @@
+SCHEMA:
+{
+  "game_id": "string",
+  "dmz": "boolean",
+  "players": [
+    {
+      "player_id": "string",
+      "name": "string",
+      "color": "white | black",
+      "time_remaining": "int"
+      "clock_active": "boolean",
+      "hand": [ { "id": "string", "name": "string", "description": "string", "type": "string", "target": "string" } ],
+      "discard_pile_top": { "id": "string", "name": "string", "description": "string", "type": "string", "target": "string" },
+      "captured_pieces": [ { "type": "string", "color": "string", "position": "string | null", "status": "string" } ]
+    }
+  ],
+  "board": [
+    { "id": "string", "type": "string", "color": "string", "position": "string", "status": "string" }
+  ],
+  "logs": [
+    { "turn": "int", "player_id": "string", "action": "string", "details": "string (algebraic notation)" }
+  ]
+}
+
+EXAMPLE:
+ 
+{
+  "game_id": "match_1051",
+  "dmz": true,
+  "players": [
+    {
+      "player_id": "p1",
+      "name": "Alice",
+      "color": "white",
+      "time_remaining": 732,
+      "clock_active": true,
+      "hand": [
+        {
+          "id": "c1",
+          "name": "DMZ",
+          "description": "An extra ring of tiles are placed around the whole board. Either player is allowed within these squares. Any piece that moves within these squares cannot be captured. The king is not allowed within the DMZ. Any piece leaving the DMZ is not allowed to capture. Playing this card after a DMZ card has already been played will summon a pawn within the back ranks of your side of the board within the DMZ on a random tile. If there is no position for a friendly pawn to be placed, discard and move a piece instead.",
+          "type": "Unstable",
+          "target": "board"
+        },
+        {
+          "id": "c2",
+          "name": "Insurance",
+          "description": "Select a piece to insure. When it is captured, summon a number of glued peons equal to half its value rounded up on random unoccupied squares. Cannot insure pieces valued at 1. Cannot spawn in a way that would put opposing king into check when unglued. Glued for 3 turns",
+          "type": "Hidden",
+          "target": "piece"
+        }
+      ],
+      "discard_pile_top": null,
+      "captured_pieces": [
+        { "type": "Pawn", "color": "black", "position": null, "status": "captured" }
+      ]
+    },
+    {
+      "player_id": "p2",
+      "name": "Bob",
+      "color": "black",
+      "time_remaining": 800,
+      "clock_active": false,
+      "hand": [],
+      "discard_pile_top": null,
+      "captured_pieces": []
+    }
+  ],
+  "board": [
+    { "id": "p1p1", "type": "Pawn", "color": "white", "position": "A2", "status": "active" },
+    { "id": "p1k1", "type": "King", "color": "white", "position": "E1", "status": "active" },
+    { "id": "p2k1", "type": "King", "color": "black", "position": "E8", "status": "active" },
+    { "id": "p2b1", "type": "Bishop", "color": "black", "position": "C8", "status": "active" },
+    { "id": "p2p3", "type": "Pawn", "color": "black", "position": "F7", "status": "active" }
+  ],
+  "logs": [
+    {
+      "turn": 1,
+      "player_id": "p1",
+      "action": "move_piece",
+      "details": "e2e4"
+    },
+    {
+      "turn": 1,
+      "player_id": "p2",
+      "action": "move_piece",
+      "details": "d7d5"
+    },
+    {
+      "turn": 2,
+      "player_id": "p1",
+      "action": "capture",
+      "details": "e4xd5"
+    },
+    {
+      "turn": 3,
+      "player_id": "p1",
+      "action": "play_card",
+      "details": "Played DMZ"
+    }
+  ]
+}
