@@ -1,9 +1,9 @@
 class Coordinate:
-    file: int # 0-7 column (a-h)
-    rank: int # 0-7 row (1-8)
+    file: int # 0-9 column
+    rank: int # 0-9 row 
 
     def __init__(self, file: int, rank: int):
-        if not (0 <= file <= 7 and 0 <= rank <= 7):
+        if not (0 <= file <= 9 and 0 <= rank <= 9):
             raise ValueError(f"Invalid coordinate — must be within 0–7 range.")
         self.file = file
         self.rank = rank
@@ -29,7 +29,7 @@ class Coordinate:
         """
         new_file = self.file + df
         new_rank = self.rank + dr
-        if 0 <= new_file <= 7 and 0 <= new_rank <= 7:
+        if 0 <= new_file <= 9 and 0 <= new_rank <= 9:
             return Coordinate(new_file, new_rank)
         return None
 
