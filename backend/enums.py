@@ -7,11 +7,11 @@ class PieceType(Enum):
     BISHOP = "B"
     KNIGHT = "N"
     PAWN = "P"
-    PEON = "E" #can we find a better name than peon for clarity sake?
+    PEON = "E" 
     SCOUT = "S"
     HEADHUNTER = "H"
-    WITCH = "W" #better name?
-    WARLOCK = "W" #Better name?
+    WITCH = "T" 
+    WARLOCK = "W" 
     CLERIC = "C"
     DARKLORD = "D"
     
