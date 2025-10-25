@@ -44,5 +44,5 @@ class GameState:
     def check_end_conditions(self) -> GameStatus:
         pass
 
-    def snapshot(self) -> dict:
+    def to_dict(self) -> dict:
         pass
