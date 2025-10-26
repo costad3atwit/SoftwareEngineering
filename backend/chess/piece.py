@@ -135,6 +135,8 @@ class Pawn(Piece):
                 move.promotion = "Queen"  # default promotion, can be changed by player
 
         return legal_moves
+     def has_moved(self) -> bool:
+         self.has_moved = True
 
 
 class Peon(Piece):
