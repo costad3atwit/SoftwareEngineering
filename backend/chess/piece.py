@@ -123,8 +123,8 @@ class Pawn(Piece):
         # --- Captures (diagonals) ---
         for file_offset in [-1, 1]:
             capture_sq = Coordinate(self.at.file + file_offset, self.at.rank + direction)
-            if board.is_within_bounds(capture_sq):
-                target_piece = board.get_piece(capture_sq)
+            if not board.is_empty(capture_sq):
+                target_piece = board.piece_at_coord(capture_sq)
                 if target_piece and target_piece.color != self.color:
                     legal_moves.append(Move(self.at, capture_sq))
 
