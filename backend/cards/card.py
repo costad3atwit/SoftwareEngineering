@@ -48,9 +48,59 @@ class Card(ABC):
         """Return the card name."""
         return self.name
 
-    # --- Optional: for cleaner string representation ---
-    def __str__(self):
-        return f"{self.name} ({self.id}): {self.description}"
+    # --- Dictionary for frontend/UI ---
+    def to_dict(self, include_target: bool = False) -> dict:
+        """
+        Convert the card into a frontend-friendly dictionary.
+        Optionally include target type if relevant (for playable cards).
+        """
+        data = {
+            "id": self.id,
+            "name": self.name,
+            "description": self.description,
+            "cardType": self.card_type.name if self.card_type else None,
+            "images": {
+                "big": self.big_img,
+                "small": self.small_img,
+            }
+        }
 
-    
+        # If the subclass defines a target_type property (e.g., affects ally/enemy)
+        if include_target and hasattr(self, "target_type"):
+            data["targetType"] = self.target_type.name if isinstance(self.target_type, TargetType) else str(self.target_type)
 
+        return data
+
+# ---------- Test ----------
+if __name__ == "__main__":
+    from enums import CardType, TargetType
+
+    # Small test subclass (since Card is abstract)
+    class TestCard(Card):
+        @property
+        def card_type(self):
+            return CardType.SPELL  # or any valid CardType
+
+        def __init__(self, id, name, desc, big_img, small_img, target_type=None):
+            super().__init__(id, name, desc, big_img, small_img)
+            self.target_type = target_type
+
+    # --- Create example card ---
+    card = TestCard(
+        id="C001",
+        name="Fireball",
+        desc="Deal 3 damage to enemy piece.",
+        big_img="fireball_big.png",
+        small_img="fireball_small.png",
+        target_type=TargetType.ENEMY
+    )
+
+    # --- Test getters ---
+    print("Name:", card.get_name())
+    print("Description:", card.get_desc())
+    print("Big image:", card.get_big_img())
+
+    # --- Test dictionary output ---
+    card_dict = card.to_dict(include_target=True)
+    print("\nDictionary Output:")
+    print(card_dict)
