@@ -61,11 +61,60 @@ class Queen(Piece):
     def __init__(self, id: str, color: Color):
         super().__init__(id, color, PieceType.QUEEN)
 
-    def get_legal_moves(self, board: 'Board', at: Coordinate) -> List[Move]:
-        return [] # implement later
+    def _directions(self) -> List[Tuple[int, int]]:
+        # rook + bishop rays
+        return [
+            (1, 0), (-1, 0),
+            (0, 1), (0, -1),
+            (1, 1), (1, -1),
+            (-1, 1), (-1, -1),
+        ]
 
-    def get_legal_captures(self, board: 'Board', at:Coordinate) -> List[Move]:
-        return [] # implement later
+    def get_legal_moves(self, board: 'Board', at: Coordinate) -> List[Move]:
+        """All pseudo-legal queen moves (no check filtering)."""
+        moves: List[Move] = []
+        for dx, dy in self._directions():
+            x, y = at.file, at.rank
+            while True:
+                x += dx
+                y += dy
+                if not board.is_in_bounds(x, y):
+                    break
+
+                target = board.get_piece_at(x, y)
+                to_sq = Coordinate(x, y)
+
+                if target is None:
+                    moves.append(Move(at, to_sq))
+                else:
+                    if target.color != self.color:
+                        moves.append(Move(at, to_sq))  # capture
+                    break  # stop ray on first blocker
+        return moves
+
+    def get_legal_captures(self, board: 'Board', at: Coordinate) -> List[Move]:
+        """Only capture moves for the queen."""
+        return [m for m in self.get_legal_moves(board, at)
+                if board.get_piece_at(m.to_sq.file, m.to_sq.rank) is not None]
+
+    def to_dict(self, at: Coordinate, include_moves: bool = False,
+                board: 'Board' = None, captures_only: bool = False) -> dict:
+        """
+        Minimal, frontend-friendly shape. Extend as your UI needs (e.g., images).
+        """
+        payload = {
+            "id": self.id,
+            "type": self.piece_type.name,   # "QUEEN"
+            "color": self.color.name,       # "WHITE"/"BLACK"
+            "position": {"file": at.file, "rank": at.rank},
+        }
+        if include_moves and board is not None:
+            moves = (self.get_legal_captures(board, at) if captures_only
+                     else self.get_legal_moves(board, at))
+            payload["moves"] = [{"from": {"file": m.from_sq.file, "rank": m.from_sq.rank},
+                                 "to":   {"file": m.to_sq.file,   "rank": m.to_sq.rank}}
+                                for m in moves]
+        return payload
 
 
 class Rook(Piece):
