@@ -30,19 +30,24 @@ class Piece(ABC):
         """Return the name, type, and id of the piece"""
         return f"{self.color.value} {self.type.value.capitalize()} ({self.id})"
 
-    def to_dict(self):
+    def to_dict(self, at: Coordinate, include_moves: bool = False,
+                board: 'Board' = None, captures_only: bool = False) -> dict:
         """
-        Convert the piece and optional position into a JSON-serializable dictionary
-        for sending to the frontend.
+        Minimal, frontend-friendly shape. Extend as your UI needs (e.g., images).
         """
-        data = {
+        payload = {
             "id": self.id,
-            "type": self.type.value,            # e.g., "Bishop", "Rook"
-            "color": self.color.value,          # e.g., "white", "black"
-            "hasMoved": self.has_moved
+            "type": self.piece_type.name,   # "QUEEN"
+            "color": self.color.name,       # "WHITE"/"BLACK"
+            "position": {"file": at.file, "rank": at.rank},
         }
-
-        return data
+        if include_moves and board is not None:
+            moves = (self.get_legal_captures(board, at) if captures_only
+                     else self.get_legal_moves(board, at))
+            payload["moves"] = [{"from": {"file": m.from_sq.file, "rank": m.from_sq.rank},
+                                 "to":   {"file": m.to_sq.file,   "rank": m.to_sq.rank}}
+                                for m in moves]
+        return payload
 
 
 
