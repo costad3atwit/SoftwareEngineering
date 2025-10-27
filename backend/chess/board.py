@@ -57,6 +57,12 @@ class Board:
         """Return True if the given coordinate has no piece."""
         return coord not in self.squares
 
+    def is_in_bounds(self, coord: Coordinate) -> bool:
+        """
+        Check if the given coordinate is within the boundaries of the board.
+        """
+        return 0 <= coord.file <= 9 and 0 <= coord.rank <= 9
+
     def is_enemy(self, coord: Coordinate, color: Color) -> bool:
         """Return True if the coordinate contains an enemy piece."""
         piece = self.squares.get(coord)
