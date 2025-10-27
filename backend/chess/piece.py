@@ -412,3 +412,24 @@ if __name__ == "__main__":
 
     print(f"Total moves: {len(moves)}")
     print("Capture targets:", [(m.to_sq.file, m.to_sq.rank) for m in captures])
+
+    print("\n--- Testing Pawn ---")
+
+    pawn = Pawn("P1", Color.WHITE)
+    at = Coordinate(3, 6)  # d7 (1 move away from promotion)
+
+    # Enemy piece diagonally forward (promotion capture)
+    board = _BoardStub()
+    board.place(2, 7, _MockPiece(Color.BLACK))  # c8
+    board.place(4, 7, _MockPiece(Color.BLACK))  # e8
+
+    moves = pawn.get_legal_moves(board, at)
+    captures = pawn.get_legal_captures(board, at)
+
+    print(f"Total pawn moves: {len(moves)}")
+    print("Capture targets:", [(m.to_sq.file, m.to_sq.rank) for m in captures])
+
+    # Check promotion on forward move
+    for m in moves:
+        if m.promotion:
+            print(f"Promotion move → {m.to_sq.file}, {m.to_sq.rank} promotes to {m.promotion}")
