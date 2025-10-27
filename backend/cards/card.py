@@ -71,4 +71,36 @@ class Card(ABC):
 
         return data
 
+# ---------- Test ----------
+if __name__ == "__main__":
+    from enums import CardType, TargetType
 
+    # Small test subclass (since Card is abstract)
+    class TestCard(Card):
+        @property
+        def card_type(self):
+            return CardType.SPELL  # or any valid CardType
+
+        def __init__(self, id, name, desc, big_img, small_img, target_type=None):
+            super().__init__(id, name, desc, big_img, small_img)
+            self.target_type = target_type
+
+    # --- Create example card ---
+    card = TestCard(
+        id="C001",
+        name="Fireball",
+        desc="Deal 3 damage to enemy piece.",
+        big_img="fireball_big.png",
+        small_img="fireball_small.png",
+        target_type=TargetType.ENEMY
+    )
+
+    # --- Test getters ---
+    print("Name:", card.get_name())
+    print("Description:", card.get_desc())
+    print("Big image:", card.get_big_img())
+
+    # --- Test dictionary output ---
+    card_dict = card.to_dict(include_target=True)
+    print("\nDictionary Output:")
+    print(card_dict)
