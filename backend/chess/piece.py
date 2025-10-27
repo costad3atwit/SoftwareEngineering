@@ -16,7 +16,8 @@ class Piece(ABC):
     def get_legal_moves(self, board: 'Board', at: Coordinate) -> List[Move]:
         """Return a list of legal moves for this piece."""
         pass
-
+        
+    @abstractmethod
     def get_legal_captures(self, board: 'Board', at:Coordinate) -> List[Move]:
         """Return a list of legal captures for this piece."""
         pass
