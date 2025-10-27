@@ -232,10 +232,38 @@ class Knight(Piece):
         super().__init__(id, color, PieceType.KNIGHT)
 
     def get_legal_moves(self, board: 'Board', at: Coordinate) -> List[Move]:
-        return [] # implement later
+        moves: List[Move] = []
+
+        # 8 possible L-shaped jumps
+        jumps = [
+            (1, 2), (2, 1), (-1, 2), (-2, 1),
+            (1, -2), (2, -1), (-1, -2), (-2, -1)
+        ]
+
+        for df, dr in jumps:
+            new = at.offset(df, dr)
+            if not board.is_in_bounds(new):
+                continue
+            # knights can move to any empty square or capture enemy pieces
+            elif new and (board.is_empty(new) or board.is_enemy(new, self.color)):
+                moves.append(Move(at, new))
+        return moves
 
     def get_legal_captures(self, board: 'Board', at:Coordinate) -> List[Move]:
-        return [] # implement later
+        captures: List[Move] = []
+
+        jumps = [
+            (1, 2), (2, 1), (-1, 2), (-2, 1),
+            (1, -2), (2, -1), (-1, -2), (-2, -1)
+        ]
+
+        for df, dr in jumps:
+            new = at.offset(df, dr)
+            if not board.is_in_bounds(new):
+                continue
+            if new and board.is_enemy(new, self.color):
+                captures.append(Move(at, new))
+        return captures
 
 
 class Pawn(Piece):
