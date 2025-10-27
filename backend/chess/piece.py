@@ -30,6 +30,8 @@ class Piece(ABC):
         """Return the name, type, and id of the piece"""
         return f"{self.color.value} {self.type.value.capitalize()} ({self.id})"
 
+    def to_dict(self):
+        pass
 
 
 class King(Piece):
