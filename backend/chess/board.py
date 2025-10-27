@@ -61,6 +61,11 @@ class Board:
         """Return True if the coordinate contains an enemy piece."""
         piece = self.squares.get(coord)
         return piece is not None and piece.color != color
+
+    def is_frendly(self, coord: Coordinate, color: Color) -> bool:
+        """Return True if the coordinate contains an enemy piece."""
+        piece = self.squares.get(coord)
+        return piece is not None and piece.color == color
     
     def move_piece(self, move: Move) -> Optional[Piece]:
         """Move a piece from one coordinate to another. Return captured piece if any."""
