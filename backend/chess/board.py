@@ -12,6 +12,10 @@ class Board:
         self.dmzActive = False
 
     def dmz_Activate():
+        """
+        Help change the set up of board to 10x10
+        by changing dmzActive to True
+        """
         self.dmzActive = True
     
     def setup_standard(self):
