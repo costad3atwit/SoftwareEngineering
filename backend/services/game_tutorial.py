@@ -217,3 +217,46 @@ class TutorialEngine:
                 if data.get("updated_at") else datetime.now(timezone.utc),
             history=list(data.get("history", [])),
         )
+# ---------- Test ----------
+if __name__ == "__main__":
+    print("Running quick tutorial engine test...\n")
+
+    engine = TutorialEngine()
+    progress = TutorialProgress(user_id="user123")
+
+    def show_state(label: str):
+        data = engine.payload(progress)
+        print(f"--- {label} ---")
+        print(f"Step {data['currentIndex'] + 1}/{data['totalSteps']}")
+        print(f"Text: {data['currentStep']['text'] if data['currentStep'] else 'None'}")
+        print(f"Completed: {data['completed']}")
+        print(f"History events: {[h['event'] for h in data['history']]}")
+        print()
+
+    show_state("Initial")
+
+    # Step 1: No required action, just advance
+    progress = engine.advance(progress)
+    show_state("After advance() from Step 1")
+
+    # Step 2: Requires moving a piece
+    progress = engine.record_client_action(progress, "move_any_piece")
+    show_state("After move_any_piece action")
+
+    # Step 3: Requires open_hand
+    progress = engine.record_client_action(progress, "open_hand")
+    show_state("After open_hand action")
+
+    # Step 4: Requires play_card
+    progress = engine.record_client_action(progress, "play_card")
+    show_state("After play_card action")
+
+    # Step 5: Requires end_turn
+    progress = engine.record_client_action(progress, "end_turn")
+    show_state("After end_turn action")
+
+    # Step 6: Final message (auto-complete)
+    progress = engine.advance(progress)
+    show_state("After final advance()")
+
+    print("Tutorial completed successfully ✅")
