@@ -78,10 +78,10 @@ class Queen(Piece):
             while True:
                 x += dx
                 y += dy
-                if not board.is_in_bounds(x, y):
+                if not board.is_in_bounds(Coordinate(x, y)):
                     break
 
-                target = board.get_piece_at(x, y)
+                target = board.piece_at_coord(Coordinate(x, y))
                 to_sq = Coordinate(x, y)
 
                 if target is None:
@@ -95,7 +95,7 @@ class Queen(Piece):
     def get_legal_captures(self, board: 'Board', at: Coordinate) -> List[Move]:
         """Only capture moves for the queen."""
         return [m for m in self.get_legal_moves(board, at)
-                if board.get_piece_at(m.to_sq.file, m.to_sq.rank) is not None]
+                if board.piece_at_coord(Coordinate(m.to_sq.file, m.to_sq.rank)) is not None]
 
     def to_dict(self, at: Coordinate, include_moves: bool = False,
                 board: 'Board' = None, captures_only: bool = False) -> dict:
@@ -133,8 +133,10 @@ class Rook(Piece):
         for df, dr in directions:
             next_coord = at.offset(df, dr)
             while next_coord:
-                # empty square: can move and continue
-                if board.is_empty(next_coord):
+                # check if this Coordinate is valid
+                if not board.is_in_bounds(next_coord):
+                    break
+                elif board.is_empty(next_coord): # empty square: can move and continue
                     moves.append(Move(at, next_coord))
                 # enemy piece: can capture, but stop moving further
                 elif board.is_enemy(next_coord, self.color):
@@ -156,7 +158,9 @@ class Rook(Piece):
         for df, dr in directions:
             next_coord = at.offset(df, dr)
             while next_coord:
-                if board.is_enemy(next_coord, self.color):
+                if not board.is_in_bounds(next_coord):
+                    break
+                elif board.is_enemy(next_coord, self.color):
                     captures.append(Move(at, next_coord))
                     break  # can't move past captured piece
                 elif not board.is_empty(next_coord):
@@ -183,8 +187,9 @@ class Bishop(Piece):
         for df, dr in directions:
             next_coord = at.offset(df, dr)
             while next_coord:
-                # empty square: can move and continue
-                if board.is_empty(next_coord):
+                if not board.is_in_bounds(next_coord):
+                    break
+                elif board.is_empty(next_coord): # empty square: can move and continue
                     moves.append(Move(at, next_coord))
                 # enemy piece: can capture, but stop moving further
                 elif board.is_enemy(next_coord, self.color):
@@ -206,7 +211,9 @@ class Bishop(Piece):
         for df, dr in directions:
             next_coord = at.offset(df, dr)
             while next_coord:
-                if board.is_enemy(next_coord, self.color):
+                if not board.is_in_bounds(next_coord):
+                    break
+                elif board.is_enemy(next_coord, self.color):
                     captures.append(Move(at, next_coord))
                     break  # capture, then stop in that direction
                 elif not board.is_empty(next_coord):
@@ -246,7 +253,7 @@ class Pawn(Piece):
 
         # --- Forward move (1 square) ---
         one_step = Coordinate(at.file, at.rank + direction)
-        if board.is_in_bounds(one_step.file, one_step.rank) and board.is_empty(one_step):
+        if board.is_in_bounds(Coordinate(one_step.file, one_step.rank)) and board.is_empty(one_step):
             move = Move(at, one_step)
             # Promotion
             if one_step.rank == promotion_rank:
@@ -262,10 +269,10 @@ class Pawn(Piece):
         for file_offset in [-1, 1]:
             target_file = at.file + file_offset
             target_rank = at.rank + direction
-            if not board.is_in_bounds(target_file, target_rank):
+            if not board.is_in_bounds(Coordinate(target_file, target_rank)):
                 continue
 
-            target_piece = board.get_piece_at(target_file, target_rank)
+            target_piece = board.piece_at_coord(Coordinate(target_file, target_rank))
             if target_piece and target_piece.color != self.color:
                 move = Move(at, Coordinate(target_file, target_rank))
                 # Promotion capture
@@ -279,7 +286,7 @@ class Pawn(Piece):
         """Return only pawn capture moves."""
         return [
             m for m in self.get_legal_moves(board, at)
-            if board.get_piece_at(m.to_sq.file, m.to_sq.rank) is not None
+            if board.piece_at_coord(Coordinate(m.to_sq.file, m.to_sq.rank)) is not None
         ]
 
     def mark_moved(self):
