@@ -37,8 +37,8 @@ class Piece(ABC):
         """
         payload = {
             "id": self.id,
-            "type": self.piece_type.name,   # "QUEEN"
-            "color": self.color.name,       # "WHITE"/"BLACK"
+            "type": self.piece_type.name,
+            "color": self.color.name,
             "position": {"file": at.file, "rank": at.rank},
         }
         if include_moves and board is not None:
