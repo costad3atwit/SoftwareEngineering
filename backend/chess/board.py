@@ -138,3 +138,22 @@ class Board:
         new_board = Board()
         new_board.squares = {coord: copy.deepcopy(piece) for coord, piece in self.squares.items()}
         return new_board
+
+    def to_dict(self) -> dict:
+        """
+        Convert the current board state into a JSON-serializable dictionary.
+        Includes all piece data and board settings for frontend rendering.
+        """
+        board_data = {
+            "dmzActive": self.dmzActive,
+            "pieces": []
+        }
+    
+        # convert each piece to dictionary form
+        for coord, piece in self.squares.items():
+            board_data["pieces"].append({
+                "position": coord.to_algebraic(),  # e.g., "e4"
+                **piece.to_dict()                  # merges id, type, color, hasMoved
+            })
+
+    return board_data
