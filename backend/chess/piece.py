@@ -384,3 +384,31 @@ class DarkLord(Piece):
 
     def get_legal_captures(self, board: 'Board', at:Coordinate) -> List[Move]:
         return [] # implement later
+
+# ---------- Test ----------
+if __name__ == "__main__":
+    from enums import Color
+    from coordinate import Coordinate
+
+    class _MockPiece:
+        def __init__(self, color): self.color = color
+
+    class _BoardStub:
+        def __init__(self):
+            self.grid = [[None for _ in range(8)] for _ in range(8)]
+        def is_in_bounds(self, f, r): return 0 <= f < 8 and 0 <= r < 8
+        def get_piece_at(self, f, r): return self.grid[r][f]
+        def place(self, f, r, piece): self.grid[r][f] = piece
+
+    board = _BoardStub()
+    queen = Queen("Q1", Color.WHITE)
+    at = Coordinate(3, 3)
+
+    # place one black piece diagonally to test capture
+    board.place(5, 5, _MockPiece(Color.BLACK))
+
+    moves = queen.get_legal_moves(board, at)
+    captures = queen.get_legal_captures(board, at)
+
+    print(f"Total moves: {len(moves)}")
+    print("Capture targets:", [(m.to_sq.file, m.to_sq.rank) for m in captures])
