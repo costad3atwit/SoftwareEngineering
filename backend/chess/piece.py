@@ -41,12 +41,20 @@ class King(Piece):
     def get_legal_moves(self, board: 'Board', at: Coordinate) -> List[Move]:
         return []  # implement later
 
+    def get_legal_captures(self, board: 'Board', at:Coordinate) -> List[Move]:
+        """Return a list of legal captures for this piece."""
+        return [] # implement later
+
 
 class Queen(Piece):
     def __init__(self, id: str, color: Color):
         super().__init__(id, color, PieceType.QUEEN)
 
     def get_legal_moves(self, board: 'Board', at: Coordinate) -> List[Move]:
+        return [] # implement later
+
+    def get_legal_captures(self, board: 'Board', at:Coordinate) -> List[Move]:
+        """Return a list of legal captures for this piece."""
         return [] # implement later
 
 
@@ -81,6 +89,10 @@ class Rook(Piece):
                 next_coord = next_coord.offset(df, dr)
 
         return moves
+
+    def get_legal_captures(self, board: 'Board', at:Coordinate) -> List[Move]:
+        """Return a list of legal captures for this piece."""
+        return [] # implement later
 
 
 class Bishop(Piece):
@@ -117,12 +129,20 @@ class Bishop(Piece):
 
         return moves
 
+    def get_legal_captures(self, board: 'Board', at:Coordinate) -> List[Move]:
+        """Return a list of legal captures for this piece."""
+        return [] # implement later
+
 
 class Knight(Piece):
     def __init__(self, id: str, color: Color):
         super().__init__(id, color, PieceType.KNIGHT)
 
     def get_legal_moves(self, board: 'Board', at: Coordinate) -> List[Move]:
+        return [] # implement later
+
+    def get_legal_captures(self, board: 'Board', at:Coordinate) -> List[Move]:
+        """Return a list of legal captures for this piece."""
         return [] # implement later
 
 
@@ -166,8 +186,13 @@ class Pawn(Piece):
                 move.promotion = "Queen"  # default promotion, can be changed by player
 
         return legal_moves
+
     def has_moved(self) -> bool:
         self.has_moved = True
+
+    def get_legal_captures(self, board: 'Board', at:Coordinate) -> List[Move]:
+        """Return a list of legal captures for this piece."""
+        return [] # implement later
 
 
 class Peon(Piece):
@@ -175,6 +200,10 @@ class Peon(Piece):
         super().__init__(id, color, PieceType.PEON)
 
     def get_legal_moves(self, board: 'Board', at: Coordinate) -> List[Move]:
+        return [] # implement later
+
+    def get_legal_captures(self, board: 'Board', at:Coordinate) -> List[Move]:
+        """Return a list of legal captures for this piece."""
         return [] # implement later
 
 
@@ -185,12 +214,20 @@ class Scout(Piece):
     def get_legal_moves(self, board: 'Board', at: Coordinate) -> List[Move]:
         return [] # implement later
 
+    def get_legal_captures(self, board: 'Board', at:Coordinate) -> List[Move]:
+        """Return a list of legal captures for this piece."""
+        return [] # implement later
+
 
 class HeadHunter(Piece):
     def __init__(self, id: str, color: Color):
         super().__init__(id, color, PieceType.HEADHUNTER)
 
     def get_legal_moves(self, board: 'Board', at: Coordinate) -> List[Move]:
+        return [] # implement later
+
+    def get_legal_captures(self, board: 'Board', at:Coordinate) -> List[Move]:
+        """Return a list of legal captures for this piece."""
         return [] # implement later
 
 
@@ -201,12 +238,20 @@ class Witch(Piece):
     def get_legal_moves(self, board: 'Board', at: Coordinate) -> List[Move]:
         return [] # implement later
 
+    def get_legal_captures(self, board: 'Board', at:Coordinate) -> List[Move]:
+        """Return a list of legal captures for this piece."""
+        return [] # implement later
+
 
 class Warlock(Piece):
     def __init__(self, id: str, color: Color):
         super().__init__(id, color, PieceType.WARLOCK)
 
     def get_legal_moves(self, board: 'Board', at: Coordinate) -> List[Move]:
+        return [] # implement later
+
+    def get_legal_captures(self, board: 'Board', at:Coordinate) -> List[Move]:
+        """Return a list of legal captures for this piece."""
         return [] # implement later
 
 
@@ -217,10 +262,18 @@ class Cleric(Piece):
     def get_legal_moves(self, board: 'Board', at: Coordinate) -> List[Move]:
         return [] # implement later
 
+    def get_legal_captures(self, board: 'Board', at:Coordinate) -> List[Move]:
+        """Return a list of legal captures for this piece."""
+        return [] # implement later
+        
 
 class DarkLord(Piece):
     def __init__(self, id: str, color: Color):
         super().__init__(id, color, PieceType.DARKLORD)
 
     def get_legal_moves(self, board: 'Board', at: Coordinate) -> List[Move]:
+        return [] # implement later
+
+    def get_legal_captures(self, board: 'Board', at:Coordinate) -> List[Move]:
+        """Return a list of legal captures for this piece."""
         return [] # implement later
