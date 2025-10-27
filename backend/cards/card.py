@@ -48,9 +48,27 @@ class Card(ABC):
         """Return the card name."""
         return self.name
 
-    # --- Optional: for cleaner string representation ---
-    def __str__(self):
-        return f"{self.name} ({self.id}): {self.description}"
+    # --- Dictionary for frontend/UI ---
+    def to_dict(self, include_target: bool = False) -> dict:
+        """
+        Convert the card into a frontend-friendly dictionary.
+        Optionally include target type if relevant (for playable cards).
+        """
+        data = {
+            "id": self.id,
+            "name": self.name,
+            "description": self.description,
+            "cardType": self.card_type.name if self.card_type else None,
+            "images": {
+                "big": self.big_img,
+                "small": self.small_img,
+            }
+        }
 
-    
+        # If the subclass defines a target_type property (e.g., affects ally/enemy)
+        if include_target and hasattr(self, "target_type"):
+            data["targetType"] = self.target_type.name if isinstance(self.target_type, TargetType) else str(self.target_type)
+
+        return data
+
 
