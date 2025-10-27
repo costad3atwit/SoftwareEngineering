@@ -229,60 +229,85 @@ class Knight(Piece):
 class Pawn(Piece):
     def __init__(self, id: str, color: Color):
         super().__init__(id, color, PieceType.PAWN)
+        self._has_moved = False  # internal flag for 2-square move logic
 
     def get_legal_moves(self, board: 'Board', at: Coordinate) -> List[Move]:
         """
-        Generate all legal moves for this pawn given the current board state.
-        board is expected to provide:
-            - is_empty(square: Coordinate) -> bool
-            - get_piece(square: Coordinate) -> Optional[Piece]
+        Generate all legal pawn moves (excluding en passant for now).
+        Assumes:
+          - board.is_empty(coord) -> bool
+          - board.get_piece_at(file, rank) -> Optional[Piece]
+          - board.is_in_bounds(file, rank) -> bool
         """
-        legal_moves = []
-        direction = 1 if self.color == "white" else -1  # White moves up, black moves down
+        moves = []
+        direction = 1 if self.color == Color.WHITE else -1
+        start_rank = 1 if self.color == Color.WHITE else 6
+        promotion_rank = 7 if self.color == Color.WHITE else 0
 
         # --- Forward move (1 square) ---
-        one_step = Coordinate(self.at.file, self.at.rank + direction)
-        if board.is_empty(one_step):
-            legal_moves.append(Move(self.at, one_step))
+        one_step = Coordinate(at.file, at.rank + direction)
+        if board.is_in_bounds(one_step.file, one_step.rank) and board.is_empty(one_step):
+            move = Move(at, one_step)
+            # Promotion
+            if one_step.rank == promotion_rank:
+                move.promotion = "Queen"
+            moves.append(move)
 
             # --- Forward move (2 squares on first move) ---
-            if not self.has_moved:
-                two_step = Coordinate(self.at.file, self.at.rank + 2 * direction)
-                if board.is_empty(two_step):
-                    legal_moves.append(Move(self.at, two_step))
+            two_step = Coordinate(at.file, at.rank + 2 * direction)
+            if at.rank == start_rank and board.is_empty(two_step):
+                moves.append(Move(at, two_step))
 
         # --- Captures (diagonals) ---
         for file_offset in [-1, 1]:
-            capture_sq = Coordinate(self.at.file + file_offset, self.at.rank + direction)
-            if not board.is_empty(capture_sq):
-                target_piece = board.piece_at_coord(capture_sq)
-                if target_piece and target_piece.color != self.color:
-                    legal_moves.append(Move(self.at, capture_sq))
+            target_file = at.file + file_offset
+            target_rank = at.rank + direction
+            if not board.is_in_bounds(target_file, target_rank):
+                continue
 
-        # --- Promotion check ---
-        promotion_rank = 7 if self.color == "white" else 0
-        for move in legal_moves:
-            if move.to_sq.rank == promotion_rank:
-                move.promotion = "Queen"  # default promotion, can be changed by player
+            target_piece = board.get_piece_at(target_file, target_rank)
+            if target_piece and target_piece.color != self.color:
+                move = Move(at, Coordinate(target_file, target_rank))
+                # Promotion capture
+                if target_rank == promotion_rank:
+                    move.promotion = "Queen"
+                moves.append(move)
 
-        return legal_moves
+        return moves
 
-    def has_moved(self) -> bool:
-        self.has_moved = True
+    def get_legal_captures(self, board: 'Board', at: Coordinate) -> List[Move]:
+        """Return only pawn capture moves."""
+        return [
+            m for m in self.get_legal_moves(board, at)
+            if board.get_piece_at(m.to_sq.file, m.to_sq.rank) is not None
+        ]
 
-    def get_legal_captures(self, board: 'Board', at:Coordinate) -> List[Move]:
-        captures: List[Move] = []
+    def mark_moved(self):
+        """Set flag that pawn has moved (for two-step logic)."""
+        self._has_moved = True
 
-        # white moves up (rank +1), Black moves down (rank -1)
-        direction = 1 if self.color == Color.WHITE else -1
+    def to_dict(self, at: Coordinate, include_moves: bool = False,
+                board: 'Board' = None, captures_only: bool = False) -> dict:
+        """Frontend-friendly dictionary representation."""
+        data = {
+            "id": self.id,
+            "type": self.piece_type.name,  # "PAWN"
+            "color": self.color.name,
+            "position": {"file": at.file, "rank": at.rank},
+        }
 
-        # check the two diagonal squares ahead (left and right)
-        for df in [-1, 1]:
-            diag = at.offset(df, direction)
-            if diag and board.is_enemy(diag, self.color):
-                captures.append(Move(at, diag))
-        return captures
-
+        if include_moves and board is not None:
+            moves = (self.get_legal_captures(board, at) if captures_only
+                     else self.get_legal_moves(board, at))
+            data["moves"] = [
+                {
+                    "from": {"file": m.from_sq.file, "rank": m.from_sq.rank},
+                    "to": {"file": m.to_sq.file, "rank": m.to_sq.rank},
+                    "promotion": getattr(m, "promotion", None),
+                }
+                for m in moves
+            ]
+        return data
 
 class Peon(Piece):
     def __init__(self, id: str, color: Color):
