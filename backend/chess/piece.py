@@ -31,7 +31,19 @@ class Piece(ABC):
         return f"{self.color.value} {self.type.value.capitalize()} ({self.id})"
 
     def to_dict(self):
-        pass
+        """
+        Convert the piece and optional position into a JSON-serializable dictionary
+        for sending to the frontend.
+        """
+        data = {
+            "id": self.id,
+            "type": self.type.value,            # e.g., "Bishop", "Rook"
+            "color": self.color.value,          # e.g., "white", "black"
+            "hasMoved": self.has_moved
+        }
+
+        return data
+
 
 
 class King(Piece):
