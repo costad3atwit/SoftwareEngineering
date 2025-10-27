@@ -101,7 +101,19 @@ class Rook(Piece):
         return moves
 
     def get_legal_captures(self, board: 'Board', at:Coordinate) -> List[Move]:
-        return [] # implement later
+        captures: List[Move] = []
+        directions = [(0, 1), (0, -1), (1, 0), (-1, 0)]
+
+        for df, dr in directions:
+            next_coord = at.offset(df, dr)
+            while next_coord:
+                if board.is_enemy(next_coord, self.color):
+                    captures.append(Move(at, next_coord))
+                    break  # can't move past captured piece
+                elif not board.is_empty(next_coord):
+                    break  # friendly piece blocks path
+                next_coord = next_coord.offset(df, dr)
+        return captures
 
 
 class Bishop(Piece):
@@ -139,7 +151,19 @@ class Bishop(Piece):
         return moves
 
     def get_legal_captures(self, board: 'Board', at:Coordinate) -> List[Move]:
-        return [] # implement later
+        captures: List[Move] = []
+        directions = [(1, 1), (1, -1), (-1, 1), (-1, -1)]
+
+        for df, dr in directions:
+            next_coord = at.offset(df, dr)
+            while next_coord:
+                if board.is_enemy(next_coord, self.color):
+                    captures.append(Move(at, next_coord))
+                    break  # capture, then stop in that direction
+                elif not board.is_empty(next_coord):
+                    break  # blocked by friendly piece
+                next_coord = next_coord.offset(df, dr)
+        return captures
 
 
 class Knight(Piece):
@@ -198,7 +222,17 @@ class Pawn(Piece):
         self.has_moved = True
 
     def get_legal_captures(self, board: 'Board', at:Coordinate) -> List[Move]:
-        return [] # implement later
+        captures: List[Move] = []
+
+        # white moves up (rank +1), Black moves down (rank -1)
+        direction = 1 if self.color == Color.WHITE else -1
+
+        # check the two diagonal squares ahead (left and right)
+        for df in [-1, 1]:
+            diag = at.offset(df, direction)
+            if diag and board.is_enemy(diag, self.color):
+                captures.append(Move(at, diag))
+        return captures
 
 
 class Peon(Piece):
