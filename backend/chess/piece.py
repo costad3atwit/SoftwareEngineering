@@ -3,21 +3,19 @@ from typing import List
 from enums import Color, PieceType
 from coordinate import Coordinate
 from move import Move
+from abc import ABC, abstractmethod
 
-class Piece:
+class Piece(ABC):
     def __init__(self, id: str, color: Color, piece_type: PieceType):
         self.id = id
         self.color = color
         self.type = piece_type
         self.has_moved = False
 
+    @abstractmethod
     def get_legal_moves(self, board: 'Board', at: Coordinate) -> List[Move]:
         """Return a list of legal moves for this piece."""
-        raise NotImplementedError()
-
-    def clone(self) -> 'Piece':
-        """Return a deep copy of the piece."""
-        return Piece(self.id, self.color, self.type)
+        pass
     
     def algebraic_notation(self) -> str:
         """Return the algebraic notation for the piece."""
@@ -26,6 +24,7 @@ class Piece:
     def __str__(self):
         """Return the name, type, and id of the piece"""
         return f"{self.color.value} {self.type.value.capitalize()} ({self.id})"
+
 
 
 class King(Piece):
@@ -49,7 +48,32 @@ class Rook(Piece):
         super().__init__(id, color, PieceType.ROOK)
 
     def get_legal_moves(self, board: 'Board', at: Coordinate) -> List[Move]:
-        return [] # implement later
+        moves: List[Move] = []
+        directions = [
+            (0, 1),   # up
+            (0, -1),  # down
+            (1, 0),   # right
+            (-1, 0)   # left
+        ]
+
+        for df, dr in directions:
+            next_coord = at.offset(df, dr)
+            while next_coord:
+                # empty square: can move and continue
+                if board.is_empty(next_coord):
+                    moves.append(Move(at, next_coord))
+                # enemy piece: can capture, but stop moving further
+                elif board.is_enemy(next_coord, self.color):
+                    moves.append(Move(at, next_coord))
+                    break
+                # friendly piece: cannot move past or capture
+                else:
+                    break
+
+                # Continue in the same direction
+                next_coord = next_coord.offset(df, dr)
+
+        return moves
 
 
 class Bishop(Piece):
@@ -135,8 +159,8 @@ class Pawn(Piece):
                 move.promotion = "Queen"  # default promotion, can be changed by player
 
         return legal_moves
-     def has_moved(self) -> bool:
-         self.has_moved = True
+    def has_moved(self) -> bool:
+        self.has_moved = True
 
 
 class Peon(Piece):
