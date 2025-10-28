@@ -79,7 +79,7 @@ if __name__ == "__main__":
     class TestCard(Card):
         @property
         def card_type(self):
-            return CardType.SPELL  # or any valid CardType
+            return CardType.CURSE  # or any valid CardType (change from SPELL to valid CardType
 
         def __init__(self, id, name, desc, big_img, small_img, target_type=None):
             super().__init__(id, name, desc, big_img, small_img)
@@ -92,7 +92,7 @@ if __name__ == "__main__":
         desc="Deal 3 damage to enemy piece.",
         big_img="fireball_big.png",
         small_img="fireball_small.png",
-        target_type=TargetType.ENEMY
+        target_type=TargetType.BOARD # changed ENEMY to valid TargetType
     )
 
     # --- Test getters ---
