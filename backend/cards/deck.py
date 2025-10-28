@@ -1,4 +1,7 @@
 from card import Card
+from typing import Optional
+from abc import ABC
+from enums import Card, CardType
 import random
 
 class Deck:
@@ -30,99 +33,87 @@ class Deck:
 # INLINE TESTS
 # -------------------------------------------------------------------------
 if __name__ == "__main__":
-    # Helper for display
-    def print_test(name, result=True):
-        print(f"{'✅' if result else '❌'} {name}")
+    class DummyCard(Card):
+        """Simple concrete subclass for testing."""
+        @property
+        def card_type(self) -> CardType:
+            return CardType.HIDDEN
 
-    # Create deck
-    deck = Deck()
+    def print_test(name, passed=True):
+        print(f"{'✅' if passed else '❌'} {name}")
 
-    # --- Test 1: add_card success ---
     try:
-        c1 = Card("Fireball")
+        # Create a test deck
+        deck = Deck()
+
+        # --- Test 1: Add a valid card ---
+        c1 = DummyCard("C1", "Hidden Mine", "Places a hidden mine", "mine_big.png", "mine_small.png")
         deck.add_card(c1)
         assert deck.size() == 1
-        print_test("add_card success")
-    except Exception as e:
-        print_test(f"add_card failed: {e}", False)
+        print_test("Add valid card")
 
-    # --- Test 2: add_card rejects non-card ---
-    try:
-        deck.add_card("NotACard")
-        print_test("add_card non-card type check failed", False)
-    except TypeError:
-        print_test("add_card rejects non-card")
+        # --- Test 2: Reject non-card objects ---
+        try:
+            deck.add_card("NotACard")
+            print_test("Reject non-card failed", False)
+        except TypeError:
+            print_test("Reject non-card objects")
 
-    # --- Test 3: deck limit 16 cards ---
-    try:
+        # --- Test 3: Enforce 16-card limit ---
         for i in range(15):
-            deck.add_card(Card(f"C{i}"))
+            deck.add_card(DummyCard(f"C{i}", "Card", "Test", "img.png", "img_s.png"))
         assert deck.size() == 16
         try:
-            deck.add_card(Card("Extra"))
-            print_test("add_card limit check failed", False)
+            deck.add_card(DummyCard("C17", "Over", "Limit", "a.png", "b.png"))
+            print_test("Enforce 16-card limit failed", False)
         except ValueError:
-            print_test("add_card enforces 16-card limit")
-    except Exception as e:
-        print_test(f"add_card limit setup failed: {e}", False)
+            print_test("Enforce 16-card limit")
 
-    # --- Test 4: draw removes last card ---
-    try:
-        top_before = deck.top()
+        # --- Test 4: Draw returns last card ---
+        last = deck.top()
         drawn = deck.draw()
-        assert drawn == top_before
-        print_test("draw removes top card")
-    except Exception as e:
-        print_test(f"draw test failed: {e}", False)
+        assert drawn == last
+        print_test("Draw returns last card")
 
-    # --- Test 5: draw from empty deck ---
-    try:
+        # --- Test 5: Drawing from empty deck raises ---
         empty_deck = Deck()
-        empty_deck.draw()
-        print_test("draw from empty deck failed", False)
-    except ValueError:
-        print_test("draw from empty deck raises ValueError")
+        try:
+            empty_deck.draw()
+            print_test("Draw from empty failed", False)
+        except ValueError:
+            print_test("Draw from empty deck raises")
 
-    # --- Test 6: top() returns last card ---
-    try:
+        # --- Test 6: top() works correctly ---
         d = Deck()
-        c = Card("Ice Spear")
+        c = DummyCard("X1", "Scout", "Test", "a.png", "b.png")
         d.add_card(c)
         assert d.top() == c
-        print_test("top() returns last card")
-    except Exception as e:
-        print_test(f"top() failed: {e}", False)
+        print_test("Top returns last card")
 
-    # --- Test 7: top() on empty returns None ---
-    try:
-        d = Deck()
-        assert d.top() is None
-        print_test("top() returns None when empty")
-    except Exception as e:
-        print_test(f"top() on empty failed: {e}", False)
+        # --- Test 7: top() returns None on empty deck ---
+        empty = Deck()
+        assert empty.top() is None
+        print_test("Top returns None when empty")
 
-    # --- Test 8: shuffle changes order ---
-    try:
-        d = Deck()
+        # --- Test 8: Shuffle modifies order ---
+        s = Deck()
         for i in range(5):
-            d.add_card(Card(f"C{i}"))
-        before = [c.name for c in d.cards]
-        d.shuffle()
-        after = [c.name for c in d.cards]
+            s.add_card(DummyCard(f"Card{i}", "C", "D", "big.png", "small.png"))
+        before = [c.id for c in s.cards]
+        s.shuffle()
+        after = [c.id for c in s.cards]
         assert sorted(before) == sorted(after)
         if before != after:
-            print_test("shuffle changes order")
+            print_test("Shuffle changes order")
         else:
-            print_test("shuffle no change (possible but rare)", False)
-    except Exception as e:
-        print_test(f"shuffle test failed: {e}", False)
+            print_test("Shuffle order unchanged (rare)", False)
 
-    # --- Test 9: size() matches card count ---
-    try:
-        d = Deck()
+        # --- Test 9: Size returns correct count ---
+        deck2 = Deck()
         for i in range(3):
-            d.add_card(Card(f"Card{i}"))
-        assert d.size() == 3
-        print_test("size() returns correct card count")
+            deck2.add_card(DummyCard(f"D{i}", "Test", "Desc", "a.png", "b.png"))
+        assert deck2.size() == 3
+        print_test("Size returns correct count")
+
     except Exception as e:
-        print_test(f"size() test failed: {e}", False)
+        print(f"❌ Unexpected test error: {e}")
