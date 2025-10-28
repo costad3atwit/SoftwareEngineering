@@ -37,7 +37,7 @@ class Piece(ABC):
         """
         payload = {
             "id": self.id,
-            "type": self.piece_type.name,
+            "type": self.type.name,
             "color": self.color.name,
             "position": {"file": at.file, "rank": at.rank},
         }
