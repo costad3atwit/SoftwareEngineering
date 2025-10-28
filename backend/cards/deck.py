@@ -18,10 +18,11 @@ class Deck:
         return self.cards.pop()
 
     def shuffle(self) -> None:
-        self.cards = random.shuffle(self.cards)
+        random.shuffle(self.cards)
 
     def top(self) -> Optional[Card]:
         return self.cards[-1] if self.cards else None
+
         
 
     def size(self) -> int:
