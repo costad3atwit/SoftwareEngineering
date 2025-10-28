@@ -151,9 +151,14 @@ class Board:
     
         # convert each piece to dictionary form
         for coord, piece in self.squares.items():
-            board_data["pieces"].append({
-                "position": coord.to_algebraic(),  # e.g., "e4"
-                **piece.to_dict(at=coord)                  # merges id, type, color, hasMoved
-            })
+            piece_dict = piece.to_dict(
+                at=coord,
+                include_moves=True,
+                board=self   # provide the board reference for move generation
+            )
+            # merge an algebraic string (useful for frontend rendering)
+            piece_dict["position_algebraic"] = coord.to_algebraic()
+
+            board_data["pieces"].append(piece_dict)
 
         return board_data
