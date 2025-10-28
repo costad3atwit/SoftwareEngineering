@@ -153,7 +153,7 @@ class Board:
         for coord, piece in self.squares.items():
             board_data["pieces"].append({
                 "position": coord.to_algebraic(),  # e.g., "e4"
-                **piece.to_dict()                  # merges id, type, color, hasMoved
+                **piece.to_dict(at=coord)                  # merges id, type, color, hasMoved
             })
 
-    return board_data
+        return board_data
