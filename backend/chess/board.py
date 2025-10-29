@@ -11,7 +11,7 @@ class Board:
         self.squares: Dict[Coordinate, Piece] = {}
         self.dmzActive = False
 
-    def dmz_Activate():
+    def dmz_Activate(self):
         """
         Help change the set up of board to 10x10
         by changing dmzActive to True

@@ -4,6 +4,8 @@ from enums import Color, PieceType
 from coordinate import Coordinate
 from move import Move
 from abc import ABC, abstractmethod
+from board import Board
+from typing import Tuple
 
 class Piece(ABC):
     def __init__(self, id: str, color: Color, piece_type: PieceType):
