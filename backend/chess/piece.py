@@ -51,15 +51,138 @@ class Piece(ABC):
 
 
 
+
 class King(Piece):
     def __init__(self, id: str, color: Color):
         super().__init__(id, color, PieceType.KING)
+        self._has_moved = False  # used for castling checks
 
     def get_legal_moves(self, board: 'Board', at: Coordinate) -> List[Move]:
-        return []  # implement later
+        """All pseudo-legal king moves (no check filtering except for castling)."""
+        moves: List[Move] = []
 
-    def get_legal_captures(self, board: 'Board', at:Coordinate) -> List[Move]:
-        return [] # implement later
+        # --- Normal king steps (8 directions) ---
+        steps = [
+            (-1, -1), (0, -1), (1, -1),
+            (-1,  0),          (1,  0),
+            (-1,  1), (0,  1), (1,  1),
+        ]
+        for dx, dy in steps:
+            nf, nr = at.file + dx, at.rank + dy
+            if not board.is_in_bounds(nf, nr):
+                continue
+
+            target = board.get_piece_at(nf, nr)
+            # Can move if empty or capturing an opponent piece
+            if target is None or target.color != self.color:
+                dest = Coordinate(nf, nr)
+
+                # If the Board exposes "is_square_attacked", disallow moving into check
+                if hasattr(board, "is_square_attacked") and callable(getattr(board, "is_square_attacked")):
+                    if board.is_square_attacked(dest, by_color=self._opponent_color()):
+                        continue
+
+                moves.append(Move(at, dest))
+
+ 
+        if not self._has_moved:
+            y = at.rank
+            # Guard: only try castling if current square isn't attacked (when API exists)
+            safe_to_try = True
+            if hasattr(board, "is_square_attacked") and callable(getattr(board, "is_square_attacked")):
+                if board.is_square_attacked(at, by_color=self._opponent_color()):
+                    safe_to_try = False
+
+            if safe_to_try:
+                # King-side (toward file 7 rook): between squares are (at.file+1, y) and (at.file+2, y)
+                self._try_castle(board, at, kingside=True, out_moves=moves)
+                # Queen-side (toward file 0 rook): between squares are (at.file-1, y), (at.file-2, y), (at.file-3, y)
+                self._try_castle(board, at, kingside=False, out_moves=moves)
+
+        return moves
+
+    def _try_castle(self, board: 'Board', at: Coordinate, kingside: bool, out_moves: List[Move]) -> None:
+        """Attempt to add a castle move if all preconditions are satisfied."""
+        # Determine rook file targets by side
+        rook_file = 7 if kingside else 0
+        y = at.rank
+
+        # Rook must exist and be same color
+        rook = board.get_piece_at(rook_file, y)
+        if rook is None or getattr(rook, "piece_type", None) != PieceType.ROOK or rook.color != self.color:
+            return
+
+        # Rook must not have moved (expects rook._has_moved like King; skip if attribute absent)
+        if getattr(rook, "_has_moved", False):
+            return
+
+        # Squares between king and rook must be empty
+        if kingside:
+            between_files = [at.file + 1, at.file + 2]
+            landing_file = at.file + 2
+            pass_through_files = [at.file + 1, at.file + 2]
+        else:
+            between_files = [at.file - 1, at.file - 2, at.file - 3]
+            landing_file = at.file - 2
+            pass_through_files = [at.file - 1, at.file - 2]
+
+        for f in between_files:
+            if not board.is_in_bounds(f, y) or not board.is_empty(Coordinate(f, y)):
+                return
+
+        # Squares the king passes through (and lands on) must not be attacked
+        if hasattr(board, "is_square_attacked") and callable(getattr(board, "is_square_attacked")):
+            for f in [at.file] + pass_through_files:
+                if board.is_square_attacked(Coordinate(f, y), by_color=self._opponent_color()):
+                    return
+
+        # All good — add castle move. Frontend can detect via metadata.
+        move = Move(at, Coordinate(landing_file, y), metadata={"castle": "K" if kingside else "Q"})
+        out_moves.append(move)
+
+    def get_legal_captures(self, board: 'Board', at: Coordinate) -> List[Move]:
+        """Return only king capture moves (no castling)."""
+        captures: List[Move] = []
+        for m in self.get_legal_moves(board, at):
+            # exclude castling and non-captures
+            if getattr(m, "metadata", None) and m.metadata.get("castle"):
+                continue
+            if board.get_piece_at(m.to_sq.file, m.to_sq.rank) is not None:
+                captures.append(m)
+        return captures
+
+    def mark_moved(self):
+        """Mark king as having moved (affects castling eligibility)."""
+        self._has_moved = True
+
+    def to_dict(self, at: Coordinate, include_moves: bool = False,
+                board: 'Board' = None, captures_only: bool = False) -> dict:
+        """Frontend-friendly dictionary representation."""
+        data = {
+            "id": self.id,
+            "type": self.piece_type.name,  # "KING"
+            "color": self.color.name,
+            "position": {"file": at.file, "rank": at.rank},
+        }
+
+        if include_moves and board is not None:
+            moves = (self.get_legal_captures(board, at) if captures_only
+                     else self.get_legal_moves(board, at))
+            data["moves"] = [
+                {
+                    "from": {"file": m.from_sq.file, "rank": m.from_sq.rank},
+                    "to": {"file": m.to_sq.file, "rank": m.to_sq.rank},
+                    # King has no promotion; include castle metadata for UI if present
+                    "promotion": None,
+                    "castle": (m.metadata.get("castle") if getattr(m, "metadata", None) else None),
+                }
+                for m in moves
+            ]
+        return data
+
+    def _opponent_color(self) -> Color:
+        return Color.WHITE if self.color == Color.BLACK else Color.BLACK
+
 
 
 class Queen(Piece):
@@ -473,3 +596,21 @@ if __name__ == "__main__":
     for m in moves:
         if m.promotion:
             print(f"Promotion move → {m.to_sq.file}, {m.to_sq.rank} promotes to {m.promotion}")
+
+    print("\n--- Testing King ---")
+
+    from move import Move  # ensure Move is imported if not already
+    king = King("K1", Color.WHITE)
+    at = Coordinate(4, 0)  # e1
+
+    board = _BoardStub()
+    # Place black piece diagonally to test capture
+    board.place(5, 1, _MockPiece(Color.BLACK))  # f2
+    # Place friendly piece nearby to test blocked move
+    board.place(3, 1, _MockPiece(Color.WHITE))  # d2
+
+    moves = king.get_legal_moves(board, at)
+    captures = king.get_legal_captures(board, at)
+
+    print(f"Total king moves: {len(moves)}")
+    print("Capture targets:", [(m.to_sq.file, m.to_sq.rank) for m in captures])
