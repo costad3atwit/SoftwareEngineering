@@ -1,7 +1,7 @@
 from backend.cards.card import Card
 from typing import Optional
 from abc import ABC
-from backend.enums import Card, CardType
+from backend.enums import CardType
 import random
 
 class Deck:
@@ -40,7 +40,7 @@ if __name__ == "__main__":
             return CardType.HIDDEN
 
     def print_test(name, passed=True):
-        print(f"{'Pass' if passed else 'Fail'} {name}")
+        print(f"{'Passed' if passed else 'Failed'} {name}")
 
     try:
         # Create a test deck
