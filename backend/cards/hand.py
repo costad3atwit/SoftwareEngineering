@@ -8,22 +8,24 @@ class Hand:
 
     def add(self, card: Card) -> None:
         """Add a card to the hand"""
+        if not isinstance(card, Card):
+            raise TypeError(f"Object {card} is not a Card or subclass of Card.")
         self.cards.append(card)
 
-    def remove(self, card_id: str) -> Optional[Card]:
+    def remove(self, card: Card) -> Optional[Card]:
         """
         Remove a card by ID and return it.
         Returns None if card not found.
         """
         for card in self.cards:
-            if card.id == card_id:
+            if card.id == card.id:
                 self.cards.remove(card)
                 return card
         return None
 
-    def has_card(self, card_id: str) -> bool:
+    def has_card(self, card: Card) -> bool:
         """Check if a card is in the hand"""
-        return any(card.id == card_id for card in self.cards)
+        return any(card.id == card.id for card in self.cards)
 
     def size(self) -> int:
         """Return the number of cards in hand"""
