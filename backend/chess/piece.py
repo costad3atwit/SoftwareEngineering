@@ -1,8 +1,8 @@
 from __future__ import annotations
 from typing import List
-from enums import Color, PieceType
-from coordinate import Coordinate
-from move import Move
+from backend.enums import Color, PieceType
+from backend.chess.coordinate import Coordinate
+from backend.chess.move import Move
 from abc import ABC, abstractmethod
 
 class Piece(ABC):
@@ -37,7 +37,7 @@ class Piece(ABC):
         """
         payload = {
             "id": self.id,
-            "type": self.piece_type.name,
+            "type": self.type.name,
             "color": self.color.name,
             "position": {"file": at.file, "rank": at.rank},
         }
@@ -105,7 +105,7 @@ class Queen(Piece):
     def to_dict(self, at: Coordinate, include_moves: bool = False,
                 board: 'Board' = None, captures_only: bool = False) -> dict:
         """
-        Minimal, frontend-friendly shape. Extend as your UI needs (e.g., images).
+        Minimal, frontend-friendly shape. Extend as UI needs (e.g., images).
         """
         payload = {
             "id": self.id,

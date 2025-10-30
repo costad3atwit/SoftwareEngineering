@@ -1,5 +1,11 @@
-from coordinate import Coordinate
-from piece import Piece
+from __future__ import annotations
+from typing import TYPE_CHECKING, Optional
+
+from backend.chess.coordinate import Coordinate
+
+# Only import Piece for type checking, not at runtime
+if TYPE_CHECKING:
+    from backend.chess.piece import Piece
 class Move:
     def __init__(self, from_sq: Coordinate, to_sq: Coordinate, piece: Piece,promotion: Piece =None, card_play_id=None, metadata=None):
         self.from_sq = from_sq

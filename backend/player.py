@@ -2,11 +2,11 @@ from __future__ import annotations
 from typing import List, Optional
 from datetime import datetime
 
-from enums import Color
-from card import Card
-from piece import Piece
-from deck import Deck
-from hand import Hand
+from backend.enums import Color
+from backend.cards.card import Card
+from backend.chess.piece import Piece
+from backend.cards.deck import Deck
+from backend.cards.hand import Hand
 
 
 class Player:

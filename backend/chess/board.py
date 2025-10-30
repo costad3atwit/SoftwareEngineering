@@ -1,9 +1,9 @@
 from __future__ import annotations
 from typing import Dict, Optional
-from coordinate import Coordinate
-from piece import Piece, King, Queen, Rook, Bishop, Knight, Pawn
-from move import Move
-from enums import Color
+from backend.chess.coordinate import Coordinate
+from backend.chess.piece import Piece, King, Queen, Rook, Bishop, Knight, Pawn
+from backend.chess.move import Move
+from backend.enums import Color
 import copy
 
 class Board:
@@ -11,7 +11,7 @@ class Board:
         self.squares: Dict[Coordinate, Piece] = {}
         self.dmzActive = False
 
-    def dmz_Activate():
+    def dmz_Activate(self):
         """
         Help change the set up of board to 10x10
         by changing dmzActive to True
@@ -151,9 +151,102 @@ class Board:
     
         # convert each piece to dictionary form
         for coord, piece in self.squares.items():
-            board_data["pieces"].append({
-                "position": coord.to_algebraic(),  # e.g., "e4"
-                **piece.to_dict()                  # merges id, type, color, hasMoved
-            })
+            piece_dict = piece.to_dict(
+                at=coord,
+                include_moves=True,
+                board=self   # provide the board reference for move generation
+            )
+            # merge an algebraic string (useful for frontend rendering)
+            piece_dict["position_algebraic"] = coord.to_algebraic()
 
-    return board_data
+            board_data["pieces"].append(piece_dict)
+
+        return board_data
+#------------------------------
+#Inline Test
+#------------------------------
+if __name__ == "__main__":
+    from move import Move
+    from coordinate import Coordinate
+    from enums import Color
+
+    def print_test(name, passed=True):
+        print(f"{'Pass' if passed else 'Fail'} {name}")
+
+    try:
+        # --- Test 1: setup_standard places correct number of pieces ---
+        board = Board()
+        board.setup_standard()
+        expected_piece_count = 32  # 16 white + 16 black
+        actual_piece_count = len(board.squares)
+        print_test("setup_standard places correct number of pieces",
+                   actual_piece_count == expected_piece_count)
+
+        # --- Test 2: piece_at_coord retrieves correct piece ---
+        coord = Coordinate(5, 1)  # White King position
+        piece = board.piece_at_coord(coord)
+        print_test("piece_at_coord retrieves correct piece",
+                   piece and piece.id == "wK")
+
+        # --- Test 3: is_in_bounds (normal 8x8 area) ---
+        inside = Coordinate(5, 5)
+        outside = Coordinate(0, 0)
+        print_test("is_in_bounds identifies inside coords", board.is_in_bounds(inside))
+        print_test("is_in_bounds identifies outside coords", not board.is_in_bounds(outside))
+
+        # --- Test 4: is_empty() correctly identifies empty and occupied squares ---
+        empty_coord = Coordinate(5, 5)
+        filled_coord = Coordinate(5, 1)  # wK
+        print_test("is_empty() works for empty squares", board.is_empty(empty_coord))
+        print_test("is_empty() works for occupied squares", not board.is_empty(filled_coord))
+
+        # --- Test 5: is_enemy() and is_frendly() ---
+        white_piece = Coordinate(5, 1)
+        black_piece = Coordinate(5, 8)
+        print_test("is_enemy() detects opposite color",
+                   board.is_enemy(black_piece, Color.WHITE))
+        print_test("is_frendly() detects same color",
+                   board.is_frendly(white_piece, Color.WHITE))
+
+        # --- Test 6: move_piece() moves a piece and returns captured if any ---
+        move = Move(Coordinate(5, 1), Coordinate(5, 2))
+        captured = board.move_piece(move)
+        print_test("move_piece() moves piece to destination",
+                   Coordinate(5, 2) in board.squares)
+        print_test("move_piece() removes piece from original location",
+                   Coordinate(5, 1) not in board.squares)
+        print_test("move_piece() returns None when no capture", captured is None)
+
+        # --- Test 7: move_piece() raises ValueError if no piece at source ---
+        try:
+            board.move_piece(Move(Coordinate(0, 0), Coordinate(1, 1)))
+            print_test("move_piece() missing piece check failed", False)
+        except ValueError:
+            print_test("move_piece() raises ValueError if no piece at source")
+
+        # --- Test 8: clone() produces deep copy ---
+        clone_board = board.clone()
+        clone_board.move_piece(Move(Coordinate(5, 2), Coordinate(5, 3)))
+        print_test("clone() produces independent copy",
+                   Coordinate(5, 3) in clone_board.squares and
+                   Coordinate(5, 2) not in clone_board.squares and
+                   Coordinate(5, 2) in board.squares)
+
+        # --- Test 9: to_dict() includes dmzActive and pieces ---
+        data = board.to_dict()
+        print_test("to_dict() includes dmzActive key", "dmzActive" in data)
+        print_test("to_dict() includes pieces list", isinstance(data["pieces"], list))
+        print_test("to_dict() contains valid piece info",
+                   all("id" in p and "type" in p and "color" in p for p in data["pieces"]))
+
+        # --- Test 10: in_check_for() runs safely with no check detected ---
+        print_test("in_check_for() returns boolean",
+                   isinstance(board.in_check_for(Color.WHITE), bool))
+
+        # --- Test 11: dmzActive toggle (manual) ---
+        board.dmzActive = True
+        inside_dmz = Coordinate(0, 0)
+        print_test("is_in_bounds respects DMZ active flag", board.is_in_bounds(inside_dmz))
+
+    except Exception as e:
+        print(f"Unexpected test error: {e}")
