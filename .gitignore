@@ -1,1 +1,4 @@
 venv/
+backend/__pycache__/
+backend/chess/__pycache__/
+backend/cards/__pycache__/
