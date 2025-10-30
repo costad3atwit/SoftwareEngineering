@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Arcane Chess - Test Client</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .container {
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 16px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        button:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+        #log {
+            background: #1a1a1a;
+            padding: 15px;
+            border-radius: 5px;
+            height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .log-entry {
+            margin: 5px 0;
+            padding: 5px;
+            border-left: 3px solid #4CAF50;
+            padding-left: 10px;
+        }
+        .log-sent { border-left-color: #2196F3; }
+        .log-received { border-left-color: #FF9800; }
+        .log-error { border-left-color: #f44336; }
+        .status {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 10px;
+        }
+        .status.connected { background: #4CAF50; }
+        .status.disconnected { background: #f44336; }
+        input {
+            padding: 8px;
+            margin: 5px;
+            border-radius: 5px;
+            border: 1px solid #444;
+            background: #333;
+            color: #fff;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎮 Arcane Chess - Test Client</h1>
+    
+    <div class="container">
+        <h2>Connection</h2>
+        <label>Client ID: <input type="text" id="clientId" value="player1" /></label>
+        <button id="connectBtn" onclick="connect()">Connect</button>
+        <button id="disconnectBtn" onclick="disconnect()" disabled>Disconnect</button>
+        <p>
+            Status: <span class="status disconnected" id="statusDot"></span>
+            <span id="statusText">Disconnected</span>
+        </p>
+    </div>
+    
+    <div class="container">
+        <h2>Matchmaking</h2>
+        <button id="joinQueueBtn" onclick="joinQueue()" disabled>Join Queue</button>
+        <p id="gameInfo"></p>
+    </div>
+    
+    <div class="container">
+        <h2>Game Actions</h2>
+        <button onclick="sendMove()" disabled id="moveBtn">Send Test Move (e2 to e4)</button>
+        <button onclick="playCard()" disabled id="cardBtn">Play Test Card</button>
+        <button onclick="sendPing()">Send Ping</button>
+    </div>
+    
+    <div class="container">
+        <h2>Message Log</h2>
+        <button onclick="clearLog()">Clear Log</button>
+        <div id="log"></div>
+    </div>
+
+    <script>
+        let ws = null;
+        let gameId = null;
+        let playerColor = null;
+
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const entry = document.createElement('div');
+            entry.className = `log-entry log-${type}`;
+            const timestamp = new Date().toLocaleTimeString();
+            entry.textContent = `[${timestamp}] ${message}`;
+            logDiv.appendChild(entry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function updateStatus(connected) {
+            const dot = document.getElementById('statusDot');
+            const text = document.getElementById('statusText');
+            const connectBtn = document.getElementById('connectBtn');
+            const disconnectBtn = document.getElementById('disconnectBtn');
+            const joinQueueBtn = document.getElementById('joinQueueBtn');
+            
+            if (connected) {
+                dot.className = 'status connected';
+                text.textContent = 'Connected';
+                connectBtn.disabled = true;
+                disconnectBtn.disabled = false;
+                joinQueueBtn.disabled = false;
+            } else {
+                dot.className = 'status disconnected';
+                text.textContent = 'Disconnected';
+                connectBtn.disabled = false;
+                disconnectBtn.disabled = true;
+                joinQueueBtn.disabled = true;
+            }
+        }
+
+        function connect() {
+            const clientId = document.getElementById('clientId').value;
+            if (!clientId) {
+                alert('Please enter a client ID');
+                return;
+            }
+
+            ws = new WebSocket(`ws://localhost:8000/ws/${clientId}`);
+            
+            ws.onopen = () => {
+                log('Connected to server', 'info');
+                updateStatus(true);
+            };
+            
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                log(`Received: ${JSON.stringify(data, null, 2)}`, 'received');
+                
+                if (data.type === 'game_started') {
+                    gameId = data.game_id;
+                    playerColor = data.color;
+                    document.getElementById('gameInfo').textContent = 
+                        `Game started! You are ${playerColor}. Game ID: ${gameId}`;
+                    document.getElementById('moveBtn').disabled = false;
+                    document.getElementById('cardBtn').disabled = false;
+                }
+            };
+            
+            ws.onerror = (error) => {
+                log(`Error: ${error}`, 'error');
+            };
+            
+            ws.onclose = () => {
+                log('Disconnected from server', 'info');
+                updateStatus(false);
+                document.getElementById('moveBtn').disabled = true;
+                document.getElementById('cardBtn').disabled = true;
+            };
+        }
+
+        function disconnect() {
+            if (ws) {
+                ws.close();
+                ws = null;
+            }
+        }
+
+        function joinQueue() {
+            if (!ws) return;
+            const message = { type: 'join_queue' };
+            ws.send(JSON.stringify(message));
+            log(`Sent: ${JSON.stringify(message)}`, 'sent');
+        }
+
+        function sendMove() {
+            if (!ws || !gameId) return;
+            const message = {
+                type: 'move',
+                game_id: gameId,
+                from: 'e2',
+                to: 'e4'
+            };
+            ws.send(JSON.stringify(message));
+            log(`Sent: ${JSON.stringify(message)}`, 'sent');
+        }
+
+        function playCard() {
+            if (!ws || !gameId) return;
+            const message = {
+                type: 'play_card',
+                game_id: gameId,
+                card: 'Transform Pawn'
+            };
+            ws.send(JSON.stringify(message));
+            log(`Sent: ${JSON.stringify(message)}`, 'sent');
+        }
+
+        function sendPing() {
+            if (!ws) return;
+            const message = { type: 'ping' };
+            ws.send(JSON.stringify(message));
+            log(`Sent: ${JSON.stringify(message)}`, 'sent');
+        }
+
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+        }
+    </script>
+</body>
+</html>
