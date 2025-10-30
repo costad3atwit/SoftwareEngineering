@@ -34,9 +34,7 @@ class Piece(ABC):
 
     def to_dict(self, at: Coordinate, include_moves: bool = False,
                 board: 'Board' = None, captures_only: bool = False) -> dict:
-        """
-        Minimal, frontend-friendly shape. Extend as your UI needs (e.g., images).
-        """
+
         payload = {
             "id": self.id,
             "type": self.type.name,
