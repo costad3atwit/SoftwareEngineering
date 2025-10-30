@@ -551,6 +551,7 @@ class DarkLord(Piece):
         return [] # implement later
 
 # ---------- Test ----------
+print("\n--- Testing Queen ---")
 if __name__ == "__main__":
     from enums import Color
     from coordinate import Coordinate
