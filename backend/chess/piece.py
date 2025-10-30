@@ -4,7 +4,7 @@ from backend.enums import Color, PieceType
 from backend.chess.coordinate import Coordinate
 from backend.chess.move import Move
 from abc import ABC, abstractmethod
-from board import Board
+from backend.chess.board import Board
 from typing import Tuple
 
 class Piece(ABC):

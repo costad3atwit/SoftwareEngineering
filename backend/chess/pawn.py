@@ -1,7 +1,7 @@
 from typing import List, Optional
-from coordinate import Coordinate
-from move import Move
-from chess.piece import Piece
+from backend.chess.coordinate import Coordinate
+from backend.chess.move import Move
+from backend.chess.piece import Piece
 
 
 class Pawn(Piece):
