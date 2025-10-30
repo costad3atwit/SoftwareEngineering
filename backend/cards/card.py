@@ -73,7 +73,6 @@ class Card(ABC):
 
 # ---------- Test ----------
 if __name__ == "__main__":
-    from enums import CardType, TargetType
 
     # Small test subclass (since Card is abstract)
     class TestCard(Card):
