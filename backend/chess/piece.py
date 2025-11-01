@@ -37,7 +37,7 @@ class Piece(ABC):
 
         payload = {
             "id": self.id,
-            "type": self.type.name,
+            "type": self.type.value,
             "color": self.color.name,
             "position": {"file": at.file, "rank": at.rank},
         }
@@ -109,7 +109,7 @@ class King(Piece):
 
         # Rook must exist and be same color
         rook = board.piece_at_coord(Coordinate(rook_file, y))
-        if rook is None or getattr(rook, "piece_type", None) != PieceType.ROOK or rook.color != self.color:
+        if rook is None or getattr(rook, "type", None) != PieceType.ROOK or rook.color != self.color:
             return
 
         # Rook must not have moved (expects rook._has_moved like King; skip if attribute absent)
@@ -295,6 +295,10 @@ class Rook(Piece):
                     break  # friendly piece blocks path
                 next_coord = next_coord.offset(df, dr)
         return captures
+
+    def mark_moved(self):
+        """Mark king as having moved (affects castling eligibility)."""
+        self._has_moved = True
 
 
 class Bishop(Piece):
@@ -551,122 +555,235 @@ class DarkLord(Piece):
 # ---------- Test ----------
 print("\n--- Testing Queen ---")
 if __name__ == "__main__":
-    from enums import Color
-    from coordinate import Coordinate
+    from backend.enums import Color
+    from backend.chess.coordinate import Coordinate
 
+    class _MockType:
+        value = "X"
     class _MockPiece:
-        def __init__(self, color): self.color = color
+        def __init__(self, color):
+            self.color = color
+            self.type = _MockType()
 
     class _BoardStub:
-        def __init__(self):
-            self.grid = [[None for _ in range(8)] for _ in range(8)]
-        def is_in_bounds(self, f, r): return 0 <= f < 8 and 0 <= r < 8
-        def get_piece_at(self, f, r): return self.grid[r][f]
-        def place(self, f, r, piece): self.grid[r][f] = piece
+        """
+        Lightweight test implementation of Board.
+        Supports:
+          - Piece placement, removal, and movement
+          - Capture handling
+          - is_in_bounds, is_empty, is_enemy, is_frendly
+          - is_square_attacked for check/castling tests
+        """
+    
+        def __init__(self, size: int = 8):
+            self.size = size
+            self.grid = [[None for _ in range(size)] for _ in range(size)]
+            self.captured = []
+            
+        # --------------------------------------------------------
+        # Core Board-Like API
+        # --------------------------------------------------------
+        def piece_at_coord(self, coord: Coordinate):
+            """Return the piece at a coordinate or None."""
+            if not self.is_in_bounds(coord):
+                raise ValueError(f"Out of bounds: {coord}")
+            return self.grid[coord.file][coord.rank]
+    
+        def place(self, f: int, r: int, piece):
+            """Place a piece directly at (file, rank)."""
+            if not (0 <= f < self.size and 0 <= r < self.size):
+                raise ValueError(f"Invalid placement ({f}, {r})")
+            self.grid[f][r] = piece
+    
+        def remove(self, coord: Coordinate):
+            """Remove a piece from a square."""
+            if self.is_in_bounds(coord):
+                self.grid[coord.file][coord.rank] = None
+    
+        # --------------------------------------------------------
+        # Movement Logic (mimics real Board.move_piece)
+        # --------------------------------------------------------
+        def move_piece(self, move: Move):
+            """
+            Move a piece from source → destination.
+            Returns captured piece if any.
+            """
+            src, dest = move.from_sq, move.to_sq
+            moving_piece = self.piece_at_coord(src)
+            if not moving_piece:
+                raise ValueError(f"No piece at {src.file},{src.rank}")
+    
+            captured = self.piece_at_coord(dest)
+            if captured:
+                self.captured.append(captured)
+            self.remove(src)
+            self.place(dest.file, dest.rank, moving_piece)
+            moving_piece.has_moved = True
+            return captured
+    
+        # --------------------------------------------------------
+        # Board State Helpers
+        # --------------------------------------------------------
+        def is_in_bounds(self, coord: Coordinate) -> bool:
+            """Check if coord is inside the board."""
+            return 0 <= coord.file < self.size and 0 <= coord.rank < self.size
+    
+        def is_empty(self, coord: Coordinate) -> bool:
+            if not self.is_in_bounds(coord):
+                return False
+            return self.piece_at_coord(coord) is None
+    
+        def is_enemy(self, coord: Coordinate, color: Color) -> bool:
+            """True if square has an opposing piece."""
+            piece = self.piece_at_coord(coord)
+            return piece is not None and getattr(piece, "color", None) != color
+    
+        def is_frendly(self, coord: Coordinate, color: Color) -> bool:
+            """True if square has a friendly piece."""
+            piece = self.piece_at_coord(coord)
+            return piece is not None and getattr(piece, "color", None) == color
+    
+        # --------------------------------------------------------
+        # Attack Detection (used by King and in_check tests)
+        # --------------------------------------------------------
+        def is_square_attacked(self, coord: Coordinate, by_color: Color) -> bool:
+            """
+            Returns True if any piece of 'by_color' can capture this coordinate.
+            """
+            for f in range(self.size):
+                for r in range(self.size):
+                    piece = self.grid[f][r]
+                    if piece and getattr(piece, "color", None) == by_color:
+                        try:
+                            captures = piece.get_legal_captures(self, Coordinate(f, r))
+                            if any(m.to_sq == coord for m in captures):
+                                return True
+                        except Exception:
+                            continue
+            return False
+    
+        # --------------------------------------------------------
+        # Utility: list all pieces
+        # --------------------------------------------------------
+        def all_pieces(self):
+            """Return list of (Coordinate, Piece)."""
+            out = []
+            for f in range(self.size):
+                for r in range(self.size):
+                    piece = self.grid[f][r]
+                    if piece:
+                        out.append((Coordinate(f, r), piece))
+            return out
+    
+        # --------------------------------------------------------
+        # Debug Helpers
+        # --------------------------------------------------------
+        def print_board(self):
+            """Print simple ASCII representation (top-down)."""
+            for r in reversed(range(self.size)):
+                row = []
+                for f in range(self.size):
+                    piece = self.grid[f][r]
+                    if piece:
+                        row.append(piece.type.value)
+                    else:
+                        row.append(".")
+                print(" ".join(row))
+            print()
 
+# -------------------------------------------------------------------------
+    print("\n--- Testing Queen ---")
     board = _BoardStub()
     queen = Queen("Q1", Color.WHITE)
     at = Coordinate(3, 3)
-
-    # place one black piece diagonally to test capture
-    board.place(5, 5, _MockPiece(Color.BLACK))
+    board.place(at.file, at.rank, queen)
+    board.place(5, 5, _MockPiece(Color.BLACK))  # enemy capture
 
     moves = queen.get_legal_moves(board, at)
     captures = queen.get_legal_captures(board, at)
+    print(f"Queen total moves: {len(moves)}")
+    print("Queen capture squares:", [(m.to_sq.file, m.to_sq.rank) for m in captures])
 
-    print(f"Total moves: {len(moves)}")
-    print("Capture targets:", [(m.to_sq.file, m.to_sq.rank) for m in captures])
-
+    assert any((m.to_sq.file, m.to_sq.rank) == (5, 5) for m in captures), "Queen failed to capture diagonal enemy"
+# -------------------------------------------------------------------------
     print("\n--- Testing Pawn ---")
-
-    pawn = Pawn("P1", Color.WHITE)
-    at = Coordinate(3, 6)  # d7 (1 move away from promotion)
-
-    # Enemy piece diagonally forward (promotion capture)
     board = _BoardStub()
-    board.place(2, 7, _MockPiece(Color.BLACK))  # c8
-    board.place(4, 7, _MockPiece(Color.BLACK))  # e8
+    pawn = Pawn("P1", Color.WHITE)
+    at = Coordinate(3, 6)
+    board.place(at.file, at.rank, pawn)
+    board.place(2, 7, _MockPiece(Color.BLACK))  # left diag capture
+    board.place(4, 7, _MockPiece(Color.BLACK))  # right diag capture
 
     moves = pawn.get_legal_moves(board, at)
     captures = pawn.get_legal_captures(board, at)
+    print(f"Pawn total moves: {len(moves)}")
+    print("Pawn capture squares:", [(m.to_sq.file, m.to_sq.rank) for m in captures])
 
-    print(f"Total pawn moves: {len(moves)}")
-    print("Capture targets:", [(m.to_sq.file, m.to_sq.rank) for m in captures])
-
-    # Check promotion on forward move
-    for m in moves:
-        if m.promotion:
-            print(f"Promotion move → {m.to_sq.file}, {m.to_sq.rank} promotes to {m.promotion}")
-
+    assert any((m.to_sq.file, m.to_sq.rank) == (2, 7) for m in captures), "Pawn failed left diagonal capture"
+    assert any((m.to_sq.file, m.to_sq.rank) == (4, 7) for m in captures), "Pawn failed right diagonal capture"
+# -------------------------------------------------------------------------
     print("\n--- Testing King ---")
-
-    from move import Move  # ensure Move is imported if not already
-    king = King("K1", Color.WHITE)
-    at = Coordinate(4, 0)  # e1
-
     board = _BoardStub()
-    # Place black piece diagonally to test capture
-    board.place(5, 1, _MockPiece(Color.BLACK))  # f2
-    # Place friendly piece nearby to test blocked move
-    board.place(3, 1, _MockPiece(Color.WHITE))  # d2
+    king = King("K1", Color.WHITE)
+    at = Coordinate(4, 0)
+    board.place(at.file, at.rank, king)
+    board.place(5, 1, _MockPiece(Color.BLACK))  # enemy capture
+    board.place(3, 1, _MockPiece(Color.WHITE))  # blocked move
 
     moves = king.get_legal_moves(board, at)
     captures = king.get_legal_captures(board, at)
+    print(f"King total moves: {len(moves)}")
+    print("King capture squares:", [(m.to_sq.file, m.to_sq.rank) for m in captures])
 
-    print(f"Total king moves: {len(moves)}")
-    print("Capture targets:", [(m.to_sq.file, m.to_sq.rank) for m in captures])
-    
+    assert all(abs(m.to_sq.file - 4) <= 1 and abs(m.to_sq.rank - 0) <= 1 for m in moves), "King invalid move range"
+    assert any((m.to_sq.file, m.to_sq.rank) == (5, 1) for m in captures), "King failed capture test"
+# -------------------------------------------------------------------------    
     print("\n--- Testing Rook ---")
-
-    rook = Rook("R1", Color.WHITE)
-    at = Coordinate(3, 3)  # d4
-
     board = _BoardStub()
-    # Place enemy pieces to test capture in vertical/horizontal paths
-    board.place(3, 6, _MockPiece(Color.BLACK))  # d7
-    board.place(6, 3, _MockPiece(Color.BLACK))  # g4
-    # Place friendly pieces to test blocking
-    board.place(3, 1, _MockPiece(Color.WHITE))  # d2
-    board.place(1, 3, _MockPiece(Color.WHITE))  # b4
+    rook = Rook("R1", Color.WHITE)
+    at = Coordinate(3, 3)
+    board.place(at.file, at.rank, rook)
+    board.place(3, 6, _MockPiece(Color.BLACK))  # up enemy
+    board.place(6, 3, _MockPiece(Color.BLACK))  # right enemy
+    board.place(3, 1, _MockPiece(Color.WHITE))  # down block
+    board.place(1, 3, _MockPiece(Color.WHITE))  # left block
 
     moves = rook.get_legal_moves(board, at)
     captures = rook.get_legal_captures(board, at)
+    print(f"Rook total moves: {len(moves)}")
+    print("Rook capture squares:", [(m.to_sq.file, m.to_sq.rank) for m in captures])
 
-    print(f"Total rook moves: {len(moves)}")
-    print("Rook capture targets:", [(m.to_sq.file, m.to_sq.rank) for m in captures])
-
+    assert any((m.to_sq.file, m.to_sq.rank) == (3, 6) for m in captures), "Rook failed vertical capture"
+    assert any((m.to_sq.file, m.to_sq.rank) == (6, 3) for m in captures), "Rook failed horizontal capture"
+# -------------------------------------------------------------------------    
     print("\n--- Testing Bishop ---")
-
-    bishop = Bishop("B1", Color.WHITE)
-    at = Coordinate(3, 3)  # d4
-
     board = _BoardStub()
-    # Place enemies diagonally
-    board.place(6, 6, _MockPiece(Color.BLACK))  # g7
-    board.place(0, 0, _MockPiece(Color.BLACK))  # a1
-    # Place friendly piece to block
-    board.place(5, 1, _MockPiece(Color.WHITE))  # f2
+    bishop = Bishop("B1", Color.WHITE)
+    at = Coordinate(3, 3)
+    board.place(at.file, at.rank, bishop)
+    board.place(6, 6, _MockPiece(Color.BLACK))  # up-right enemy
+    board.place(0, 0, _MockPiece(Color.BLACK))  # down-left enemy
+    board.place(5, 1, _MockPiece(Color.WHITE))  # block
 
     moves = bishop.get_legal_moves(board, at)
     captures = bishop.get_legal_captures(board, at)
+    print(f"Bishop total moves: {len(moves)}")
+    print("Bishop capture squares:", [(m.to_sq.file, m.to_sq.rank) for m in captures])
 
-    print(f"Total bishop moves: {len(moves)}")
-    print("Bishop capture targets:", [(m.to_sq.file, m.to_sq.rank) for m in captures])
-
+    assert any((m.to_sq.file, m.to_sq.rank) == (6, 6) for m in captures), "Bishop failed diagonal capture"
+# -------------------------------------------------------------------------    
     print("\n--- Testing Knight ---")
-
-    knight = Knight("N1", Color.WHITE)
-    at = Coordinate(4, 4)  # e5
-
     board = _BoardStub()
-    # Place enemies on reachable squares
-    board.place(5, 6, _MockPiece(Color.BLACK))  # f7
-    board.place(3, 2, _MockPiece(Color.BLACK))  # d3
-    # Place friendly piece to test skip
-    board.place(6, 5, _MockPiece(Color.WHITE))  # g6
+    knight = Knight("N1", Color.WHITE)
+    at = Coordinate(4, 4)
+    board.place(at.file, at.rank, knight)
+    board.place(5, 6, _MockPiece(Color.BLACK))  # f7 enemy
+    board.place(6, 5, _MockPiece(Color.WHITE))  # g6 block
 
     moves = knight.get_legal_moves(board, at)
     captures = knight.get_legal_captures(board, at)
+    print(f"Knight total moves: {len(moves)}")
+    print("Knight capture squares:", [(m.to_sq.file, m.to_sq.rank) for m in captures])
 
-    print(f"Total knight moves: {len(moves)}")
-    print("Knight capture targets:", [(m.to_sq.file, m.to_sq.rank) for m in captures])
+    assert any((m.to_sq.file, m.to_sq.rank) == (5, 6) for m in captures), "Knight failed L-capture"
+    assert all(abs(m.to_sq.file - 4) + abs(m.to_sq.rank - 4) in (3,) for m in moves), "Knight move shape invalid"
