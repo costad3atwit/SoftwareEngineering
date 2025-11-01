@@ -69,10 +69,10 @@ class King(Piece):
         ]
         for dx, dy in steps:
             nf, nr = at.file + dx, at.rank + dy
-            if not board.is_in_bounds(nf, nr):
+            if not board.is_in_bounds(Coordinate(nf, nr)):
                 continue
 
-            target = board.get_piece_at(nf, nr)
+            target = board.piece_at_coord(Coordinate(nf, nr))
             # Can move if empty or capturing an opponent piece
             if target is None or target.color != self.color:
                 dest = Coordinate(nf, nr)
@@ -108,7 +108,7 @@ class King(Piece):
         y = at.rank
 
         # Rook must exist and be same color
-        rook = board.get_piece_at(rook_file, y)
+        rook = board.piece_at_coord(Coordinate(rook_file, y))
         if rook is None or getattr(rook, "piece_type", None) != PieceType.ROOK or rook.color != self.color:
             return
 
@@ -127,7 +127,7 @@ class King(Piece):
             pass_through_files = [at.file - 1, at.file - 2]
 
         for f in between_files:
-            if not board.is_in_bounds(f, y) or not board.is_empty(Coordinate(f, y)):
+            if not board.is_in_bounds(Coordinate(f, y)) or not board.is_empty(Coordinate(f, y)):
                 return
 
         # Squares the king passes through (and lands on) must not be attacked
@@ -147,7 +147,7 @@ class King(Piece):
             # exclude castling and non-captures
             if getattr(m, "metadata", None) and m.metadata.get("castle"):
                 continue
-            if board.get_piece_at(m.to_sq.file, m.to_sq.rank) is not None:
+            if board.piece_at_coord(Coordinate(m.to_sq.file, m.to_sq.rank)) is not None:
                 captures.append(m)
         return captures
 
@@ -615,3 +615,58 @@ if __name__ == "__main__":
 
     print(f"Total king moves: {len(moves)}")
     print("Capture targets:", [(m.to_sq.file, m.to_sq.rank) for m in captures])
+    
+    print("\n--- Testing Rook ---")
+
+    rook = Rook("R1", Color.WHITE)
+    at = Coordinate(3, 3)  # d4
+
+    board = _BoardStub()
+    # Place enemy pieces to test capture in vertical/horizontal paths
+    board.place(3, 6, _MockPiece(Color.BLACK))  # d7
+    board.place(6, 3, _MockPiece(Color.BLACK))  # g4
+    # Place friendly pieces to test blocking
+    board.place(3, 1, _MockPiece(Color.WHITE))  # d2
+    board.place(1, 3, _MockPiece(Color.WHITE))  # b4
+
+    moves = rook.get_legal_moves(board, at)
+    captures = rook.get_legal_captures(board, at)
+
+    print(f"Total rook moves: {len(moves)}")
+    print("Rook capture targets:", [(m.to_sq.file, m.to_sq.rank) for m in captures])
+
+    print("\n--- Testing Bishop ---")
+
+    bishop = Bishop("B1", Color.WHITE)
+    at = Coordinate(3, 3)  # d4
+
+    board = _BoardStub()
+    # Place enemies diagonally
+    board.place(6, 6, _MockPiece(Color.BLACK))  # g7
+    board.place(0, 0, _MockPiece(Color.BLACK))  # a1
+    # Place friendly piece to block
+    board.place(5, 1, _MockPiece(Color.WHITE))  # f2
+
+    moves = bishop.get_legal_moves(board, at)
+    captures = bishop.get_legal_captures(board, at)
+
+    print(f"Total bishop moves: {len(moves)}")
+    print("Bishop capture targets:", [(m.to_sq.file, m.to_sq.rank) for m in captures])
+
+    print("\n--- Testing Knight ---")
+
+    knight = Knight("N1", Color.WHITE)
+    at = Coordinate(4, 4)  # e5
+
+    board = _BoardStub()
+    # Place enemies on reachable squares
+    board.place(5, 6, _MockPiece(Color.BLACK))  # f7
+    board.place(3, 2, _MockPiece(Color.BLACK))  # d3
+    # Place friendly piece to test skip
+    board.place(6, 5, _MockPiece(Color.WHITE))  # g6
+
+    moves = knight.get_legal_moves(board, at)
+    captures = knight.get_legal_captures(board, at)
+
+    print(f"Total knight moves: {len(moves)}")
+    print("Knight capture targets:", [(m.to_sq.file, m.to_sq.rank) for m in captures])
