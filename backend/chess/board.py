@@ -113,6 +113,28 @@ class Board:
 
         return captured_piece
 
+     def is_square_attacked(self, coord: Coordinate, by_color: Color) -> bool:
+        """
+        Return True if the given square is attacked by any piece of the specified color.
+        This checks all opposing pieces’ capture moves.
+        """
+        for pos, piece in self.squares.items():
+            if piece.color != by_color:
+                continue  # only check attackers of the given color
+
+            # Get all capture moves from this piece
+            try:
+                captures = piece.get_legal_captures(self, pos)
+            except Exception:
+                # Skip malformed or incomplete pieces
+                continue
+
+            # If any capture move targets this square → it's attacked
+            for move in captures:
+                if move.to_sq == coord:
+                    return True
+        return False
+
     def in_check_for(self, color: Color) -> bool:
         """Return True if the given color's King is under attack."""
         # find the king’s position
