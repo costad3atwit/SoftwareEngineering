@@ -406,7 +406,7 @@ class Pawn(Piece):
           - board.get_piece_at(file, rank) -> Optional[Piece]
           - board.is_in_bounds(file, rank) -> bool
         """
-        moves = []
+        moves: List[Move] = []
         direction = 1 if self.color == Color.WHITE else -1
         start_rank = 1 if self.color == Color.WHITE else 6
         promotion_rank = 7 if self.color == Color.WHITE else 0
@@ -479,12 +479,108 @@ class Pawn(Piece):
 class Peon(Piece):
     def __init__(self, id: str, color: Color):
         super().__init__(id, color, PieceType.PEON)
+        self._has_moved = False
+        self._backwards_unlocked = False  # Becomes True after reaching the furthest rank
+
+    def mark_moved(self):
+        """Mark that this Peon has moved at least once."""
+        self._has_moved = True
 
     def get_legal_moves(self, board: 'Board', at: Coordinate) -> List[Move]:
-        return [] # implement later
+        """
+        Peons behave like pawns but:
+          - Cannot promote.
+          - May move 1 or 2 squares forward initially.
+          - Always capture diagonally forward.
+          - Permanently gain ability to move & capture backward after reaching the furthest rank.
+        """
+        moves: List[Move] = []
+        direction = 1 if self.color == Color.WHITE else -1
+        furthest_rank = 7 if self.color == Color.WHITE else 0
 
-    def get_legal_captures(self, board: 'Board', at:Coordinate) -> List[Move]:
-        return [] # implement later
+        # --- Forward 1 square ---
+        one_step = Coordinate(at.file, at.rank + direction)
+        if board.is_in_bounds(one_step) and board.is_empty(one_step):
+            moves.append(Move(at, one_step))
+
+            # --- Forward 2 squares (only if not moved yet and both empty) ---
+            if not self._has_moved:
+                two_step = Coordinate(at.file, at.rank + 2 * direction)
+                if board.is_in_bounds(two_step) and board.is_empty(two_step):
+                    moves.append(Move(at, two_step))
+
+        # --- Forward diagonal captures ---
+        for file_offset in [-1, 1]:
+            target = Coordinate(at.file + file_offset, at.rank + direction)
+            if board.is_in_bounds(target) and board.is_enemy(target, self.color):
+                moves.append(Move(at, target))
+
+        # --- Unlock permanent backward movement/captures ---
+        if at.rank == furthest_rank:
+            self._backwards_unlocked = True
+
+        # --- Backward movement & captures (if unlocked) ---
+        if self._backwards_unlocked:
+            # 1 square backward move
+            back_one = Coordinate(at.file, at.rank - direction)
+            if board.is_in_bounds(back_one) and board.is_empty(back_one):
+                moves.append(Move(at, back_one))
+
+            # Backward diagonal captures
+            for file_offset in [-1, 1]:
+                back_target = Coordinate(at.file + file_offset, at.rank - direction)
+                if board.is_in_bounds(back_target) and board.is_enemy(back_target, self.color):
+                    moves.append(Move(at, back_target))
+
+        return moves
+
+    def get_legal_captures(self, board: 'Board', at: Coordinate) -> List[Move]:
+        """Return only capture moves for the Peon."""
+        captures: List[Move] = []
+        direction = 1 if self.color == Color.WHITE else -1
+        furthest_rank = 7 if self.color == Color.WHITE else 0
+
+        # --- Forward diagonal captures ---
+        for file_offset in [-1, 1]:
+            target = Coordinate(at.file + file_offset, at.rank + direction)
+            if board.is_in_bounds(target) and board.is_enemy(target, self.color):
+                captures.append(Move(at, target))
+
+        # --- Unlock permanent backward capture ability ---
+        if at.rank == furthest_rank:
+            self._backwards_unlocked = True
+
+        # --- Backward diagonal captures (if unlocked) ---
+        if self._backwards_unlocked:
+            for file_offset in [-1, 1]:
+                back_target = Coordinate(at.file + file_offset, at.rank - direction)
+                if board.is_in_bounds(back_target) and board.is_enemy(back_target, self.color):
+                    captures.append(Move(at, back_target))
+
+        return captures
+
+    def to_dict(self, at: Coordinate, include_moves: bool = False,
+                board: 'Board' = None, captures_only: bool = False) -> dict:
+        """Frontend-friendly dictionary representation of Peon, including backward unlock status."""
+        data = {
+            "id": self.id,
+            "type": self.type.name,        # "PEON"
+            "color": self.color.name,      # "WHITE"/"BLACK"
+            "position": {"file": at.file, "rank": at.rank},
+            "backwardsUnlocked": self._backwards_unlocked,
+        }
+
+        if include_moves and board is not None:
+            moves = (self.get_legal_captures(board, at) if captures_only
+                     else self.get_legal_moves(board, at))
+            data["moves"] = [
+                {
+                    "from": {"file": m.from_sq.file, "rank": m.from_sq.rank},
+                    "to": {"file": m.to_sq.file, "rank": m.to_sq.rank},
+                }
+                for m in moves
+            ]
+        return data
 
 
 class Scout(Piece):
@@ -787,3 +883,26 @@ if __name__ == "__main__":
 
     assert any((m.to_sq.file, m.to_sq.rank) == (5, 6) for m in captures), "Knight failed L-capture"
     assert all(abs(m.to_sq.file - 4) + abs(m.to_sq.rank - 4) in (3,) for m in moves), "Knight move shape invalid"
+# -------------------------------------------------------------------------    
+    print("\n--- Testing Peon ---")
+    board = _BoardStub()
+    peon = Peon("PE1", Color.WHITE)
+    at = Coordinate(4, 4)  # e5
+    board.place(at.file, at.rank, peon)
+    
+    # Empty squares ahead
+    board.place(3, 5, _MockPiece(Color.BLACK))  # Diagonal capture target
+    board.place(5, 5, _MockPiece(Color.BLACK))  # Diagonal capture target
+    
+    moves = peon.get_legal_moves(board, at)
+    print("Initial moves:", [(m.to_sq.file, m.to_sq.rank) for m in moves])
+    
+    # Move Peon to furthest rank to unlock backward movement
+    at_far = Coordinate(4, 7)  # e8
+    board = _BoardStub()
+    board.place(at_far.file, at_far.rank, peon)
+    board.place(3, 6, _MockPiece(Color.BLACK))  # backward capture target
+    board.place(5, 6, _MockPiece(Color.BLACK))  # backward capture target
+    
+    moves_unlocked = peon.get_legal_moves(board, at_far)
+    print("After reaching furthest rank (unlocked):", [(m.to_sq.file, m.to_sq.rank) for m in moves_unlocked])
