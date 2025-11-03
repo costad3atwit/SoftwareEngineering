@@ -887,22 +887,31 @@ if __name__ == "__main__":
     print("\n--- Testing Peon ---")
     board = _BoardStub()
     peon = Peon("PE1", Color.WHITE)
-    at = Coordinate(4, 4)  # e5
+    at = Coordinate(4, 4)  # e5 (middle of the board)
     board.place(at.file, at.rank, peon)
     
-    # Empty squares ahead
-    board.place(3, 5, _MockPiece(Color.BLACK))  # Diagonal capture target
-    board.place(5, 5, _MockPiece(Color.BLACK))  # Diagonal capture target
+    # Place diagonal enemies for forward captures
+    board.place(3, 5, _MockPiece(Color.BLACK))  # d6
+    board.place(5, 5, _MockPiece(Color.BLACK))  # f6
     
-    moves = peon.get_legal_moves(board, at)
-    print("Initial moves:", [(m.to_sq.file, m.to_sq.rank) for m in moves])
+    # Initial movement (no backward unlock)
+    moves_initial = peon.get_legal_moves(board, at)
+    print("Initial moves:", [(m.to_sq.file, m.to_sq.rank) for m in moves_initial])
+    print("Backwards unlocked:", peon._backwards_unlocked)
+    print("Initial dict:", peon.to_dict(at, include_moves=True, board=board))
     
-    # Move Peon to furthest rank to unlock backward movement
+    # Move to furthest rank — unlock backward movement
     at_far = Coordinate(4, 7)  # e8
     board = _BoardStub()
+    peon._backwards_unlocked = False  # reset manually for clean test
     board.place(at_far.file, at_far.rank, peon)
-    board.place(3, 6, _MockPiece(Color.BLACK))  # backward capture target
-    board.place(5, 6, _MockPiece(Color.BLACK))  # backward capture target
+    
+    # Place diagonal enemies for backward captures
+    board.place(3, 6, _MockPiece(Color.BLACK))  # d7
+    board.place(5, 6, _MockPiece(Color.BLACK))  # f7
     
     moves_unlocked = peon.get_legal_moves(board, at_far)
-    print("After reaching furthest rank (unlocked):", [(m.to_sq.file, m.to_sq.rank) for m in moves_unlocked])
+    print("\nAfter reaching furthest rank:")
+    print("Unlocked moves:", [(m.to_sq.file, m.to_sq.rank) for m in moves_unlocked])
+    print("Backwards unlocked (flag):", peon._backwards_unlocked)
+    print("Unlocked dict:", peon.to_dict(at_far, include_moves=True, board=board))
