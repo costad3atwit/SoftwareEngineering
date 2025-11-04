@@ -96,21 +96,26 @@ class Board:
     
     def move_piece(self, move: Move) -> Optional[Piece]:
         """Move a piece from one coordinate to another. Return captured piece if any."""
-        src = move.from_coord
-        dest = move.to_coord
-
+        src, dest = move.from_coord, move.to_coord
         moving_piece = self.squares.get(src)
         if not moving_piece:
             raise ValueError(f"No piece at {src}")
-
-        # capture if needed
+    
         captured_piece = self.squares.pop(dest, None)
-
-        # perform the move
         self.squares.pop(src)
         self.squares[dest] = moving_piece
         moving_piece.has_moved = True
-
+    
+        # --- Scout marking logic ---
+        from backend.chess.piece import Scout
+        if isinstance(moving_piece, Scout) and "mark" in getattr(move, "metadata", {}):
+            Scout.mark_target(self, dest)
+    
+        # --- Unmark all if a capture occurs ---
+        if captured_piece:
+            for piece in self.squares.values():
+                piece.marked = False
+    
         return captured_piece
 
      def is_square_attacked(self, coord: Coordinate, by_color: Color) -> bool:
