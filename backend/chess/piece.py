@@ -13,6 +13,7 @@ class Piece(ABC):
         self.color = color
         self.type = piece_type
         self.has_moved = False
+        self.marked = False
 
     @abstractmethod
     def get_legal_moves(self, board: 'Board', at: Coordinate) -> List[Move]:
@@ -40,6 +41,7 @@ class Piece(ABC):
             "type": self.type.value,
             "color": self.color.name,
             "position": {"file": at.file, "rank": at.rank},
+            "marked": self.marked,
         }
         if include_moves and board is not None:
             moves = (self.get_legal_captures(board, at) if captures_only
@@ -584,15 +586,54 @@ class Peon(Piece):
 
 
 class Scout(Piece):
+    # Static variable — only one piece on the board can be marked at any time
+    marked_piece_coord: Optional[Coordinate] = None
+    
     def __init__(self, id: str, color: Color):
         super().__init__(id, color, PieceType.SCOUT)
 
     def get_legal_moves(self, board: 'Board', at: Coordinate) -> List[Move]:
-        return [] # implement later
+        moves: List[Move] = []
+        directions = [
+            (1, 0), (-1, 0), (0, 1), (0, -1),
+            (1, 1), (1, -1), (-1, 1), (-1, -1)
+        ]
+
+        for dx, dy in directions:
+            x, y = at.file, at.rank
+            for _ in range(5):
+                x += dx
+                y += dy
+                next_coord = Coordinate(x, y)
+                if not board.is_in_bounds(next_coord):
+                    break
+
+                if board.is_empty(next_coord):
+                    moves.append(Move(at, next_coord))
+                    continue
+
+                if board.is_enemy(next_coord, self.color):
+                    move = Move(at, next_coord, metadata={"mark": True})
+                    moves.append(move)
+                    break
+
+                break
+
+        return moves
 
     def get_legal_captures(self, board: 'Board', at:Coordinate) -> List[Move]:
-        return [] # implement later
+        return [] # Scout itself has no capturing moves
+    
+    @staticmethod
+    def mark_target(board: 'Board', target: Coordinate):
+        """Mark one enemy piece, unmark any previously marked ones."""
+        # Clear previous marks
+        for piece in board.squares.values():
+            piece.marked = False
 
+        target_piece = board.piece_at_coord(target)
+        if target_piece:
+            target_piece.marked = True
 
 class HeadHunter(Piece):
     def __init__(self, id: str, color: Color):
