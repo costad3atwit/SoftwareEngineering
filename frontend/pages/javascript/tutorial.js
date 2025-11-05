@@ -399,7 +399,7 @@ function playCard(card, el){
 drawBtn.addEventListener('click', () => {
   const me = gameState.players[0];
   // create a new card object for demo
-  const newCard = { id: 'c'+(Date.now()%10000), name: 'Flare', description: 'A demo card that flares', type:'Action', target:'board' };
+  const newCard = { id: 'c'+(Date.now()%10000), name: 'Card_Name', description: 'Placeholder_Card_Description', type:'Action', target:'board' };
   // animate from deckPreview to hand
   const deckPreview = document.getElementById('deckPreview');
   const rect = deckPreview.getBoundingClientRect();

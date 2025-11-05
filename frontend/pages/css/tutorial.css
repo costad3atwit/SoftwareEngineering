@@ -10,7 +10,15 @@
 }
 
 * { box-sizing: border-box; }
-html,body { height:100%; margin:0; font-family: "Segoe UI", system-ui, -apple-system, Roboto, "Cinzel", serif; background: linear-gradient(180deg,#1b1f3a,#222b63); color: #fff; }
+html,body { height:100%; margin:0; font-family: "Segoe UI", system-ui, -apple-system, Roboto, "Cinzel", serif; }
+
+.background {
+  position: fixed;
+  inset: 0;
+  background: url('../assets/game/table_env/table-cloth.png') center/cover no-repeat;
+  z-index: -1;
+  filter: blur(2px) brightness(0.9);
+}
 
 .page {
   display: flex;
