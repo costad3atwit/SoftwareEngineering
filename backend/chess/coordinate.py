@@ -36,3 +36,10 @@ class Coordinate:
     def __str__(self):
         """Print Coordinates"""
         return self.to_algebraic()
+    
+    def __hash__(self):
+        """Allow Coordinate to be used as dict key"""
+        return hash((self.file, self.rank))
+
+    def __repr__(self):
+        return f"Coordinate({self.file}, {self.rank})"

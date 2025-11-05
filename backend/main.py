@@ -44,7 +44,7 @@ logger.info("="*60)
 app = FastAPI()
 
 # Serve static files (your frontend)
-base_dir = Path(__file__).resolve().parent
+base_dir = Path(__file__).resolve().parent.parent
 frontend_dir = base_dir / "frontend"
 static_dir = base_dir / "static"
 

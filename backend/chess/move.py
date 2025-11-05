@@ -15,6 +15,19 @@ class Move:
         self.card_play_id = card_play_id
         self.metadata = metadata or {}
 
+    def __eq__(self, other):
+        """Check if two moves are the same (ignoring piece object identity)"""
+        if not isinstance(other, Move):
+            return False
+        return (self.from_sq == other.from_sq and 
+                self.to_sq == other.to_sq and
+                self.promotion == other.promotion)
+    
+    def __hash__(self):
+        """Allow Move to be used in sets"""
+        return hash((self.from_sq, self.to_sq, self.promotion))
+    
+    
     def __str__(self):
         # Simple text version of the move 
         return f"{self.piece.algebraic_notation()}{self.from_sq}->{self.to_sq}" + (

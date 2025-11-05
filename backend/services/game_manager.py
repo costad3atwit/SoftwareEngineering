@@ -14,6 +14,8 @@ from backend.player import Player
 from backend.cards.deck import Deck
 from backend.cards.card import Card, create_card_by_id
 from backend.enums import Color
+from backend.chess.coordinate import Coordinate
+from backend.chess.move import Move
 
 
 class GameManager:
@@ -121,7 +123,7 @@ class GameManager:
     def _create_deck_from_ids(self, card_ids: List[str]) -> Deck:
         """
         Create a Deck object from a list of card IDs.
-        TODO: Replace with actual card loading from card database/registry
+        TODO: Replace with actual card loading from card registry
         """
         deck = Deck()
         
@@ -247,9 +249,33 @@ class GameManager:
         if not game:
             return False, "Game not found", None
         
-        # TODO: Parse coordinates and create Move object
-        # For now, return not implemented
-        return False, "Move functionality requires Coordinate.from_algebraic() implementation", game
+        try:
+            # Parse algebraic notation to Coordinates
+            from_coord = Coordinate.from_algebraic(from_square)
+            to_coord = Coordinate.from_algebraic(to_square)
+            
+            # Get the piece at the from square
+            piece = game.board.piece_at_coord(from_coord)
+            if not piece:
+                return False, f"No piece at {from_square}", game
+            
+            # Verify it's the right player's piece
+            player_color = game.get_player_color(player_id)
+            if piece.color != player_color:
+                return False, "That's not your piece", game
+            
+            # Create Move object (piece parameter required by Move.__init__)
+            move = Move(from_coord, to_coord, piece)
+            
+            # Apply the move - this will check if it's legal via game.is_legal()
+            success, message = game.apply_move(player_id, move)
+            
+            return success, message, game
+            
+        except ValueError as e:
+            return False, f"Invalid square notation: {str(e)}", game
+        except Exception as e:
+            return False, f"Move error: {str(e)}", game
     
     def play_card(self, game_id: str, player_id: str, card_id: str, target_data: dict) -> Tuple[bool, str, Optional[GameState]]:
         """

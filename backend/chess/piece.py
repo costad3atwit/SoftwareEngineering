@@ -16,6 +16,7 @@ class Piece(ABC):
         self.type = piece_type
         self.has_moved = False
         self.marked = False
+        self.piece_type = piece_type
 
     @abstractmethod
     def get_legal_moves(self, board: Board, at: Coordinate) -> List[Move]:
@@ -86,7 +87,7 @@ class King(Piece):
                     if board.is_square_attacked(dest, by_color=self._opponent_color()):
                         continue
 
-                moves.append(Move(at, dest))
+                moves.append(Move(at, dest, self))
 
  
         if not self._has_moved:
@@ -141,7 +142,7 @@ class King(Piece):
                     return
 
         # All good — add castle move. Frontend can detect via metadata.
-        move = Move(at, Coordinate(landing_file, y), metadata={"castle": "K" if kingside else "Q"})
+        move = Move(at, Coordinate(landing_file, y), self, metadata={"castle": "K" if kingside else "Q"}) 
         out_moves.append(move)
 
     def get_legal_captures(self, board: Board, at: Coordinate) -> List[Move]:
@@ -217,10 +218,10 @@ class Queen(Piece):
                 to_sq = Coordinate(x, y)
 
                 if target is None:
-                    moves.append(Move(at, to_sq))
+                    moves.append(Move(at, to_sq, self))
                 else:
                     if target.color != self.color:
-                        moves.append(Move(at, to_sq))  # capture
+                        moves.append(Move(at, to_sq, self))  # capture
                     break  # stop ray on first blocker
         return moves
 
@@ -266,13 +267,13 @@ class Rook(Piece):
             next_coord = at.offset(df, dr)
             while next_coord:
                 # check if this Coordinate is valid
-                if not board.is_in_bounds(next_coord):
+                if not next_coord:
                     break
                 elif board.is_empty(next_coord): # empty square: can move and continue
-                    moves.append(Move(at, next_coord))
+                    moves.append(Move(at, next_coord, self))
                 # enemy piece: can capture, but stop moving further
                 elif board.is_enemy(next_coord, self.color):
-                    moves.append(Move(at, next_coord))
+                    moves.append(Move(at, next_coord, self))
                     break
                 # friendly piece: cannot move past or capture
                 else:
@@ -290,10 +291,10 @@ class Rook(Piece):
         for df, dr in directions:
             next_coord = at.offset(df, dr)
             while next_coord:
-                if not board.is_in_bounds(next_coord):
+                if not next_coord:
                     break
                 elif board.is_enemy(next_coord, self.color):
-                    captures.append(Move(at, next_coord))
+                    captures.append(Move(at, next_coord, self))
                     break  # can't move past captured piece
                 elif not board.is_empty(next_coord):
                     break  # friendly piece blocks path
@@ -323,13 +324,13 @@ class Bishop(Piece):
         for df, dr in directions:
             next_coord = at.offset(df, dr)
             while next_coord:
-                if not board.is_in_bounds(next_coord):
+                if not next_coord:
                     break
                 elif board.is_empty(next_coord): # empty square: can move and continue
-                    moves.append(Move(at, next_coord))
+                    moves.append(Move(at, next_coord, self))
                 # enemy piece: can capture, but stop moving further
                 elif board.is_enemy(next_coord, self.color):
-                    moves.append(Move(at, next_coord))
+                    moves.append(Move(at, next_coord, self))
                     break
                 # friendly piece: cannot move past or capture
                 else:
@@ -347,7 +348,7 @@ class Bishop(Piece):
         for df, dr in directions:
             next_coord = at.offset(df, dr)
             while next_coord:
-                if not board.is_in_bounds(next_coord):
+                if not next_coord:
                     break
                 elif board.is_enemy(next_coord, self.color):
                     captures.append(Move(at, next_coord))
@@ -373,11 +374,11 @@ class Knight(Piece):
 
         for df, dr in jumps:
             new = at.offset(df, dr)
-            if not board.is_in_bounds(new):
+            if not new:
                 continue
             # knights can move to any empty square or capture enemy pieces
             elif new and (board.is_empty(new) or board.is_enemy(new, self.color)):
-                moves.append(Move(at, new))
+                moves.append(Move(at, new, self))
         return moves
 
     def get_legal_captures(self, board: Board, at:Coordinate) -> List[Move]:
@@ -390,10 +391,10 @@ class Knight(Piece):
 
         for df, dr in jumps:
             new = at.offset(df, dr)
-            if not board.is_in_bounds(new):
+            if not new:
                 continue
             if new and board.is_enemy(new, self.color):
-                captures.append(Move(at, new))
+                captures.append(Move(at, new, self))
         return captures
 
 
@@ -418,7 +419,7 @@ class Pawn(Piece):
         # --- Forward move (1 square) ---
         one_step = Coordinate(at.file, at.rank + direction)
         if board.is_in_bounds(Coordinate(one_step.file, one_step.rank)) and board.is_empty(one_step):
-            move = Move(at, one_step)
+            move = Move(at, one_step, self)
             # Promotion
             if one_step.rank == promotion_rank:
                 move.promotion = "Queen"
@@ -427,7 +428,7 @@ class Pawn(Piece):
             # --- Forward move (2 squares on first move) ---
             two_step = Coordinate(at.file, at.rank + 2 * direction)
             if at.rank == start_rank and board.is_empty(two_step):
-                moves.append(Move(at, two_step))
+                moves.append(Move(at, two_step, self))
 
         # --- Captures (diagonals) ---
         for file_offset in [-1, 1]:
@@ -438,7 +439,7 @@ class Pawn(Piece):
 
             target_piece = board.piece_at_coord(Coordinate(target_file, target_rank))
             if target_piece and target_piece.color != self.color:
-                move = Move(at, Coordinate(target_file, target_rank))
+                move = Move(at, Coordinate(target_file, target_rank), self)
                 # Promotion capture
                 if target_rank == promotion_rank:
                     move.promotion = "Queen"
@@ -505,19 +506,19 @@ class Peon(Piece):
         # --- Forward 1 square ---
         one_step = Coordinate(at.file, at.rank + direction)
         if board.is_in_bounds(one_step) and board.is_empty(one_step):
-            moves.append(Move(at, one_step))
+            moves.append(Move(at, one_step, self))
 
             # --- Forward 2 squares (only if not moved yet and both empty) ---
             if not self._has_moved:
                 two_step = Coordinate(at.file, at.rank + 2 * direction)
                 if board.is_in_bounds(two_step) and board.is_empty(two_step):
-                    moves.append(Move(at, two_step))
+                    moves.append(Move(at, two_step, self))
 
         # --- Forward diagonal captures ---
         for file_offset in [-1, 1]:
             target = Coordinate(at.file + file_offset, at.rank + direction)
             if board.is_in_bounds(target) and board.is_enemy(target, self.color):
-                moves.append(Move(at, target))
+                moves.append(Move(at, target, self))
 
         # --- Unlock permanent backward movement/captures ---
         if at.rank == furthest_rank:
@@ -528,13 +529,13 @@ class Peon(Piece):
             # 1 square backward move
             back_one = Coordinate(at.file, at.rank - direction)
             if board.is_in_bounds(back_one) and board.is_empty(back_one):
-                moves.append(Move(at, back_one))
+                moves.append(Move(at, back_one, self))
 
             # Backward diagonal captures
             for file_offset in [-1, 1]:
                 back_target = Coordinate(at.file + file_offset, at.rank - direction)
                 if board.is_in_bounds(back_target) and board.is_enemy(back_target, self.color):
-                    moves.append(Move(at, back_target))
+                    moves.append(Move(at, back_target, self))
 
         return moves
 
@@ -548,7 +549,7 @@ class Peon(Piece):
         for file_offset in [-1, 1]:
             target = Coordinate(at.file + file_offset, at.rank + direction)
             if board.is_in_bounds(target) and board.is_enemy(target, self.color):
-                captures.append(Move(at, target))
+                captures.append(Move(at, target, self))
 
         # --- Unlock permanent backward capture ability ---
         if at.rank == furthest_rank:
@@ -559,7 +560,7 @@ class Peon(Piece):
             for file_offset in [-1, 1]:
                 back_target = Coordinate(at.file + file_offset, at.rank - direction)
                 if board.is_in_bounds(back_target) and board.is_enemy(back_target, self.color):
-                    captures.append(Move(at, back_target))
+                    captures.append(Move(at, back_target, self))
 
         return captures
 
@@ -611,12 +612,11 @@ class Scout(Piece):
                     break
 
                 if board.is_empty(next_coord):
-                    moves.append(Move(at, next_coord))
+                    moves.append(Move(at, next_coord, self))
                     continue
 
                 if board.is_enemy(next_coord, self.color):
-                    move = Move(at, next_coord, metadata={"mark": True})
-                    moves.append(move)
+                    move = Move(at, next_coord, self, metadata={"mark": True}) 
                     break
 
                 break

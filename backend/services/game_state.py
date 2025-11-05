@@ -16,6 +16,7 @@ class GameState:
         
         # Chess board
         self.board: Board = Board()  # Assumes Board() initializes standard setup
+        Board.setup_standard(self.board)
         
         # Players
         self.players: Dict[Color, Player] = {
