@@ -5,7 +5,7 @@
     <style>
         body {
             font-family: Arial, sans-serif;
-            max-width: 800px;
+            max-width: 900px;
             margin: 50px auto;
             padding: 20px;
             background: #1a1a1a;
@@ -38,7 +38,7 @@
             background: #1a1a1a;
             padding: 15px;
             border-radius: 5px;
-            height: 300px;
+            height: 400px;
             overflow-y: auto;
             font-family: monospace;
             font-size: 12px;
@@ -61,22 +61,31 @@
         }
         .status.connected { background: #4CAF50; }
         .status.disconnected { background: #f44336; }
-        input {
+        input, select {
             padding: 8px;
             margin: 5px;
             border-radius: 5px;
             border: 1px solid #444;
             background: #333;
             color: #fff;
+            min-width: 150px;
+        }
+        .game-state {
+            background: #1a1a1a;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+            font-size: 14px;
         }
     </style>
 </head>
 <body>
-    <h1>🎮 Arcane Chess - Test Client</h1>
+    <h1>Arcane Chess - Manual Test Client</h1>
     
     <div class="container">
         <h2>Connection</h2>
         <label>Client ID: <input type="text" id="clientId" value="player1" /></label>
+        <label>Player Name: <input type="text" id="playerName" value="Player 1" /></label>
         <button id="connectBtn" onclick="connect()">Connect</button>
         <button id="disconnectBtn" onclick="disconnect()" disabled>Disconnect</button>
         <p>
@@ -87,15 +96,30 @@
     
     <div class="container">
         <h2>Matchmaking</h2>
+        <p>Deck will be automatically generated (16 cards)</p>
         <button id="joinQueueBtn" onclick="joinQueue()" disabled>Join Queue</button>
-        <p id="gameInfo"></p>
+        <div id="gameInfo" class="game-state"></div>
     </div>
     
     <div class="container">
         <h2>Game Actions</h2>
-        <button onclick="sendMove()" disabled id="moveBtn">Send Test Move (e2 to e4)</button>
-        <button onclick="playCard()" disabled id="cardBtn">Play Test Card</button>
-        <button onclick="sendPing()">Send Ping</button>
+        <div>
+            <label>From Square: <input type="text" id="fromSquare" value="e2" placeholder="e.g., e2" /></label>
+            <label>To Square: <input type="text" id="toSquare" value="e4" placeholder="e.g., e4" /></label>
+            <button onclick="sendMove()" disabled id="moveBtn">Make Move</button>
+        </div>
+        <div style="margin-top: 10px;">
+            <label>Card to Play: 
+                <select id="cardSelect" disabled>
+                    <option value="">-- Select Card --</option>
+                </select>
+            </label>
+            <button onclick="playCard()" disabled id="cardBtn">Play Card</button>
+        </div>
+        <div style="margin-top: 10px;">
+            <button onclick="getGameState()" disabled id="getStateBtn">Get Game State</button>
+            <button onclick="sendPing()">Send Ping</button>
+        </div>
     </div>
     
     <div class="container">
@@ -108,6 +132,16 @@
         let ws = null;
         let gameId = null;
         let playerColor = null;
+        let currentHand = [];
+
+        // Sample deck (16 cards matching your card registry)
+        const sampleDeck = [
+            "mine", "eye_for_an_eye", "summon_peon", "pawn_scout",
+            "knight_headhunter", "bishop_warlock",
+            "mine", "eye_for_an_eye", "summon_peon", "pawn_scout",
+            "knight_headhunter", "bishop_warlock",
+            "mine", "eye_for_an_eye", "summon_peon", "pawn_scout"
+        ];
 
         function log(message, type = 'info') {
             const logDiv = document.getElementById('log');
@@ -141,6 +175,43 @@
             }
         }
 
+        function updateGameUI(gameState) {
+            if (!gameState) return;
+            
+            const info = document.getElementById('gameInfo');
+            const html = `
+                <strong>Game Status:</strong> ${gameState.status}<br>
+                <strong>Your Color:</strong> ${gameState.your_color}<br>
+                <strong>Your Turn:</strong> ${gameState.your_turn ? 'YES' : 'NO'}<br>
+                <strong>Your Hand:</strong> ${gameState.your_hand ? gameState.your_hand.join(', ') : 'N/A'}<br>
+                <strong>Your Deck Size:</strong> ${gameState.your_deck_size}<br>
+                <strong>Opponent Hand Size:</strong> ${gameState.opponent_hand_size}<br>
+                <strong>Current Turn:</strong> ${gameState.current_turn}<br>
+                <strong>White Time:</strong> ${Math.floor(gameState.white_time)}s<br>
+                <strong>Black Time:</strong> ${Math.floor(gameState.black_time)}s
+            `;
+            info.innerHTML = html;
+            
+            // Update card dropdown
+            if (gameState.your_hand) {
+                currentHand = gameState.your_hand;
+                const select = document.getElementById('cardSelect');
+                select.innerHTML = '<option value="">-- Select Card --</option>';
+                gameState.your_hand.forEach(card => {
+                    const option = document.createElement('option');
+                    option.value = card;
+                    option.textContent = card;
+                    select.appendChild(option);
+                });
+                select.disabled = false;
+            }
+            
+            // Enable/disable buttons based on turn
+            document.getElementById('moveBtn').disabled = !gameState.your_turn;
+            document.getElementById('cardBtn').disabled = !gameState.your_turn;
+            document.getElementById('getStateBtn').disabled = false;
+        }
+
         function connect() {
             const clientId = document.getElementById('clientId').value;
             if (!clientId) {
@@ -151,26 +222,52 @@
             ws = new WebSocket(`ws://localhost:8000/ws/${clientId}`);
             
             ws.onopen = () => {
-                log('Connected to server', 'info');
+                log('✓ Connected to server', 'info');
                 updateStatus(true);
             };
             
             ws.onmessage = (event) => {
                 const data = JSON.parse(event.data);
-                log(`Received: ${JSON.stringify(data, null, 2)}`, 'received');
+                const msgType = data.type;
                 
-                if (data.type === 'game_started') {
+                log(`Received: ${msgType}`, 'received');
+                
+                if (msgType === 'game_started') {
                     gameId = data.game_id;
-                    playerColor = data.color;
-                    document.getElementById('gameInfo').textContent = 
-                        `Game started! You are ${playerColor}. Game ID: ${gameId}`;
-                    document.getElementById('moveBtn').disabled = false;
-                    document.getElementById('cardBtn').disabled = false;
+                    playerColor = data.game_state.your_color;
+                    log(`Game started! ID: ${gameId}, Color: ${playerColor}`, 'info');
+                    updateGameUI(data.game_state);
+                    
+                } else if (msgType === 'queue_joined') {
+                    log(`Joined matchmaking queue: ${data.message}`, 'info');
+                    
+                } else if (msgType === 'game_update') {
+                    log(`Game updated - ${data.action}`, 'info');
+                    updateGameUI(data.game_state);
+                    
+                } else if (msgType === 'game_state') {
+                    log(`Game state received`, 'info');
+                    updateGameUI(data.game_state);
+                    
+                } else if (msgType === 'game_over') {
+                    log(`Game over! Reason: ${data.reason}, Winner: ${data.winner || 'Draw'}`, 'info');
+                    document.getElementById('moveBtn').disabled = true;
+                    document.getElementById('cardBtn').disabled = true;
+                    
+                } else if (msgType === 'error') {
+                    log(`Error: ${data.message}`, 'error');
+                    
+                } else if (msgType === 'pong') {
+                    log(`Pong received`, 'info');
                 }
+                
+                // Log full data for debugging
+                console.log('Full message:', data);
             };
             
             ws.onerror = (error) => {
-                log(`Error: ${error}`, 'error');
+                log(`WebSocket error`, 'error');
+                console.error(error);
             };
             
             ws.onclose = () => {
@@ -178,6 +275,8 @@
                 updateStatus(false);
                 document.getElementById('moveBtn').disabled = true;
                 document.getElementById('cardBtn').disabled = true;
+                document.getElementById('getStateBtn').disabled = true;
+                document.getElementById('cardSelect').disabled = true;
             };
         }
 
@@ -189,40 +288,95 @@
         }
 
         function joinQueue() {
-            if (!ws) return;
-            const message = { type: 'join_queue' };
+            if (!ws) {
+                alert('Not connected to server');
+                return;
+            }
+            
+            const playerName = document.getElementById('playerName').value || 'Player';
+            
+            const message = { 
+                type: 'join_queue',
+                name: playerName,
+                deck: sampleDeck
+            };
+            
             ws.send(JSON.stringify(message));
-            log(`Sent: ${JSON.stringify(message)}`, 'sent');
+            log(`Sent: join_queue with ${sampleDeck.length} cards`, 'sent');
         }
 
         function sendMove() {
-            if (!ws || !gameId) return;
+            if (!ws || !gameId) {
+                alert('Not in a game');
+                return;
+            }
+            
+            const fromSquare = document.getElementById('fromSquare').value;
+            const toSquare = document.getElementById('toSquare').value;
+            
+            if (!fromSquare || !toSquare) {
+                alert('Please enter both from and to squares');
+                return;
+            }
+            
             const message = {
-                type: 'move',
+                type: 'make_move',
                 game_id: gameId,
-                from: 'e2',
-                to: 'e4'
+                from: fromSquare,
+                to: toSquare
             };
+            
             ws.send(JSON.stringify(message));
-            log(`Sent: ${JSON.stringify(message)}`, 'sent');
+            log(`Sent: make_move (${fromSquare} → ${toSquare})`, 'sent');
         }
 
         function playCard() {
-            if (!ws || !gameId) return;
+            if (!ws || !gameId) {
+                alert('Not in a game');
+                return;
+            }
+            
+            const cardId = document.getElementById('cardSelect').value;
+            if (!cardId) {
+                alert('Please select a card');
+                return;
+            }
+            
             const message = {
                 type: 'play_card',
                 game_id: gameId,
-                card: 'Transform Pawn'
+                card_id: cardId,
+                target: {}
             };
+            
             ws.send(JSON.stringify(message));
-            log(`Sent: ${JSON.stringify(message)}`, 'sent');
+            log(`Sent: play_card (${cardId})`, 'sent');
+        }
+
+        function getGameState() {
+            if (!ws || !gameId) {
+                alert('Not in a game');
+                return;
+            }
+            
+            const message = {
+                type: 'get_game_state',
+                game_id: gameId
+            };
+            
+            ws.send(JSON.stringify(message));
+            log(`Sent: get_game_state`, 'sent');
         }
 
         function sendPing() {
-            if (!ws) return;
+            if (!ws) {
+                alert('Not connected to server');
+                return;
+            }
+            
             const message = { type: 'ping' };
             ws.send(JSON.stringify(message));
-            log(`Sent: ${JSON.stringify(message)}`, 'sent');
+            log(`Sent: ping`, 'sent');
         }
 
         function clearLog() {
