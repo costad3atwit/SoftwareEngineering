@@ -588,13 +588,15 @@ class Peon(Piece):
 
 
 class Scout(Piece):
-    # Static variable — only one piece on the board can be marked at any time
-    marked_piece_coord: Optional[Coordinate] = None
-    
     def __init__(self, id: str, color: Color):
         super().__init__(id, color, PieceType.SCOUT)
 
-    def get_legal_moves(self, board: Board, at: Coordinate) -> List[Move]:
+    def get_legal_moves(self, board: 'Board', at: Coordinate) -> List[Move]:
+        """
+        Scouts can move like a queen, but up to 5 squares only.
+        If the destination contains an enemy piece, the Scout marks it
+        and stays in its current location instead of moving.
+        """
         moves: List[Move] = []
         directions = [
             (1, 0), (-1, 0), (0, 1), (0, -1),
@@ -603,7 +605,7 @@ class Scout(Piece):
 
         for dx, dy in directions:
             x, y = at.file, at.rank
-            for _ in range(5):
+            for _ in range(5):  # limit to 5 squares
                 x += dx
                 y += dy
                 next_coord = Coordinate(x, y)
@@ -611,31 +613,62 @@ class Scout(Piece):
                     break
 
                 if board.is_empty(next_coord):
+                    # Normal movement to empty squares
                     moves.append(Move(at, next_coord))
                     continue
 
+                # Enemy piece encountered → mark, stay in place
                 if board.is_enemy(next_coord, self.color):
-                    move = Move(at, next_coord, metadata={"mark": True})
-                    moves.append(move)
+                    mark_move = Move(
+                        at, at,  # stays in the same position
+                        metadata={"mark": True, "target": {"file": next_coord.file, "rank": next_coord.rank}}
+                    )
+                    moves.append(mark_move)
                     break
 
+                # Friendly piece blocks further movement
                 break
 
         return moves
 
-    def get_legal_captures(self, board: Board, at:Coordinate) -> List[Move]:
-        return [] # Scout itself has no capturing moves
-    
-    @staticmethod
-    def mark_target(board: Board, target: Coordinate):
-        """Mark one enemy piece, unmark any previously marked ones."""
-        # Clear previous marks
-        for piece in board.squares.values():
-            piece.marked = False
+    def get_legal_captures(self, board: 'Board', at: Coordinate) -> List[Move]:
+        """Scouts do not perform normal captures."""
+        return []
 
+    @staticmethod
+    def mark_target(board: 'Board', target: Coordinate):
+        """Marks the target enemy piece, clearing any existing marks."""
+        for piece in board.squares.values():
+            piece.marked = False  # clear previous marks
         target_piece = board.piece_at_coord(target)
         if target_piece:
             target_piece.marked = True
+            print(f"Marked piece: {target_piece.id} at {target.file},{target.rank}")
+
+    def to_dict(self, at: Coordinate, include_moves: bool = False,
+                board: 'Board' = None, captures_only: bool = False) -> dict:
+        """
+        Frontend-friendly dictionary including move options and markable targets.
+        """
+        data = {
+            "id": self.id,
+            "type": self.type.name,
+            "color": self.color.name,
+            "position": {"file": at.file, "rank": at.rank},
+            "marked": self.marked
+        }
+
+        if include_moves and board is not None:
+            data["moves"] = [
+                {
+                    "from": {"file": m.from_sq.file, "rank": m.from_sq.rank},
+                    "to": {"file": m.to_sq.file, "rank": m.to_sq.rank},
+                    "mark": getattr(m, "metadata", {}).get("mark", False),
+                    "target": getattr(m, "metadata", {}).get("target", None)
+                }
+                for m in self.get_legal_moves(board, at)
+            ]
+        return data
 
 class HeadHunter(Piece):
     def __init__(self, id: str, color: Color):
