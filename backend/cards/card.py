@@ -1,6 +1,11 @@
+from __future__ import annotations
 from abc import ABC, abstractmethod  # Abstract Base Class tools
 from backend.enums import CardType, TargetType
+from typing import Optional, Dict, Any, TYPE_CHECKING
 
+if TYPE_CHECKING:
+    from backend.chess.board import Board
+    from backend.player import Player
 
 class Card(ABC):
     """
@@ -71,35 +76,193 @@ class Card(ABC):
 
         return data
 
-# ---------- Test ----------
-if __name__ == "__main__":
+# ============================================================================
+# CONCRETE CARD IMPLEMENTATIONS
+# ============================================================================
 
-    # Small test subclass (since Card is abstract)
-    class TestCard(Card):
-        @property
-        def card_type(self):
-            return CardType.CURSE 
+class Mine(Card):
+    """
+    Hidden: Mine - Places a mine on a random tile on the board.
+    Any friendly piece within 1 tile reveals its location.
+    Explodes when landed on, capturing all pieces within 1 tile (except king).
+    Auto-detonates after 4 turns if not triggered.
+    """
+    
+    def __init__(self):
+        super().__init__(id="mine", name="Mine", description="Placeholder", big_img="static/example_big.png", small_img="static/example_small.png")
+    
+    @property
+    def card_type(self) -> CardType:
+        return CardType.HIDDEN
+    
+    def can_play(self, board: Board, player: Player) -> bool:
+        # Can always play mine if you have it
+        return True
+    
+    def apply_effect(self, board: Board, player: Player, target_data: Dict[str, Any]) -> tuple[bool, str]:
+        # TODO: Implement mine placement logic
+        # - Find random tile > 1 tile away from all pieces
+        # - Register mine in board state with 4-turn timer
+        # - Set up proximity reveal logic
+        return True, "Mine placed (effect not yet implemented)"
 
-        def __init__(self, id, name, desc, big_img, small_img, target_type=None):
-            super().__init__(id, name, desc, big_img, small_img)
-            self.target_type = target_type
 
-    # --- Create example card ---
-    card = TestCard(
-        id="C001",
-        name="Fireball",
-        desc="Deal 3 damage to enemy piece.",
-        big_img="fireball_big.png",
-        small_img="fireball_small.png",
-        target_type=TargetType.BOARD
-    )
+class EyeForAnEye(Card):
+    """
+    Eye for an Eye - Marks a friendly and opposing piece for 5 turns.
+    Capturing a marked piece allows for another turn immediately.
+    """
+    
+    def __init__(self):
+        super().__init__(id="eye_for_an_eye", name="Eye for an Eye", description="Placeholder", big_img="static/example_big.png", small_img="static/example_small.png")
+    
+    @property
+    def card_type(self) -> CardType:
+        return CardType.CURSE
+    
+    def can_play(self, board: Board, player: Player) -> bool:
+        # Need at least one friendly and one enemy piece to mark
+        return True  # Simplified for now
+    
+    def apply_effect(self, board: Board, player: Player, target_data: Dict[str, Any]) -> tuple[bool, str]:
+        # TODO: Implement marking logic
+        # - Expect target_data to contain friendly_piece and enemy_piece coordinates
+        # - Mark both pieces for 5 turns
+        # - Set up capture trigger for extra turn
+        return True, "Eye for an Eye marked pieces (effect not yet implemented)"
 
-    # --- Test getters ---
-    print("Name:", card.get_name())
-    print("Description:", card.get_desc())
-    print("Big image:", card.get_big_img())
 
-    # --- Test dictionary output ---
-    card_dict = card.to_dict(include_target=True)
-    print("\nDictionary Output:")
-    print(card_dict)
+class SummonPeon(Card):
+    """
+    Summon Peon - Summons a friendly peon on a random square.
+    Peons act like pawns but cannot promote.
+    Upon reaching furthest rank, unlock backward movement/attacks.
+    """
+    
+    def __init__(self):
+        super().__init__(id="summon_peon", name="Summon Peon", description="Placeholder", big_img="static/example_big.png", small_img="static/example_small.png")
+    
+    @property
+    def card_type(self) -> CardType:
+        return CardType.SUMMON
+    
+    def can_play(self, board: Board, player: Player) -> bool:
+        # Can play if there's room on the board
+        return True
+    
+    def apply_effect(self, board: Board, player: Player, target_data: Dict[str, Any]) -> tuple[bool, str]:
+        # TODO: Implement peon summoning
+        # - Find random safe square (bias for not attacking/being attacked)
+        # - Cannot spawn on enemy back rank
+        # - If under checkmate threat, try to block
+        # - Create and place Peon piece
+        return True, "Peon summoned (effect not yet implemented)"
+
+
+class TransformToScout(Card):
+    """
+    Pawn: Scout - Select one pawn to transform into a scout.
+    Scouts move like a queen but only 5 squares in each direction.
+    Cannot capture; instead marks enemy pieces.
+    Capturing marked piece grants extra turn.
+    """
+    
+    def __init__(self):
+        super().__init__(id="pawn_scout", name="Pawn: Scout", description="Placeholder", big_img="static/example_big.png", small_img="static/example_small.png")
+    
+    @property
+    def card_type(self) -> CardType:
+        return CardType.TRANSFORM
+    
+    def can_play(self, board: Board, player: Player) -> bool:
+        # Need at least one pawn to transform
+        # TODO: Check if player has any pawns
+        return True
+    
+    def apply_effect(self, board: Board, player: Player, target_data: Dict[str, Any]) -> tuple[bool, str]:
+        # TODO: Implement pawn -> scout transformation
+        # - Expect target_data to contain pawn coordinate
+        # - Remove pawn, create Scout piece at same location
+        # - If no pawn available, allow material sacrifice to summon
+        return True, "Pawn transformed to Scout (effect not yet implemented)"
+
+
+class TransformToHeadhunter(Card):
+    """
+    Knight: Headhunter - Select a knight to transform into a headhunter.
+    Headhunters move like a king but can attack 3 squares in front of them.
+    Value of 5.
+    """
+    
+    def __init__(self):
+        super().__init__(id="knight_headhunter", name="Knight: Headhunter", description="Placeholder", big_img="static/example_big.png", small_img="static/example_small.png")
+    
+    @property
+    def card_type(self) -> CardType:
+        return CardType.TRANSFORM
+    
+    def can_play(self, board: Board, player: Player) -> bool:
+        # Need at least one knight to transform
+        # TODO: Check if player has any knights
+        return True
+    
+    def apply_effect(self, board: Board, player: Player, target_data: Dict[str, Any]) -> tuple[bool, str]:
+        # TODO: Implement knight -> headhunter transformation
+        # - Expect target_data to contain knight coordinate
+        # - Remove knight, create Headhunter piece at same location
+        # - If no knight available, allow material sacrifice to summon
+        return True, "Knight transformed to Headhunter (effect not yet implemented)"
+
+
+class TransformToWarlock(Card):
+    """
+    Bishop: Warlock - Select any bishop to turn into a warlock.
+    Warlocks can move to any same-colored tile in 3 tile radius with clear line.
+    Can move 1 tile backward to change tile color.
+    When effigy destroyed, gains knight + rook movement for 2 turns.
+    Value of 5.
+    """
+    
+    def __init__(self):
+        super().__init__(id="bishop_warlock", name="Bishop: Warlock", description="Placeholder", big_img="static/example_big.png", small_img="static/example_small.png")
+    
+    @property
+    def card_type(self) -> CardType:
+        return CardType.TRANSFORM
+    
+    def can_play(self, board: Board, player: Player) -> bool:
+        # Need at least one bishop to transform
+        # TODO: Check if player has any bishops
+        return True
+    
+    def apply_effect(self, board: Board, player: Player, target_data: Dict[str, Any]) -> tuple[bool, str]:
+        # TODO: Implement bishop -> warlock transformation
+        # - Expect target_data to contain bishop coordinate
+        # - Remove bishop, create Warlock piece at same location
+        # - If no bishop available, allow material sacrifice to summon
+        return True, "Bishop transformed to Warlock (effect not yet implemented)"
+
+
+# ============================================================================
+# CARD REGISTRY - Map card IDs to card classes
+# ============================================================================
+
+CARD_REGISTRY = {
+    "mine": Mine,
+    "eye_for_an_eye": EyeForAnEye,
+    "summon_peon": SummonPeon,
+    "pawn_scout": TransformToScout,
+    "knight_headhunter": TransformToHeadhunter,
+    "bishop_warlock": TransformToWarlock,
+}
+
+
+def create_card_by_id(card_id: str) -> Optional[Card]:
+    """
+    Factory function to create a card instance by its ID.
+    Returns None if card_id is not found in registry.
+    """
+    card_class = CARD_REGISTRY.get(card_id)
+    if card_class:
+        return card_class()
+    return None

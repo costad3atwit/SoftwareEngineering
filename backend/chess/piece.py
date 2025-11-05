@@ -1,11 +1,13 @@
 from __future__ import annotations
-from typing import List
+from typing import List, Optional, Tuple, TYPE_CHECKING
 from backend.enums import Color, PieceType
 from backend.chess.coordinate import Coordinate
 from backend.chess.move import Move
 from abc import ABC, abstractmethod
-from backend.chess.board import Board
 from typing import Tuple
+
+if TYPE_CHECKING:
+    from backend.chess.board import Board
 
 class Piece(ABC):
     def __init__(self, id: str, color: Color, piece_type: PieceType):
@@ -16,12 +18,12 @@ class Piece(ABC):
         self.marked = False
 
     @abstractmethod
-    def get_legal_moves(self, board: 'Board', at: Coordinate) -> List[Move]:
+    def get_legal_moves(self, board: Board, at: Coordinate) -> List[Move]:
         """Return a list of legal moves for this piece."""
         pass
         
     @abstractmethod
-    def get_legal_captures(self, board: 'Board', at:Coordinate) -> List[Move]:
+    def get_legal_captures(self, board: Board, at:Coordinate) -> List[Move]:
         """Return a list of legal captures for this piece."""
         pass
     
@@ -59,7 +61,7 @@ class King(Piece):
         super().__init__(id, color, PieceType.KING)
         self._has_moved = False  # used for castling checks
 
-    def get_legal_moves(self, board: 'Board', at: Coordinate) -> List[Move]:
+    def get_legal_moves(self, board: Board, at: Coordinate) -> List[Move]:
         """All pseudo-legal king moves (no check filtering except for castling)."""
         moves: List[Move] = []
 
@@ -103,7 +105,7 @@ class King(Piece):
 
         return moves
 
-    def _try_castle(self, board: 'Board', at: Coordinate, kingside: bool, out_moves: List[Move]) -> None:
+    def _try_castle(self, board: Board, at: Coordinate, kingside: bool, out_moves: List[Move]) -> None:
         """Attempt to add a castle move if all preconditions are satisfied."""
         # Determine rook file targets by side
         rook_file = 7 if kingside else 0
@@ -142,7 +144,7 @@ class King(Piece):
         move = Move(at, Coordinate(landing_file, y), metadata={"castle": "K" if kingside else "Q"})
         out_moves.append(move)
 
-    def get_legal_captures(self, board: 'Board', at: Coordinate) -> List[Move]:
+    def get_legal_captures(self, board: Board, at: Coordinate) -> List[Move]:
         """Return only king capture moves (no castling)."""
         captures: List[Move] = []
         for m in self.get_legal_moves(board, at):
@@ -200,7 +202,7 @@ class Queen(Piece):
             (-1, 1), (-1, -1),
         ]
 
-    def get_legal_moves(self, board: 'Board', at: Coordinate) -> List[Move]:
+    def get_legal_moves(self, board: Board, at: Coordinate) -> List[Move]:
         """All pseudo-legal queen moves (no check filtering)."""
         moves: List[Move] = []
         for dx, dy in self._directions():
@@ -222,7 +224,7 @@ class Queen(Piece):
                     break  # stop ray on first blocker
         return moves
 
-    def get_legal_captures(self, board: 'Board', at: Coordinate) -> List[Move]:
+    def get_legal_captures(self, board: Board, at: Coordinate) -> List[Move]:
         """Only capture moves for the queen."""
         return [m for m in self.get_legal_moves(board, at)
                 if board.piece_at_coord(Coordinate(m.to_sq.file, m.to_sq.rank)) is not None]
@@ -281,7 +283,7 @@ class Rook(Piece):
 
         return moves
 
-    def get_legal_captures(self, board: 'Board', at:Coordinate) -> List[Move]:
+    def get_legal_captures(self, board: Board, at:Coordinate) -> List[Move]:
         captures: List[Move] = []
         directions = [(0, 1), (0, -1), (1, 0), (-1, 0)]
 
@@ -338,7 +340,7 @@ class Bishop(Piece):
 
         return moves
 
-    def get_legal_captures(self, board: 'Board', at:Coordinate) -> List[Move]:
+    def get_legal_captures(self, board: Board, at:Coordinate) -> List[Move]:
         captures: List[Move] = []
         directions = [(1, 1), (1, -1), (-1, 1), (-1, -1)]
 
@@ -378,7 +380,7 @@ class Knight(Piece):
                 moves.append(Move(at, new))
         return moves
 
-    def get_legal_captures(self, board: 'Board', at:Coordinate) -> List[Move]:
+    def get_legal_captures(self, board: Board, at:Coordinate) -> List[Move]:
         captures: List[Move] = []
 
         jumps = [
@@ -444,7 +446,7 @@ class Pawn(Piece):
 
         return moves
 
-    def get_legal_captures(self, board: 'Board', at: Coordinate) -> List[Move]:
+    def get_legal_captures(self, board: Board, at: Coordinate) -> List[Move]:
         """Return only pawn capture moves."""
         return [
             m for m in self.get_legal_moves(board, at)
@@ -536,7 +538,7 @@ class Peon(Piece):
 
         return moves
 
-    def get_legal_captures(self, board: 'Board', at: Coordinate) -> List[Move]:
+    def get_legal_captures(self, board: Board, at: Coordinate) -> List[Move]:
         """Return only capture moves for the Peon."""
         captures: List[Move] = []
         direction = 1 if self.color == Color.WHITE else -1
@@ -562,7 +564,7 @@ class Peon(Piece):
         return captures
 
     def to_dict(self, at: Coordinate, include_moves: bool = False,
-                board: 'Board' = None, captures_only: bool = False) -> dict:
+                board: Board = None, captures_only: bool = False) -> dict:
         """Frontend-friendly dictionary representation of Peon, including backward unlock status."""
         data = {
             "id": self.id,
@@ -592,7 +594,7 @@ class Scout(Piece):
     def __init__(self, id: str, color: Color):
         super().__init__(id, color, PieceType.SCOUT)
 
-    def get_legal_moves(self, board: 'Board', at: Coordinate) -> List[Move]:
+    def get_legal_moves(self, board: Board, at: Coordinate) -> List[Move]:
         moves: List[Move] = []
         directions = [
             (1, 0), (-1, 0), (0, 1), (0, -1),
@@ -621,11 +623,11 @@ class Scout(Piece):
 
         return moves
 
-    def get_legal_captures(self, board: 'Board', at:Coordinate) -> List[Move]:
+    def get_legal_captures(self, board: Board, at:Coordinate) -> List[Move]:
         return [] # Scout itself has no capturing moves
     
     @staticmethod
-    def mark_target(board: 'Board', target: Coordinate):
+    def mark_target(board: Board, target: Coordinate):
         """Mark one enemy piece, unmark any previously marked ones."""
         # Clear previous marks
         for piece in board.squares.values():
@@ -639,10 +641,10 @@ class HeadHunter(Piece):
     def __init__(self, id: str, color: Color):
         super().__init__(id, color, PieceType.HEADHUNTER)
 
-    def get_legal_moves(self, board: 'Board', at: Coordinate) -> List[Move]:
+    def get_legal_moves(self, board: Board, at: Coordinate) -> List[Move]:
         return [] # implement later
 
-    def get_legal_captures(self, board: 'Board', at:Coordinate) -> List[Move]:
+    def get_legal_captures(self, board: Board, at:Coordinate) -> List[Move]:
         return [] # implement later
 
 
@@ -650,10 +652,10 @@ class Witch(Piece):
     def __init__(self, id: str, color: Color):
         super().__init__(id, color, PieceType.WITCH)
 
-    def get_legal_moves(self, board: 'Board', at: Coordinate) -> List[Move]:
+    def get_legal_moves(self, board: Board, at: Coordinate) -> List[Move]:
         return [] # implement later
 
-    def get_legal_captures(self, board: 'Board', at:Coordinate) -> List[Move]:
+    def get_legal_captures(self, board: Board, at:Coordinate) -> List[Move]:
         return [] # implement later
 
 
@@ -661,10 +663,10 @@ class Warlock(Piece):
     def __init__(self, id: str, color: Color):
         super().__init__(id, color, PieceType.WARLOCK)
 
-    def get_legal_moves(self, board: 'Board', at: Coordinate) -> List[Move]:
+    def get_legal_moves(self, board: Board, at: Coordinate) -> List[Move]:
         return [] # implement later
 
-    def get_legal_captures(self, board: 'Board', at:Coordinate) -> List[Move]:
+    def get_legal_captures(self, board: Board, at:Coordinate) -> List[Move]:
         return [] # implement later
 
 
@@ -672,10 +674,10 @@ class Cleric(Piece):
     def __init__(self, id: str, color: Color):
         super().__init__(id, color, PieceType.CLERIC)
 
-    def get_legal_moves(self, board: 'Board', at: Coordinate) -> List[Move]:
+    def get_legal_moves(self, board: Board, at: Coordinate) -> List[Move]:
         return [] # implement later
 
-    def get_legal_captures(self, board: 'Board', at:Coordinate) -> List[Move]:
+    def get_legal_captures(self, board: Board, at:Coordinate) -> List[Move]:
         return [] # implement later
         
 
@@ -683,10 +685,10 @@ class DarkLord(Piece):
     def __init__(self, id: str, color: Color):
         super().__init__(id, color, PieceType.DARKLORD)
 
-    def get_legal_moves(self, board: 'Board', at: Coordinate) -> List[Move]:
+    def get_legal_moves(self, board: Board, at: Coordinate) -> List[Move]:
         return [] # implement later
 
-    def get_legal_captures(self, board: 'Board', at:Coordinate) -> List[Move]:
+    def get_legal_captures(self, board: Board, at:Coordinate) -> List[Move]:
         return [] # implement later
 
 # ---------- Test ----------

@@ -12,7 +12,7 @@ from datetime import datetime
 from backend.services.game_state import GameState, GameStatus
 from backend.player import Player
 from backend.cards.deck import Deck
-from backend.cards.card import Card
+from backend.cards.card import Card, create_card_by_id
 from backend.enums import Color
 
 
@@ -135,14 +135,12 @@ class GameManager:
     
     def _create_card_by_id(self, card_id: str) -> Card:
         """
-        Create a Card object by ID.
-        TODO: Implement actual card loading from a card database/registry
+        Create a Card object by ID using the card registry.
         """
-        # Placeholder - replace this with actual card data
-        # Example: return CARD_REGISTRY.get(card_id)
-        
-        # For now, create a basic card
-        return Card(id=card_id, name=card_id.replace("_", " ").title())
+        card = create_card_by_id(card_id)
+        if not card:
+            raise ValueError(f"Unknown card ID: {card_id}")
+        return card
     
     def create_sample_game(self, player1_id: str = "alice", player2_id: str = "bob") -> GameState:
         """
@@ -150,10 +148,12 @@ class GameManager:
         Useful for development and testing without full UI.
         """
         sample_deck = [
-            "transform_pawn", "king_switch", "summon_peon", "safe_zone",
-            "teleport_knight", "double_move", "freeze_piece", "sacrifice",
-            "heal_king", "destroy_square", "swap_pieces", "mirror_move",
-            "time_warp", "lightning_strike", "shield_barrier", "cursed_effigy"
+            #Need to implement more cards for an actual deck, for now just repeating the same cards
+            "mine", "eye_for_an_eye", "summon_peon", "pawn_scout",
+            "knight_headhunter", "bishop_warlock",
+            "mine", "eye_for_an_eye", "summon_peon", "pawn_scout",
+            "knight_headhunter", "bishop_warlock",
+            "mine", "eye_for_an_eye", "summon_peon", "pawn_scout"
         ]
         
         return self.start_game(
@@ -162,7 +162,7 @@ class GameManager:
             player1_deck_ids=sample_deck,
             player2_id=player2_id,
             player2_name=player2_id.capitalize(),
-            player2_deck_ids=sample_deck  # Same deck for simplicity
+            player2_deck_ids=sample_deck
         )
     
     # ============================================================================

@@ -53,10 +53,11 @@ def test_matchmaking():
     gm = GameManager()
     
     sample_deck = [
-        "transform_pawn", "king_switch", "summon_peon", "safe_zone",
-        "teleport", "double_move", "freeze", "sacrifice",
-        "heal", "destroy", "swap", "mirror",
-        "time_warp", "lightning", "shield", "curse"
+        "mine", "eye_for_an_eye", "summon_peon", "pawn_scout",
+        "knight_headhunter", "bishop_warlock",
+        "mine", "eye_for_an_eye", "summon_peon", "pawn_scout",
+        "knight_headhunter", "bishop_warlock",
+        "mine", "eye_for_an_eye", "summon_peon", "pawn_scout"
     ]
     
     # Add first player to queue
@@ -222,13 +223,7 @@ def main():
         print("   Game state retrieval")
         print("   Card play (once effects are implemented)")
         print("   Game lifecycle management")
-        
-        print("\nNext steps:")
-        print("  1. Implement Card class properly")
-        print("  2. Implement Deck.add() and Deck.size()")
-        print("  3. Implement Board.to_dict()")
-        print("  4. Implement card effects")
-        print("  5. Test with WebSocket client")
+
         
     except Exception as e:
         print(f"\n TEST FAILED:")

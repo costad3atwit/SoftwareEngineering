@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Dict, Optional
+from typing import Dict, Optional, TYPE_CHECKING
 from backend.chess.coordinate import Coordinate
 from backend.chess.piece import Piece, King, Queen, Rook, Bishop, Knight, Pawn
 from backend.chess.move import Move
@@ -118,7 +118,7 @@ class Board:
     
         return captured_piece
 
-     def is_square_attacked(self, coord: Coordinate, by_color: Color) -> bool:
+    def is_square_attacked(self, coord: Coordinate, by_color: Color) -> bool:
         """
         Return True if the given square is attacked by any piece of the specified color.
         This checks all opposing pieces’ capture moves.
