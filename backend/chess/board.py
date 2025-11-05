@@ -95,28 +95,33 @@ class Board:
             raise ValueError("Invalid Coordinate")
     
     def move_piece(self, move: Move) -> Optional[Piece]:
-        """Move a piece from one coordinate to another. Return captured piece if any."""
         src, dest = move.from_coord, move.to_coord
         moving_piece = self.squares.get(src)
         if not moving_piece:
             raise ValueError(f"No piece at {src}")
     
+        # Handle Scout mark behavior
+        from backend.chess.piece import Scout
+        if isinstance(moving_piece, Scout) and getattr(move, "metadata", {}).get("mark"):
+            target_info = move.metadata.get("target")
+            if target_info:
+                target_coord = Coordinate(target_info["file"], target_info["rank"])
+                Scout.mark_target(self, target_coord)
+            return None  # Scout does not move
+    
+        # Regular movement otherwise
         captured_piece = self.squares.pop(dest, None)
         self.squares.pop(src)
         self.squares[dest] = moving_piece
         moving_piece.has_moved = True
     
-        # --- Scout marking logic ---
-        from backend.chess.piece import Scout
-        if isinstance(moving_piece, Scout) and "mark" in getattr(move, "metadata", {}):
-            Scout.mark_target(self, dest)
-    
-        # --- Unmark all if a capture occurs ---
+        # Clear all marks if any capture occurs
         if captured_piece:
-            for piece in self.squares.values():
-                piece.marked = False
+            for p in self.squares.values():
+                p.marked = False
     
         return captured_piece
+
 
     def is_square_attacked(self, coord: Coordinate, by_color: Color) -> bool:
         """
