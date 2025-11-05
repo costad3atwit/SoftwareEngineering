@@ -1,0 +1,128 @@
+body {
+  margin: 0;
+  height: 100vh;
+  overflow: hidden;
+  font-family: 'Cinzel', serif;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  background: #000;
+}
+
+.background {
+  position: fixed;
+  inset: 0;
+  background: url('../assets/main_menu/bg-mainmenu.png') center/cover no-repeat;
+  z-index: -1;
+  filter: blur(2px) brightness(0.9);
+}
+
+.menu-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.2rem;
+}
+
+/* Splash logo */
+.title-banner {
+  width: 1000px;
+  height: auto;
+  filter: drop-shadow(0px 4px 8px rgba(0,0,0,0.7));
+  margin-top: 2.5rem;
+  margin-bottom: 6.5rem;
+}
+
+.button-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 324px);
+  grid-template-rows: repeat(3, 130px);
+  gap: 0;
+  justify-content: center;
+  align-items: center;
+  margin-top: 2.5rem;
+}
+
+.menu-btn {
+  position: relative;
+  width: 324px;
+  height: 130px;
+  border: none;
+  background: transparent center/contain no-repeat;
+  cursor: pointer;
+  filter: drop-shadow(0px 3px 6px rgba(0, 0, 0, 0.6));
+  transition: transform 0.15s ease, filter 0.25s ease, brightness 0.25s ease;
+  overflow: hidden;
+}
+
+/* Glow aura using pseudo-element */
+.menu-btn::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 12px;
+  box-shadow: 0 0 30px 10px rgba(150, 80, 255, 0.0);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+
+.menu-btn:hover::before {
+  opacity: 1;
+  animation: auraPulse 2.5s infinite ease-in-out;
+}
+
+.menu-btn:hover {
+  filter: brightness(1.15) drop-shadow(0px 5px 10px rgba(0,0,0,0.8));
+}
+
+.menu-btn:active {
+  transform: scale(0.97);
+  filter: brightness(1.25) drop-shadow(0px 3px 6px rgba(0,0,0,0.9));
+}
+
+/* Aura animation on hovering */
+@keyframes auraPulse {
+  0%, 100% {
+    box-shadow: 0 0 25px 8px rgba(150, 80, 255, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 45px 18px rgba(200, 120, 255, 0.55);
+  }
+}
+
+/* Button backgrounds */
+#quickplay {
+  background-image: url('../assets/main_menu/btn-quickplay.png');
+}
+
+#directconnect {
+  background-image: url('../assets/main_menu/btn-directconnect.png');
+}
+
+#tutorial {
+  background-image: url('../assets/main_menu/btn-tutorial.png');
+}
+
+#credits {
+  background-image: url('../assets/main_menu/btn-credits.png');
+}
+
+#settings {
+  background-image: url('../assets/main_menu/btn-settings.png');
+}
+
+#exit {
+  background-image: url('../assets/main_menu/btn-exit.png');
+}
+
+/* Version label */
+.version {
+  position: fixed;
+  bottom: 10px;
+  right: 20px;
+  color: white;
+  font-family: 'Cinzel', serif;
+  font-size: 1rem;
+  text-shadow: 2px 2px 6px rgba(0,0,0,0.8);
+}
