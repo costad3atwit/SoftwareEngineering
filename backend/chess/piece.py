@@ -351,7 +351,7 @@ class Bishop(Piece):
                 if not next_coord:
                     break
                 elif board.is_enemy(next_coord, self.color):
-                    captures.append(Move(at, next_coord))
+                    captures.append(Move(at, next_coord,self))
                     break  # capture, then stop in that direction
                 elif not board.is_empty(next_coord):
                     break  # blocked by friendly piece
