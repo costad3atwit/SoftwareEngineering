@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Arcane Chess — Tutorial</title>
+  <link rel="stylesheet" href="../css/tutorial.css" />
+</head>
+<body>
+  <div class="page">
+    <div class="left-column">
+      <div class="top-buttons">
+        <button class="top-btn">Main Menu</button>
+        <button class="top-btn">Options</button>
+        <button class="top-btn">Game Info</button>
+        <button class="top-btn">Extend Draw</button>
+        <button class="top-btn">Surrender</button>
+      </div>
+
+      <div class="board-wrapper">
+        <canvas id="boardCanvas"></canvas>
+      </div>
+    </div>
+
+    <div class="right-column">
+      <div class="opponent-area">
+        <div class="player-name" id="opponentName">Opponent</div>
+        <div class="opponent-hand preview-row" id="opponentHand"></div>
+        <div class="deck-discard">
+          <div class="deck" id="opponentDeck">Opponent Deck</div>
+          <div class="discard" id="opponentDiscard">Discard</div>
+        </div>
+      </div>
+
+      <div class="center-info">
+        <div class="timer" id="timerTop">00:00</div>
+        <div class="captured-list" id="opponentCaptured">Captured</div>
+      </div>
+
+      <div class="card-area">
+        <div class="deck-area">
+          <button id="drawCardBtn">Draw Card</button>
+          <div class="deck-preview" id="deckPreview">Deck</div>
+        </div>
+
+        <div class="player-hand" id="playerHand"></div>
+        <div class="player-bottom">
+          <div class="player-name" id="playerName">You</div>
+          <div class="timer" id="playerTimer">00:00</div>
+          <div class="captured-list" id="playerCaptured">Captured</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- overlay for card-play text -->
+  <div id="cardPlayOverlay" class="card-play-overlay" aria-hidden="true"></div>
+
+  <!-- audio assets -->
+  <audio id="clickOn" src="../assets/sfx_menu/click-on.wav" preload="auto"></audio>
+  <audio id="clickOff" src="../assets/sfx_menu/click-off.wav" preload="auto"></audio>
+  <audio id="menuMusic" loop src="../assets/music/game-music-temp.mp3"></audio>
+
+  <script src="../javascript/tutorial.js" defer></script>
+</body>
+</html>
