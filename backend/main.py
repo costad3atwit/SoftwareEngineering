@@ -4,64 +4,116 @@ from fastapi.responses import HTMLResponse
 from typing import Dict, List, Optional
 import json
 import asyncio
+import logging
 from pathlib import Path
+from datetime import datetime
 
-from backend.game_manager import GameManager, Game, GameStatus
+from backend.services.game_manager import GameManager
+from backend.enums import GameStatus
+from backend.services.game_state import GameState
+
+# ============================================================================
+# LOGGING SETUP
+# ============================================================================
+
+# Create logs directory if it doesn't exist
+log_dir = Path("logs")
+log_dir.mkdir(exist_ok=True)
+
+# Configure logging
+log_filename = log_dir / f"server_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(message)s',
+    handlers=[
+        logging.FileHandler(log_filename),
+        logging.StreamHandler()  # Also print to console
+    ]
+)
+
+logger = logging.getLogger(__name__)
+logger.info("="*60)
+logger.info("ARCANE CHESS SERVER STARTING")
+logger.info("="*60)
+
+# ============================================================================
+# FASTAPI APP SETUP
+# ============================================================================
 
 app = FastAPI()
 
 # Serve static files (your frontend)
-# Adjust path to point to frontend directory
-base_dir = Path(__file__).resolve().parent.parent
+base_dir = Path(__file__).resolve().parent
 frontend_dir = base_dir / "frontend"
+static_dir = base_dir / "static"
 
-# Only mount if frontend directory exists
+# Mount static directories if they exist
 if frontend_dir.exists():
-    app.mount("/static", StaticFiles(directory=str(frontend_dir)), name="static")
-else:
-    print(f"Warning: Frontend directory not found at {frontend_dir}")
+    app.mount("/frontend", StaticFiles(directory=str(frontend_dir)), name="frontend")
+    logger.info(f"Mounted frontend directory: {frontend_dir}")
+if static_dir.exists():
+    app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+    logger.info(f"Mounted static directory: {static_dir}")
 
 # Initialize game manager
 game_manager = GameManager()
 
-# Store active connections
+# ============================================================================
+# CONNECTION MANAGER
+# ============================================================================
+
 class ConnectionManager:
     def __init__(self):
         self.active_connections: Dict[str, WebSocket] = {}
-        self.matchmaking_queue: List[Dict] = []  # Store player_id and their deck
     
     async def connect(self, websocket: WebSocket, client_id: str):
         await websocket.accept()
         self.active_connections[client_id] = websocket
-        print(f"Client {client_id} connected. Total connections: {len(self.active_connections)}")
+        logger.info(f"Client connected: {client_id} | Total connections: {len(self.active_connections)}")
     
     def disconnect(self, client_id: str):
         if client_id in self.active_connections:
             del self.active_connections[client_id]
-        if client_id in self.matchmaking_queue:
-            self.matchmaking_queue.remove(client_id)
-        print(f"Client {client_id} disconnected. Total connections: {len(self.active_connections)}")
+        # Remove from matchmaking queue if present
+        removed = game_manager.remove_from_queue(client_id)
+        if removed:
+            logger.info(f"Removed {client_id} from matchmaking queue")
+        logger.info(f"Client disconnected: {client_id} | Total connections: {len(self.active_connections)}")
     
     async def send_personal_message(self, message: dict, client_id: str):
         if client_id in self.active_connections:
             websocket = self.active_connections[client_id]
-            await websocket.send_json(message)
+            try:
+                await websocket.send_json(message)
+                logger.debug(f"Sent to {client_id}: {message['type']}")
+            except Exception as e:
+                logger.error(f"Error sending to {client_id}: {e}")
     
-    async def broadcast_to_game(self, message: dict, game: Game):
+    async def broadcast_to_game(self, message: dict, game: GameState):
         """Send message to both players in a game"""
-        for player_id in [game.white_player_id, game.black_player_id]:
-            await self.send_personal_message(message, player_id)
+        white_player = game.players[game.turn if game.turn else GameStatus.IN_PROGRESS]
+        black_player = game.get_opponent_player()
+        
+        for player in [white_player, black_player]:
+            await self.send_personal_message(message, player.id)
+        logger.info(f"Broadcast to game {game.game_id}: {message['type']}")
 
 manager = ConnectionManager()
 
-async def notify_game_timeout(game: Game):
+async def notify_game_timeout(game: GameState):
     """Callback for when a game times out"""
+    logger.warning(f"Game timeout: {game.game_id} | Winner: {game.winner.value if game.winner else 'None'}")
     await manager.broadcast_to_game({
         "type": "game_over",
         "reason": "timeout",
-        "winner": game.winner,
+        "winner": game.winner.value if game.winner else None,
         "message": game.win_reason
     }, game)
+
+# ============================================================================
+# HTTP ENDPOINTS
+# ============================================================================
 
 @app.get("/")
 async def get():
@@ -70,20 +122,44 @@ async def get():
     <html>
         <head>
             <title>Arcane Chess</title>
+            <style>
+                body { font-family: Arial, sans-serif; max-width: 800px; margin: 50px auto; padding: 20px; }
+                h1 { color: #333; }
+                .stat { display: inline-block; margin: 10px 20px; padding: 10px; background: #f0f0f0; border-radius: 5px; }
+                .stat-value { font-size: 24px; font-weight: bold; color: #007bff; }
+            </style>
         </head>
         <body>
-            <h1>Arcane Chess Server</h1>
-            <p>Server is running! Connect via WebSocket at ws://localhost:8000/ws/{client_id}</p>
-            <p>Active connections: <span id="connections">0</span></p>
+            <h1> Arcane Chess Server</h1>
+            <p>Server is running! Connect via WebSocket at <code>ws://localhost:8000/ws/{client_id}</code></p>
+            
+            <h2>Server Status</h2>
+            <div class="stat">
+                <div>Active Connections</div>
+                <div class="stat-value" id="connections">0</div>
+            </div>
+            <div class="stat">
+                <div>Queue Size</div>
+                <div class="stat-value" id="queue">0</div>
+            </div>
+            <div class="stat">
+                <div>Active Games</div>
+                <div class="stat-value" id="games">0</div>
+            </div>
+            
+            <h2>Logs</h2>
+            <p>Server logs are saved to: <code>logs/</code></p>
+            
             <script>
-                // Simple status page
                 setInterval(() => {
                     fetch('/status')
                         .then(r => r.json())
                         .then(data => {
                             document.getElementById('connections').textContent = data.connections;
+                            document.getElementById('queue').textContent = data.queue;
+                            document.getElementById('games').textContent = data.active_games;
                         });
-                }, 2000);
+                }, 1000);
             </script>
         </body>
     </html>
@@ -93,11 +169,14 @@ async def get():
 async def startup_event():
     """Start background tasks"""
     await game_manager.start_timer_updates(notify_game_timeout)
+    logger.info("Timer updates enabled")
+    logger.info(f"Log file: {log_filename}")
 
 @app.on_event("shutdown")
 async def shutdown_event():
     """Clean up background tasks"""
     game_manager.stop_timer_updates()
+    logger.info("Server shutting down - cleaned up background tasks")
 
 @app.get("/status")
 async def status():
@@ -115,6 +194,7 @@ async def status():
 async def create_sample_game():
     """Create a sample game for testing (no WebSocket needed)"""
     game = game_manager.create_sample_game()
+    logger.info(f"Sample game created via HTTP: {game.game_id}")
     return {
         "success": True,
         "game_id": game.game_id,
@@ -126,12 +206,18 @@ async def get_game_state(game_id: str, player_id: str = None):
     """Get the state of a specific game"""
     game = game_manager.get_game(game_id)
     if not game:
+        logger.warning(f"Game state request for nonexistent game: {game_id}")
         return {"error": "Game not found"}
     
+    logger.info(f"Game state requested: {game_id} by {player_id if player_id else 'anonymous'}")
     return {
         "success": True,
         "game_state": game.to_dict(player_id) if player_id else game.to_dict()
     }
+
+# ============================================================================
+# WEBSOCKET ENDPOINT
+# ============================================================================
 
 @app.websocket("/ws/{client_id}")
 async def websocket_endpoint(websocket: WebSocket, client_id: str):
@@ -144,100 +230,116 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
             message = json.loads(data)
             
             message_type = message.get("type")
+            logger.info(f"Message from {client_id}: {message_type}")
             
             if message_type == "join_queue":
                 # Player submits their deck and joins queue
+                player_name = message.get("name", client_id)
                 deck = message.get("deck", [])
                 
-                # TODO: Validate deck (16 cards from available 32)
+                logger.info(f"Join queue request: {client_id} ({player_name}) with {len(deck)} cards")
+                
+                # Validate deck (16 cards)
                 if len(deck) != 16:
+                    error_msg = f"Deck must contain exactly 16 cards (got {len(deck)})"
+                    logger.warning(f"Invalid deck from {client_id}: {error_msg}")
                     await manager.send_personal_message({
                         "type": "error",
-                        "message": "Deck must contain exactly 16 cards"
+                        "message": error_msg
                     }, client_id)
                     continue
                 
                 # Add player to matchmaking queue
-                if client_id not in [p["player_id"] for p in manager.matchmaking_queue]:
-                    manager.matchmaking_queue.append({
-                        "player_id": client_id,
-                        "deck": deck
-                    })
+                success, msg = game_manager.add_to_queue(client_id, player_name, deck)
+                
+                if success:
+                    logger.info(f"Added to queue: {client_id} | {msg}")
                     await manager.send_personal_message({
                         "type": "queue_joined",
-                        "position": len(manager.matchmaking_queue)
+                        "message": msg,
+                        "queue_size": len(game_manager.matchmaking_queue)
                     }, client_id)
-                
-                # Try to match players
-                if len(manager.matchmaking_queue) >= 2:
-                    player1_data = manager.matchmaking_queue.pop(0)
-                    player2_data = manager.matchmaking_queue.pop(0)
                     
-                    player1 = player1_data["player_id"]
-                    player2 = player2_data["player_id"]
-                    deck1 = player1_data["deck"]
-                    deck2 = player2_data["deck"]
+                    # Try to match players
+                    game = game_manager.try_match_players()
                     
-                    game_id = f"game_{player1}_{player2}"
-                    
-                    # Create new game using GameManager
-                    game = game_manager.create_game(
-                        game_id=game_id,
-                        white_player_id=player1,
-                        black_player_id=player2,
-                        white_deck=deck1,
-                        black_deck=deck2
-                    )
-                    
-                    # Notify both players with initial game state
+                    if game:
+                        # Get both players
+                        white_player = game.players[game.turn]
+                        black_player = game.get_opponent_player()
+                        
+                        logger.info(f"MATCH CREATED: {game.game_id}")
+                        logger.info(f"  White: {white_player.name} ({white_player.id})")
+                        logger.info(f"  Black: {black_player.name} ({black_player.id})")
+                        
+                        # Notify both players with their perspective of game state
+                        await manager.send_personal_message({
+                            "type": "game_started",
+                            "game_id": game.game_id,
+                            "game_state": game.to_dict(white_player.id)
+                        }, white_player.id)
+                        
+                        await manager.send_personal_message({
+                            "type": "game_started",
+                            "game_id": game.game_id,
+                            "game_state": game.to_dict(black_player.id)
+                        }, black_player.id)
+                else:
+                    logger.warning(f"Failed to add to queue: {client_id} | {msg}")
                     await manager.send_personal_message({
-                        "type": "game_started",
-                        "game_state": game.get_game_state(player1)
-                    }, player1)
-                    
-                    await manager.send_personal_message({
-                        "type": "game_started",
-                        "game_state": game.get_game_state(player2)
-                    }, player2)
+                        "type": "error",
+                        "message": msg
+                    }, client_id)
             
-            elif message_type == "move":
+            elif message_type == "make_move":
                 # Handle piece movement
                 game_id = message.get("game_id")
                 from_square = message.get("from")
                 to_square = message.get("to")
                 
+                logger.info(f"Move attempt: {client_id} in {game_id}: {from_square} -> {to_square}")
+                
                 game = game_manager.get_game(game_id)
                 if not game:
+                    logger.error(f"Move in nonexistent game: {game_id}")
                     await manager.send_personal_message({
                         "type": "error",
                         "message": "Game not found"
                     }, client_id)
                     continue
                 
-                # Attempt to make the move
-                success, msg = game.make_move(client_id, from_square, to_square)
+                # Use game_manager.make_move
+                success, msg, updated_game = game_manager.make_move(
+                    game_id, client_id, from_square, to_square
+                )
                 
                 if success:
-                    # Broadcast updated game state to both players
-                    await manager.send_personal_message({
-                        "type": "game_update",
-                        "game_state": game.get_game_state(game.white_player_id)
-                    }, game.white_player_id)
+                    logger.info(f"Move successful: {from_square} -> {to_square} in {game_id}")
                     
-                    await manager.send_personal_message({
-                        "type": "game_update",
-                        "game_state": game.get_game_state(game.black_player_id)
-                    }, game.black_player_id)
+                    # Get both players
+                    white_player = updated_game.players[updated_game.turn] if updated_game.turn else None
+                    black_player = updated_game.get_opponent_player()
+                    
+                    # Broadcast updated game state to both players
+                    for player in [white_player, black_player]:
+                        if player:
+                            await manager.send_personal_message({
+                                "type": "game_update",
+                                "action": "move",
+                                "game_state": updated_game.to_dict(player.id)
+                            }, player.id)
                     
                     # Check if game is over
-                    if game.status != GameStatus.IN_PROGRESS:
+                    if updated_game.status != GameStatus.IN_PROGRESS:
+                        logger.info(f"GAME OVER: {game_id} | Status: {updated_game.status.value}")
                         await manager.broadcast_to_game({
                             "type": "game_over",
-                            "reason": game.status.value,
-                            "winner": game.winner,
-                            "message": game.win_reason
-                        }, game)
+                            "reason": updated_game.status.value,
+                            "winner": updated_game.winner.value if updated_game.winner else None,
+                            "message": updated_game.win_reason
+                        }, updated_game)
                 else:
+                    logger.warning(f"Move failed: {msg}")
                     await manager.send_personal_message({
                         "type": "error",
                         "message": msg
@@ -246,44 +348,75 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
             elif message_type == "play_card":
                 # Handle card play
                 game_id = message.get("game_id")
-                card_name = message.get("card")
+                card_id = message.get("card_id")
                 target_data = message.get("target", {})
+                
+                logger.info(f"Card play attempt: {client_id} in {game_id}: {card_id}")
                 
                 game = game_manager.get_game(game_id)
                 if not game:
+                    logger.error(f"Card play in nonexistent game: {game_id}")
                     await manager.send_personal_message({
                         "type": "error",
                         "message": "Game not found"
                     }, client_id)
                     continue
                 
-                # Attempt to play the card
-                success, msg = game.play_card(client_id, card_name, target_data)
+                # Use game_manager.play_card
+                success, msg, updated_game = game_manager.play_card(
+                    game_id, client_id, card_id, target_data
+                )
                 
                 if success:
-                    # Broadcast updated game state to both players
-                    await manager.send_personal_message({
-                        "type": "game_update",
-                        "game_state": game.get_game_state(game.white_player_id)
-                    }, game.white_player_id)
+                    logger.info(f"Card played successfully: {card_id} in {game_id}")
                     
-                    await manager.send_personal_message({
-                        "type": "game_update",
-                        "game_state": game.get_game_state(game.black_player_id)
-                    }, game.black_player_id)
+                    # Get both players
+                    white_player = updated_game.players[updated_game.turn] if updated_game.turn else None
+                    black_player = updated_game.get_opponent_player()
+                    
+                    # Broadcast updated game state to both players
+                    for player in [white_player, black_player]:
+                        if player:
+                            await manager.send_personal_message({
+                                "type": "game_update",
+                                "action": "card_played",
+                                "card_id": card_id,
+                                "game_state": updated_game.to_dict(player.id)
+                            }, player.id)
                     
                     # Check if game is over
-                    if game.status != GameStatus.IN_PROGRESS:
+                    if updated_game.status != GameStatus.IN_PROGRESS:
+                        logger.info(f"GAME OVER: {game_id} | Status: {updated_game.status.value}")
                         await manager.broadcast_to_game({
                             "type": "game_over",
-                            "reason": game.status.value,
-                            "winner": game.winner,
-                            "message": game.win_reason
-                        }, game)
+                            "reason": updated_game.status.value,
+                            "winner": updated_game.winner.value if updated_game.winner else None,
+                            "message": updated_game.win_reason
+                        }, updated_game)
                 else:
+                    logger.warning(f"Card play failed: {msg}")
                     await manager.send_personal_message({
                         "type": "error",
                         "message": msg
+                    }, client_id)
+            
+            elif message_type == "get_game_state":
+                # Request current game state
+                game_id = message.get("game_id")
+                logger.info(f"Game state request: {client_id} for {game_id}")
+                
+                game = game_manager.get_game(game_id)
+                
+                if game:
+                    await manager.send_personal_message({
+                        "type": "game_state",
+                        "game_state": game.to_dict(client_id)
+                    }, client_id)
+                else:
+                    logger.warning(f"Game state request for nonexistent game: {game_id}")
+                    await manager.send_personal_message({
+                        "type": "error",
+                        "message": "Game not found"
                     }, client_id)
             
             elif message_type == "ping":
@@ -291,15 +424,16 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                 await manager.send_personal_message({"type": "pong"}, client_id)
             
             else:
-                print(f"Unknown message type: {message_type}")
+                logger.warning(f"Unknown message type from {client_id}: {message_type}")
     
     except WebSocketDisconnect:
         manager.disconnect(client_id)
-        # TODO: Handle disconnection during active game
+        logger.info(f"Client disconnected normally: {client_id}")
     except Exception as e:
-        print(f"Error: {e}")
+        logger.error(f"Error with client {client_id}: {e}", exc_info=True)
         manager.disconnect(client_id)
 
 if __name__ == "__main__":
     import uvicorn
+    logger.info("Starting server on http://127.0.0.1:8000")
     uvicorn.run(app, host="127.0.0.1", port=8000)
