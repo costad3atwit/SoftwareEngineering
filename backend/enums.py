@@ -40,3 +40,5 @@ class GameStatus(Enum):
     STALEMATE = "STALEMATE"
     RESIGNED = "RESIGNED"
     DRAW = "DRAW"
+    TIMEOUT = "TIMEOUT"
+    FORFEIT = "FORFEIT"
