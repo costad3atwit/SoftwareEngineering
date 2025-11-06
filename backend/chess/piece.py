@@ -671,10 +671,44 @@ class HeadHunter(Piece):
         super().__init__(id, color, PieceType.HEADHUNTER)
 
     def get_legal_moves(self, board: Board, at: Coordinate) -> List[Move]:
-        return [] # implement later
+        moves: List[Move] = []
+        directions = [
+            (-1, -1), (0, -1), (1, -1),
+            (-1,  0),          (1,  0),
+            (-1,  1), (0,  1), (1,  1),
+        ]
+
+        for dx, dy in directions:
+            new = Coordinate(at.file + dx, at.rank + dy)
+            if not board.is_in_bounds(new):
+                continue
+            if board.is_empty(new) or board.is_enemy(new, self.color):
+                moves.append(Move(at, new, self))
+        return moves
 
     def get_legal_captures(self, board: Board, at:Coordinate) -> List[Move]:
-        return [] # implement later
+        captures: List[Move] = []
+        direction = 1 if self.color == Color.WHITE else -1
+
+        # Determine target square exactly 3 ahead
+        target = Coordinate(at.file, at.rank + (3 * direction))
+
+        # Ensure in-bounds
+        if not board.is_in_bounds(target):
+            return captures
+
+        # Check for blocking pieces in the path (1–2 squares ahead)
+        for dist in [1, 2]:
+            path_sq = Coordinate(at.file, at.rank + (dist * direction))
+            if not board.is_empty(path_sq):
+                # Blocked — cannot reach target
+                return captures
+
+        # Check if the final square has an enemy piece
+        if board.is_enemy(target, self.color):
+            captures.append(Move(at, target, self))
+
+        return captures
 
 
 class Witch(Piece):
@@ -987,3 +1021,66 @@ if __name__ == "__main__":
     print("Unlocked moves:", [(m.to_sq.file, m.to_sq.rank) for m in moves_unlocked])
     print("Backwards unlocked (flag):", peon._backwards_unlocked)
     print("Unlocked dict:", peon.to_dict(at_far, include_moves=True, board=board))
+# -------------------------------------------------------------------------      
+    print("\n--- Testing Scout Mark Behavior ---")
+    board = Board()
+    scout = Scout("S1", Color.WHITE)
+    enemy = Rook("R1", Color.BLACK)
+    
+    board.squares[Coordinate(4, 4)] = scout
+    board.squares[Coordinate(6, 6)] = enemy
+    
+    # Generate moves
+    moves = scout.get_legal_moves(board, Coordinate(4, 4))
+    mark_moves = [m for m in moves if getattr(m, "metadata", {}).get("mark")]
+    
+    print(f"Scout has {len(mark_moves)} mark opportunities.")
+    for m in mark_moves:
+        print("Mark move metadata:", m.metadata)
+    
+    # Perform a marking move
+    if mark_moves:
+        board.move_piece(mark_moves[0])
+        print("Enemy marked:", enemy.marked)  # Should be True
+        print("Scout stays at (4,4):", Coordinate(4, 4) in board.squares)
+# -------------------------------------------------------------------------      
+    print("\n--- Testing Headhunter ---")
+    board = _BoardStub()
+    hh = HeadHunter("H1", Color.WHITE)
+    pos = Coordinate(4, 3)  # d4
+
+    # Place Headhunter on board
+    board.place(4, 3, hh)
+
+    # Case 1: Enemy 3 squares ahead, no blockers
+    enemy = _MockPiece(Color.BLACK)
+    board.place(4, 6, enemy)
+
+    moves = hh.get_legal_moves(board, pos)
+    captures = hh.get_legal_captures(board, pos)
+
+    print(f"Total movement options: {len(moves)} (expect 8)")
+    print("Movement targets:", [(m.to_sq.file, m.to_sq.rank) for m in moves])
+    print("Capture targets:", [(m.to_sq.file, m.to_sq.rank) for m in captures])
+
+    # Case 2: Blocked attack (piece at distance 1)
+    board = _BoardStub()
+    board.place(4, 3, hh)
+    board.place(4, 4, _MockPiece(Color.WHITE))  # blocker directly ahead
+    board.place(4, 6, _MockPiece(Color.BLACK))  # enemy 3 ahead
+    blocked_captures = hh.get_legal_captures(board, pos)
+    print("Blocked attack (should be none):", [(m.to_sq.file, m.to_sq.rank) for m in blocked_captures])
+
+    # Case 3: Target square empty (no capture)
+    board = _BoardStub()
+    board.place(4, 3, hh)
+    empty_captures = hh.get_legal_captures(board, pos)
+    print("Empty target attack (should be none):", [(m.to_sq.file, m.to_sq.rank) for m in empty_captures])
+
+    # Case 4: Black Headhunter attacks downward
+    black_hh = HeadHunter("H2", Color.BLACK)
+    board = _BoardStub()
+    board.place(4, 4, black_hh)
+    board.place(4, 1, _MockPiece(Color.WHITE))  # enemy 3 down
+    captures_black = black_hh.get_legal_captures(board, Coordinate(4, 4))
+    print("Black Headhunter capture:", [(m.to_sq.file, m.to_sq.rank) for m in captures_black])
