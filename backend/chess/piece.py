@@ -690,23 +690,27 @@ class HeadHunter(Piece):
         captures: List[Move] = []
         direction = 1 if self.color == Color.WHITE else -1
 
-        # Determine target square exactly 3 ahead
+        # --- Melee captures (adjacent squares) ---
+        adjacent_dirs = [
+            (-1, -1), (0, -1), (1, -1),
+            (-1,  0),          (1,  0),
+            (-1,  1), (0,  1), (1,  1),
+        ]
+        for dx, dy in adjacent_dirs:
+            target = Coordinate(at.file + dx, at.rank + dy)
+            if board.is_in_bounds(target) and board.is_enemy(target, self.color):
+                captures.append(Move(at, target, self))
+
+        # --- Ranged capture (exactly 3 forward) ---
         target = Coordinate(at.file, at.rank + (3 * direction))
-
-        # Ensure in-bounds
-        if not board.is_in_bounds(target):
-            return captures
-
-        # Check for blocking pieces in the path (1–2 squares ahead)
-        for dist in [1, 2]:
-            path_sq = Coordinate(at.file, at.rank + (dist * direction))
-            if not board.is_empty(path_sq):
-                # Blocked — cannot reach target
-                return captures
-
-        # Check if the final square has an enemy piece
-        if board.is_enemy(target, self.color):
-            captures.append(Move(at, target, self))
+        if board.is_in_bounds(target):
+            # check path squares (1 and 2 ahead)
+            blocked = any(
+                not board.is_empty(Coordinate(at.file, at.rank + (i * direction)))
+                for i in [1, 2]
+            )
+            if not blocked and board.is_enemy(target, self.color):
+                captures.append(Move(at, target, self))
 
         return captures
 
