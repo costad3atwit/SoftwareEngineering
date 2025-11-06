@@ -168,24 +168,66 @@ class TransformToScout(Card):
     """
     
     def __init__(self):
-        super().__init__(id="pawn_scout", name="Pawn: Scout", description="Placeholder", big_img="static/example_big.png", small_img="static/example_small.png")
+        super().__init__(
+            id="pawn_scout", 
+            name="Pawn: Scout", 
+            description="Transform a pawn into a scout. Scouts move 5 squares in any direction and can mark enemy pieces.",
+            big_img="static/example_big.png", 
+            small_img="static/example_small.png"
+        )
+        self.target_type = TargetType.PIECE
     
     @property
     def card_type(self) -> CardType:
         return CardType.TRANSFORM
     
     def can_play(self, board: Board, player: Player) -> bool:
-        # Need at least one pawn to transform
-        # TODO: Check if player has any pawns
-        return True
+        """Check if player has any pawns to transform"""
+        from backend.enums import PieceType
+        
+        # Check if player has any pawns on the board
+        for coord, piece in board.squares.items():
+            if piece.color == player.color and piece.type == PieceType.PAWN:
+                return True
+        return False
     
     def apply_effect(self, board: Board, player: Player, target_data: Dict[str, Any]) -> tuple[bool, str]:
-        # TODO: Implement pawn -> scout transformation
-        # - Expect target_data to contain pawn coordinate
-        # - Remove pawn, create Scout piece at same location
-        # - If no pawn available, allow material sacrifice to summon
-        return True, "Pawn transformed to Scout (effect not yet implemented)"
-
+        """Transform a pawn at target coordinate into a scout"""
+        from backend.chess.coordinate import Coordinate
+        from backend.chess.piece import Scout
+        from backend.enums import PieceType
+        
+        # Parse target coordinate
+        target_square = target_data.get("target")
+        if not target_square:
+            return False, "No target square provided"
+        
+        try:
+            # Parse algebraic notation (e.g., "e3")
+            target_coord = Coordinate.from_algebraic(target_square)
+        except Exception as e:
+            return False, f"Invalid coordinate: {target_square}"
+        
+        # Check if there's a piece at target
+        piece = board.piece_at_coord(target_coord)
+        if not piece:
+            return False, f"No piece at {target_square}"
+        
+        # Verify it's the player's pawn
+        if piece.color != player.color:
+            return False, "That's not your piece"
+        
+        if piece.type != PieceType.PAWN:
+            return False, "Can only transform pawns into scouts"
+        
+        # Create the scout with a unique ID
+        scout_id = f"scout_{player.color.value}_{target_coord.to_algebraic()}"
+        scout = Scout(scout_id, player.color)
+        
+        # Replace the pawn with the scout
+        board.squares[target_coord] = scout
+        
+        return True, f"Pawn at {target_square} transformed into Scout!"
 
 class TransformToHeadhunter(Card):
     """

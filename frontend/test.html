@@ -114,6 +114,9 @@
                     <option value="">-- Select Card --</option>
                 </select>
             </label>
+            <label>Target Square: 
+                <input type="text" id="cardTarget" placeholder="e.g., e3" style="width: 100px;" />
+            </label>
             <button onclick="playCard()" disabled id="cardBtn">Play Card</button>
         </div>
         <div style="margin-top: 10px;">
@@ -355,17 +358,24 @@
                 return;
             }
             
+            const targetSquare = document.getElementById('cardTarget').value;
+            
+            // Build target data object
+            const targetData = {};
+            if (targetSquare) {
+                targetData.target = targetSquare;
+            }
+            
             const message = {
                 type: 'play_card',
                 game_id: gameId,
                 card_id: cardId,
-                target: {}
+                target: targetData
             };
             
             ws.send(JSON.stringify(message));
-            log(`Sent: play_card (${cardId})`, 'sent');
+            log(`Sent: play_card (${cardId} targeting ${targetSquare || 'none'})`, 'sent');
         }
-
         function getGameState() {
             if (!ws || !gameId) {
                 alert('Not in a game');

@@ -228,14 +228,21 @@ class GameState:
         Apply the effect of a specific card.
         This is where you implement each card's unique ability.
         """
-        # TODO: Implement card effects based on card_id
-        # This will vary greatly depending on card designs
+        from backend.cards.card import create_card_by_id
         
-        # Example structure:
-        # card = get_card_by_id(card_id)
-        # return card.apply_effect(self.board, target)
+        # Get the card instance
+        card = create_card_by_id(card_id)
+        if not card:
+            return False, f"Unknown card: {card_id}"
         
-        return False, f"Card '{card_id}' not implemented yet"
+        # Check if card can be played
+        if not card.can_play(self.board, player):
+            return False, f"Cannot play {card.name} right now"
+        
+        # Apply the card's effect
+        success, message = card.apply_effect(self.board, player, target)
+        
+        return success, message
 
     # --- Game End Conditions ---
     def check_end_conditions(self) -> GameStatus:
