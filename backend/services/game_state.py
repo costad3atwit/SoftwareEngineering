@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Dict, List, Optional
-from backend.enums import Color, GameStatus
+from backend.enums import Color, GameStatus, PieceType
 from backend.chess.board import Board
 from backend.player import Player
 from backend.cards.deck import Deck
@@ -144,15 +144,23 @@ class GameState:
         if not piece or piece.color != self.turn:
             return False, "Invalid piece selection"
         
+        # Get legal moves for debugging
+        legal_moves = self.legal_moves_for(m.from_sq)
+        print(f"DEBUG: Piece at {m.from_sq.to_algebraic()}: {piece}")
+        print(f"DEBUG: Legal moves count: {len(legal_moves)}")
+        for move in legal_moves:
+            print(f"  - {move.from_sq.to_algebraic()} -> {move.to_sq.to_algebraic()}")
+        print(f"DEBUG: Attempting move: {m.from_sq.to_algebraic()} -> {m.to_sq.to_algebraic()}")
+        
         # Verify move is legal
         if not self.is_legal(m):
             return False, "Illegal move"
         
         # Execute the move on the board
-        captured = self.board.make_move(m)
+        captured = self.board.move_piece(m)
         
         # Update halfmove clock (resets on capture or pawn move)
-        if captured or piece.type == "pawn":
+        if captured or piece.type == PieceType.PAWN:
             self.halfmove_clock = 0
         else:
             self.halfmove_clock += 1

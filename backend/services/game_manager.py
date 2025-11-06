@@ -254,8 +254,12 @@ class GameManager:
             from_coord = Coordinate.from_algebraic(from_square)
             to_coord = Coordinate.from_algebraic(to_square)
             
+            print(f"DEBUG: Parsed {from_square} -> Coordinate({from_coord.file}, {from_coord.rank})")
+            print(f"DEBUG: Parsed {to_square} -> Coordinate({to_coord.file}, {to_coord.rank})")
+            
             # Get the piece at the from square
             piece = game.board.piece_at_coord(from_coord)
+            print(f"DEBUG: Piece at {from_square}: {piece}")
             if not piece:
                 return False, f"No piece at {from_square}", game
             
@@ -264,10 +268,16 @@ class GameManager:
             if piece.color != player_color:
                 return False, "That's not your piece", game
             
-            # Create Move object (piece parameter required by Move.__init__)
+            # Create Move object
             move = Move(from_coord, to_coord, piece)
             
-            # Apply the move - this will check if it's legal via game.is_legal()
+            # Get legal moves for debugging
+            legal_moves = game.legal_moves_for(from_coord)
+            print(f"DEBUG: Legal moves from {from_square}:")
+            for m in legal_moves:
+                print(f"  -> {m.to_sq.to_algebraic()}")
+            
+            # Apply the move
             success, message = game.apply_move(player_id, move)
             
             return success, message, game
@@ -275,6 +285,8 @@ class GameManager:
         except ValueError as e:
             return False, f"Invalid square notation: {str(e)}", game
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             return False, f"Move error: {str(e)}", game
     
     def play_card(self, game_id: str, player_id: str, card_id: str, target_data: dict) -> Tuple[bool, str, Optional[GameState]]:

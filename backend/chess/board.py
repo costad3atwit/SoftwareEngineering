@@ -73,29 +73,26 @@ class Board:
 
     def is_empty(self, coord: Coordinate) -> bool:
         """Return True if the given coordinate has no piece."""
-        if(self.is_in_bounds(coord)):
-            return coord not in self.squares
-        else:
-            raise ValueError("Invalid Coordinate")
+        if not self.is_in_bounds(coord):
+            return False  # Out of bounds squares are not empty (they don't exist)
+        return coord not in self.squares
 
     def is_enemy(self, coord: Coordinate, color: Color) -> bool:
         """Return True if the coordinate contains an enemy piece."""
-        if(self.is_in_bounds(coord)):
-            piece = self.squares.get(coord)
-            return piece is not None and piece.color != color
-        else:
-            raise ValueError("Invalid Coordinate")
+        if not self.is_in_bounds(coord):
+            return False  # Out of bounds squares have no enemy
+        piece = self.squares.get(coord)
+        return piece is not None and piece.color != color
 
     def is_frendly(self, coord: Coordinate, color: Color) -> bool:
-        """Return True if the coordinate contains an enemy piece."""
-        if(self.is_in_bounds(coord)):
-            piece = self.squares.get(coord)
-            return piece is not None and piece.color == color
-        else:
-            raise ValueError("Invalid Coordinate")
+        """Return True if the coordinate contains a friendly piece."""
+        if not self.is_in_bounds(coord):
+            return False  # Out of bounds squares have no friendly piece
+        piece = self.squares.get(coord)
+        return piece is not None and piece.color == color
     
     def move_piece(self, move: Move) -> Optional[Piece]:
-        src, dest = move.from_coord, move.to_coord
+        src, dest = move.from_sq, move.to_sq
         moving_piece = self.squares.get(src)
         if not moving_piece:
             raise ValueError(f"No piece at {src}")
@@ -126,11 +123,17 @@ class Board:
     def is_square_attacked(self, coord: Coordinate, by_color: Color) -> bool:
         """
         Return True if the given square is attacked by any piece of the specified color.
-        This checks all opposing pieces’ capture moves.
+        This checks all opposing pieces' capture moves.
         """
         for pos, piece in self.squares.items():
             if piece.color != by_color:
                 continue  # only check attackers of the given color
+            
+            # CRITICAL: Skip the king to avoid infinite recursion
+            # Kings don't check if their own moves put them in check
+            from backend.enums import PieceType
+            if piece.type == PieceType.KING:
+                continue
 
             # Get all capture moves from this piece
             try:
@@ -180,18 +183,35 @@ class Board:
             "dmzActive": self.dmzActive,
             "pieces": []
         }
-    
+
         # convert each piece to dictionary form
         for coord, piece in self.squares.items():
-            piece_dict = piece.to_dict(
-                at=coord,
-                include_moves=True,
-                board=self   # provide the board reference for move generation
-            )
-            # merge an algebraic string (useful for frontend rendering)
-            piece_dict["position_algebraic"] = coord.to_algebraic()
-
-            board_data["pieces"].append(piece_dict)
+            try:
+                print(f"DEBUG: Serializing {piece.type.name} at {coord.to_algebraic()}")
+                piece_dict = piece.to_dict(
+                    at=coord,
+                    include_moves=True,  # Turn back on
+                    board=self   
+                )
+                # merge an algebraic string (useful for frontend rendering)
+                piece_dict["position_algebraic"] = coord.to_algebraic()
+                board_data["pieces"].append(piece_dict)
+                print(f"DEBUG: Successfully serialized {piece.type.name} at {coord.to_algebraic()}")
+            except Exception as e:
+                print(f"ERROR: Failed to serialize {piece.type.name} at {coord.to_algebraic()}: {e}")
+                import traceback
+                traceback.print_exc()
+                # Add piece without moves as fallback
+                piece_dict = {
+                    "id": piece.id,
+                    "type": piece.type.value,
+                    "color": piece.color.name,
+                    "position": {"file": coord.file, "rank": coord.rank},
+                    "position_algebraic": coord.to_algebraic(),
+                    "marked": piece.marked,
+                    "moves": []  # Empty moves on error
+                }
+                board_data["pieces"].append(piece_dict)
 
         return board_data
 #------------------------------

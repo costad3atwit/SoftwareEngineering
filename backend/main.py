@@ -86,9 +86,11 @@ class ConnectionManager:
             websocket = self.active_connections[client_id]
             try:
                 await websocket.send_json(message)
-                logger.debug(f"Sent to {client_id}: {message['type']}")
+                logger.info(f"Sent to {client_id}: {message['type']}")  # Changed from debug to info
             except Exception as e:
-                logger.error(f"Error sending to {client_id}: {e}")
+                logger.error(f"Error sending to {client_id}: {e}", exc_info=True)
+        else:
+            logger.warning(f"Cannot send to {client_id}: not in active connections")
     
     async def broadcast_to_game(self, message: dict, game: GameState):
         """Send message to both players in a game"""
@@ -290,7 +292,6 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                         "type": "error",
                         "message": msg
                     }, client_id)
-            
             elif message_type == "make_move":
                 # Handle piece movement
                 game_id = message.get("game_id")
@@ -316,19 +317,46 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                 if success:
                     logger.info(f"Move successful: {from_square} -> {to_square} in {game_id}")
                     
-                    # Get both players
-                    white_player = updated_game.players[updated_game.turn] if updated_game.turn else None
-                    black_player = updated_game.get_opponent_player()
+                    # Get both players correctly (don't use turn, which has already switched)
+                    from backend.enums import Color
+                    white_player = updated_game.players[Color.WHITE]
+                    black_player = updated_game.players[Color.BLACK]
                     
-                    # Broadcast updated game state to both players
-                    for player in [white_player, black_player]:
-                        if player:
-                            await manager.send_personal_message({
-                                "type": "game_update",
-                                "action": "move",
-                                "game_state": updated_game.to_dict(player.id)
-                            }, player.id)
+                    logger.info(f"DEBUG: About to send to white player: {white_player.id}")
+                    logger.info(f"DEBUG: About to send to black player: {black_player.id}")
+                    logger.info(f"DEBUG: Active connections: {list(manager.active_connections.keys())}")
                     
+                    try:
+                        # Serialize game state first to catch any errors
+                        logger.info(f"DEBUG: Starting to serialize white state")
+                        white_state = updated_game.to_dict(white_player.id)
+                        logger.info(f"DEBUG: White state serialized successfully")
+                        
+                        logger.info(f"DEBUG: Starting to serialize black state")
+                        black_state = updated_game.to_dict(black_player.id)
+                        logger.info(f"DEBUG: Black state serialized successfully")
+                        
+                        # Broadcast updated game state to both players
+                        await manager.send_personal_message({
+                            "type": "game_update",
+                            "action": "move",
+                            "game_state": white_state
+                        }, white_player.id)
+                        logger.info(f"DEBUG: Sent to white player")
+                        
+                        await manager.send_personal_message({
+                            "type": "game_update",
+                            "action": "move",
+                            "game_state": black_state
+                        }, black_player.id)
+                        logger.info(f"DEBUG: Sent to black player")
+                        
+                        logger.info(f"Sent game updates to both players")
+                        
+                    except Exception as e:
+                        logger.error(f"ERROR sending game updates: {e}", exc_info=True)
+                        import traceback
+                        traceback.print_exc()
                     # Check if game is over
                     if updated_game.status != GameStatus.IN_PROGRESS:
                         logger.info(f"GAME OVER: {game_id} | Status: {updated_game.status.value}")
@@ -344,7 +372,6 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                         "type": "error",
                         "message": msg
                     }, client_id)
-            
             elif message_type == "play_card":
                 # Handle card play
                 game_id = message.get("game_id")
@@ -370,19 +397,27 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                 if success:
                     logger.info(f"Card played successfully: {card_id} in {game_id}")
                     
-                    # Get both players
-                    white_player = updated_game.players[updated_game.turn] if updated_game.turn else None
-                    black_player = updated_game.get_opponent_player()
+                    # Get both players correctly
+                    from backend.enums import Color
+                    white_player = updated_game.players[Color.WHITE]
+                    black_player = updated_game.players[Color.BLACK]
                     
                     # Broadcast updated game state to both players
-                    for player in [white_player, black_player]:
-                        if player:
-                            await manager.send_personal_message({
-                                "type": "game_update",
-                                "action": "card_played",
-                                "card_id": card_id,
-                                "game_state": updated_game.to_dict(player.id)
-                            }, player.id)
+                    await manager.send_personal_message({
+                        "type": "game_update",
+                        "action": "card_played",
+                        "card_id": card_id,
+                        "game_state": updated_game.to_dict(white_player.id)
+                    }, white_player.id)
+                    
+                    await manager.send_personal_message({
+                        "type": "game_update",
+                        "action": "card_played",
+                        "card_id": card_id,
+                        "game_state": updated_game.to_dict(black_player.id)
+                    }, black_player.id)
+                    
+                    logger.info(f"Sent game updates to both players")
                     
                     # Check if game is over
                     if updated_game.status != GameStatus.IN_PROGRESS:
@@ -399,7 +434,6 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                         "type": "error",
                         "message": msg
                     }, client_id)
-            
             elif message_type == "get_game_state":
                 # Request current game state
                 game_id = message.get("game_id")
@@ -408,17 +442,24 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                 game = game_manager.get_game(game_id)
                 
                 if game:
-                    await manager.send_personal_message({
-                        "type": "game_state",
-                        "game_state": game.to_dict(client_id)
-                    }, client_id)
+                    try:
+                        logger.info(f"DEBUG: Serializing game state for {client_id}")
+                        game_state = game.to_dict(client_id)
+                        logger.info(f"DEBUG: Game state serialized, sending to {client_id}")
+                        
+                        await manager.send_personal_message({
+                            "type": "game_state",
+                            "game_state": game_state
+                        }, client_id)
+                        logger.info(f"Sent game state to {client_id}")
+                    except Exception as e:
+                        logger.error(f"ERROR getting game state: {e}", exc_info=True)
                 else:
                     logger.warning(f"Game state request for nonexistent game: {game_id}")
                     await manager.send_personal_message({
                         "type": "error",
                         "message": "Game not found"
-                    }, client_id)
-            
+                    }, client_id)            
             elif message_type == "ping":
                 # Keep connection alive
                 await manager.send_personal_message({"type": "pong"}, client_id)

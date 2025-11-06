@@ -210,6 +210,11 @@
             document.getElementById('moveBtn').disabled = !gameState.your_turn;
             document.getElementById('cardBtn').disabled = !gameState.your_turn;
             document.getElementById('getStateBtn').disabled = false;
+            
+            // Log the full game state for debugging
+            log('=== FULL GAME STATE ===', 'info');
+            log(JSON.stringify(gameState, null, 2), 'info');
+            log('======================', 'info');
         }
 
         function connect() {
@@ -248,6 +253,14 @@
                 } else if (msgType === 'game_state') {
                     log(`Game state received`, 'info');
                     updateGameUI(data.game_state);
+                    
+                    // Extra detailed logging for board state
+                    if (data.game_state.board && data.game_state.board.pieces) {
+                        log(`Board has ${data.game_state.board.pieces.length} pieces`, 'info');
+                        data.game_state.board.pieces.forEach(piece => {
+                            log(`  ${piece.color} ${piece.type} at ${piece.position_algebraic}`, 'info');
+                        });
+                    }
                     
                 } else if (msgType === 'game_over') {
                     log(`Game over! Reason: ${data.reason}, Winner: ${data.winner || 'Draw'}`, 'info');
