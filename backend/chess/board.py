@@ -234,7 +234,16 @@ class Board:
                     "moves": []  # Empty moves on error
                 }
                 board_data["pieces"].append(piece_dict)
-
+                
+        # Include Forbidden Lands info for the frontend
+        board_data["forbiddenActive"] = self.forbidden_active
+        if self.forbidden_active:
+            board_data["forbiddenTiles"] = [
+                {"file": coord.file, "rank": coord.rank}
+                for coord in self.forbidden_positions
+            ]
+        else:
+            board_data["forbiddenTiles"] = []
         return board_data
 #------------------------------
 #Inline Test
