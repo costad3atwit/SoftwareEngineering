@@ -10,6 +10,8 @@ class Board:
     def __init__(self):
         self.squares: Dict[Coordinate, Piece] = {}
         self.dmzActive = False
+        self.forbidden_active = False
+        self.forbidden_positions = set()
 
     def dmz_Activate(self):
         """
@@ -82,6 +84,10 @@ class Board:
         if not self.is_in_bounds(coord):
             return False  # Out of bounds squares have no enemy
         piece = self.squares.get(coord)
+
+        if self.forbidden_active and coord in self.forbidden_positions:
+            return False  # cannot capture pieces inside Forbidden Lands
+        
         return piece is not None and piece.color != color
 
     def is_frendly(self, coord: Coordinate, color: Color) -> bool:
@@ -167,6 +173,22 @@ class Board:
                     if move.to_coord == king_coord:
                         return True
         return False
+
+    def activate_forbidden_lands(self):
+        """
+        Activates the Forbidden Lands (outer ring of 10x10 board).
+        Pieces inside cannot be captured, and the King cannot enter.
+        """
+        self.dmz_Activate()
+        self.forbidden_active = True
+
+        # Outer ring coordinates (0 and 9 are border ranks/files)
+        self.forbidden_positions = {
+            Coordinate(x, y)
+            for x in range(10)
+            for y in range(10)
+            if x == 0 or y == 0 or x == 9 or y == 9
+        }
 
     def clone(self) -> 'Board':
         """Return a deep copy of the board."""

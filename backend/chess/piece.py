@@ -76,6 +76,10 @@ class King(Piece):
             nf, nr = at.file + dx, at.rank + dy
             if not board.is_in_bounds(Coordinate(nf, nr)):
                 continue
+            
+            # Prevent King from entering Forbidden Lands
+            if getattr(board, "forbidden_active", False) and Coordinate(nf, nr) in getattr(board, "forbidden_positions", set()):
+                continue
 
             target = board.piece_at_coord(Coordinate(nf, nr))
             # Can move if empty or capturing an opponent piece
