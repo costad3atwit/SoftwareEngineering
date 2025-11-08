@@ -107,6 +107,83 @@ class Mine(Card):
         return True, "Mine placed (effect not yet implemented)"
 
 
+from backend.cards.card import Card
+from backend.enums import CardType, Color
+from backend.chess.coordinate import Coordinate
+from backend.chess.piece import Pawn
+import random
+
+class ForbiddenLands(Card):
+    """
+    Hidden: Forbidden Lands – Expands the board by adding a 'forbidden ring' around it.
+    Rules:
+      - Activates DMZ (10x10 board).
+      - Marks outermost squares as 'forbidden'.
+      - Any piece inside Forbidden Lands cannot be captured.
+      - Kings cannot enter Forbidden Lands.
+      - Pieces leaving the zone cannot capture afterward.
+      - Playing again while active spawns a Pawn in your back forbidden rank.
+    """
+
+    def __init__(self):
+        super().__init__(
+            id="forbidden_lands",
+            name="Forbidden Lands",
+            description="Creates a protected ring of tiles where pieces cannot be captured.",
+            big_img="static/cards/forbidden_lands_big.png",
+            small_img="static/cards/forbidden_lands_small.png"
+        )
+
+    @property
+    def card_type(self) -> CardType:
+        return CardType.HIDDEN
+
+    def can_play(self, board, player) -> bool:
+        # Can always play if DMZ isn't already active
+        return True
+
+    def apply_effect(self, board, player, target_data: dict) -> tuple[bool, str]:
+        """
+        Applies Forbidden Lands effect to the board.
+        If already active, summons a pawn in player's back forbidden rank.
+        """
+        # If not yet active → activate the forbidden ring
+        if not getattr(board, "forbidden_active", False):
+            # Step 1: Activate DMZ mode (10x10)
+            board.dmz_Activate()
+
+            # Step 2: Dynamically attach forbidden zone attributes
+            board.forbidden_active = True
+            board.forbidden_positions = {
+                Coordinate(x, y)
+                for x in range(10)
+                for y in range(10)
+                if x == 0 or y == 0 or x == 9 or y == 9
+            }
+
+            # Step 3: Mark all pieces with helper flags (if needed)
+            for piece in board.squares.values():
+                piece.has_left_forbidden = False
+
+            return True, "Forbidden Lands activated — the outer ring is now protected."
+
+        # If Forbidden Lands already active → summon pawn in back forbidden rank
+        forbidden_back_rank = 0 if player.color == Color.WHITE else 9
+        possible_tiles = [
+            coord for coord in board.forbidden_positions
+            if coord.rank == forbidden_back_rank and board.is_empty(coord)
+        ]
+
+        if not possible_tiles:
+            return False, "No space to summon a pawn within Forbidden Lands."
+
+        spawn_square = random.choice(possible_tiles)
+        pawn_id = f"{player.color.name[0].lower()}F{len(board.squares)}"
+        board.squares[spawn_square] = Pawn(pawn_id, player.color)
+
+        return True, f"A pawn has been summoned in the Forbidden Lands at {spawn_square.to_algebraic()}."
+
+
 class EyeForAnEye(Card):
     """
     Eye for an Eye - Marks a friendly and opposing piece for 5 turns.
