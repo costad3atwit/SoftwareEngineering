@@ -17,6 +17,7 @@ class Piece(ABC):
         self.has_moved = False
         self.marked = False
         self.piece_type = piece_type
+        self.has_left_forbidden = False # For Forbidden Lands mechanic
 
     @abstractmethod
     def get_legal_moves(self, board: Board, at: Coordinate) -> List[Move]:
@@ -151,6 +152,10 @@ class King(Piece):
 
     def get_legal_captures(self, board: Board, at: Coordinate) -> List[Move]:
         """Return only king capture moves (no castling)."""
+         # --- Forbidden Lands rule: cannot capture from inside Forbidden Lands ---
+        if getattr(board, "forbidden_active", False) and board.is_forbidden(at):
+            return []
+        
         captures: List[Move] = []
         for m in self.get_legal_moves(board, at):
             # exclude castling and non-captures
@@ -231,6 +236,10 @@ class Queen(Piece):
 
     def get_legal_captures(self, board: Board, at: Coordinate) -> List[Move]:
         """Only capture moves for the queen."""
+         # --- Forbidden Lands rule: cannot capture from inside Forbidden Lands ---
+        if getattr(board, "forbidden_active", False) and board.is_forbidden(at):
+            return []
+        
         return [m for m in self.get_legal_moves(board, at)
                 if board.piece_at_coord(Coordinate(m.to_sq.file, m.to_sq.rank)) is not None]
 
@@ -289,6 +298,11 @@ class Rook(Piece):
         return moves
 
     def get_legal_captures(self, board: Board, at:Coordinate) -> List[Move]:
+        """Return only rook capture moves."""
+         # --- Forbidden Lands rule: cannot capture from inside Forbidden Lands ---
+        if getattr(board, "forbidden_active", False) and board.is_forbidden(at):
+            return []
+        
         captures: List[Move] = []
         directions = [(0, 1), (0, -1), (1, 0), (-1, 0)]
 
@@ -346,6 +360,11 @@ class Bishop(Piece):
         return moves
 
     def get_legal_captures(self, board: Board, at:Coordinate) -> List[Move]:
+        """Return only bishop capture moves."""
+        # --- Forbidden Lands rule: cannot capture from inside Forbidden Lands ---
+        if getattr(board, "forbidden_active", False) and board.is_forbidden(at):
+            return []
+        
         captures: List[Move] = []
         directions = [(1, 1), (1, -1), (-1, 1), (-1, -1)]
 
@@ -386,6 +405,11 @@ class Knight(Piece):
         return moves
 
     def get_legal_captures(self, board: Board, at:Coordinate) -> List[Move]:
+        """Return only knight capture moves."""
+        # --- Forbidden Lands rule: cannot capture from inside Forbidden Lands ---
+        if getattr(board, "forbidden_active", False) and board.is_forbidden(at):
+            return []
+        
         captures: List[Move] = []
 
         jumps = [
@@ -453,6 +477,10 @@ class Pawn(Piece):
 
     def get_legal_captures(self, board: Board, at: Coordinate) -> List[Move]:
         """Return only pawn capture moves."""
+        # --- Forbidden Lands rule: cannot capture from inside Forbidden Lands ---
+        if getattr(board, "forbidden_active", False) and board.is_forbidden(at):
+            return []
+
         return [
             m for m in self.get_legal_moves(board, at)
             if board.piece_at_coord(Coordinate(m.to_sq.file, m.to_sq.rank)) is not None
@@ -545,6 +573,10 @@ class Peon(Piece):
 
     def get_legal_captures(self, board: Board, at: Coordinate) -> List[Move]:
         """Return only capture moves for the Peon."""
+        # --- Forbidden Lands rule: cannot capture from inside Forbidden Lands ---
+        if getattr(board, "forbidden_active", False) and board.is_forbidden(at):
+            return []
+
         captures: List[Move] = []
         direction = 1 if self.color == Color.WHITE else -1
         furthest_rank = 7 if self.color == Color.WHITE else 0
@@ -633,6 +665,10 @@ class Scout(Piece):
 
     def get_legal_captures(self, board: 'Board', at: Coordinate) -> List[Move]:
         """Scouts do not perform normal captures."""
+        # --- Forbidden Lands rule: cannot capture from inside Forbidden Lands ---
+        if getattr(board, "forbidden_active", False) and board.is_forbidden(at):
+            return []
+
         return []
 
     @staticmethod
@@ -691,6 +727,10 @@ class HeadHunter(Piece):
         return moves
 
     def get_legal_captures(self, board: Board, at:Coordinate) -> List[Move]:
+        # --- Forbidden Lands rule: cannot capture from inside Forbidden Lands ---
+        if getattr(board, "forbidden_active", False) and board.is_forbidden(at):
+            return []
+        
         captures: List[Move] = []
         direction = 1 if self.color == Color.WHITE else -1
 
@@ -727,6 +767,9 @@ class Witch(Piece):
         return [] # implement later
 
     def get_legal_captures(self, board: Board, at:Coordinate) -> List[Move]:
+        # --- Forbidden Lands rule: cannot capture from inside Forbidden Lands ---
+        if getattr(board, "forbidden_active", False) and board.is_forbidden(at):
+            return [] # Don't remove this check, as it is important for the game rules.
         return [] # implement later
 
 
@@ -738,6 +781,10 @@ class Warlock(Piece):
         return [] # implement later
 
     def get_legal_captures(self, board: Board, at:Coordinate) -> List[Move]:
+        # --- Forbidden Lands rule: cannot capture from inside Forbidden Lands ---
+        if getattr(board, "forbidden_active", False) and board.is_forbidden(at):
+            return [] # Don't remove this check, as it is important for the game rules.
+        
         return [] # implement later
 
 
@@ -749,6 +796,10 @@ class Cleric(Piece):
         return [] # implement later
 
     def get_legal_captures(self, board: Board, at:Coordinate) -> List[Move]:
+        # --- Forbidden Lands rule: cannot capture from inside Forbidden Lands ---
+        if getattr(board, "forbidden_active", False) and board.is_forbidden(at):
+            return [] # Don't remove this check, as it is important for the game rules.
+
         return [] # implement later
         
 
@@ -760,6 +811,10 @@ class DarkLord(Piece):
         return [] # implement later
 
     def get_legal_captures(self, board: Board, at:Coordinate) -> List[Move]:
+        # --- Forbidden Lands rule: cannot capture from inside Forbidden Lands ---
+        if getattr(board, "forbidden_active", False) and board.is_forbidden(at):
+            return [] # Don't remove this check, as it is important for the game rules.
+        
         return [] # implement later
 
 # ---------- Test ----------

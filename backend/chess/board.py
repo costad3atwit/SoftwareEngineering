@@ -13,6 +13,25 @@ class Board:
         self.forbidden_active = False
         self.forbidden_positions = set()
 
+    def activate_forbidden_lands(self):
+        """
+        Expands the board to 10x10 and marks the outer ring as forbidden.
+        Pieces inside Forbidden Lands cannot be captured.
+        """
+        self.dmzActive = True
+        self.forbidden_active = True
+
+        # mark outer ring
+        self.forbidden_positions = set()
+        for file in range(10):
+            for rank in range(10):
+                if file in (0, 9) or rank in (0, 9):
+                    self.forbidden_positions.add(Coordinate(file, rank))
+    
+    def is_forbidden(self, coord: Coordinate) -> bool:
+        """Return True if this coordinate lies within the forbidden ring."""
+        return self.forbidden_active and coord in self.forbidden_positions
+                    
     def dmz_Activate(self):
         """
         Help change the set up of board to 10x10
@@ -80,14 +99,12 @@ class Board:
         return coord not in self.squares
 
     def is_enemy(self, coord: Coordinate, color: Color) -> bool:
-        """Return True if the coordinate contains an enemy piece."""
+        """Return True if the coordinate contains an enemy piece and is capturable."""
         if not self.is_in_bounds(coord):
-            return False  # Out of bounds squares have no enemy
-        piece = self.squares.get(coord)
-
+            return False
         if self.forbidden_active and coord in self.forbidden_positions:
             return False  # cannot capture pieces inside Forbidden Lands
-        
+        piece = self.squares.get(coord)
         return piece is not None and piece.color != color
 
     def is_frendly(self, coord: Coordinate, color: Color) -> bool:
@@ -97,13 +114,14 @@ class Board:
         piece = self.squares.get(coord)
         return piece is not None and piece.color == color
     
+
     def move_piece(self, move: Move) -> Optional[Piece]:
         src, dest = move.from_sq, move.to_sq
         moving_piece = self.squares.get(src)
         if not moving_piece:
             raise ValueError(f"No piece at {src}")
-    
-        # Handle Scout mark behavior
+
+        # --- Handle Scout mark behavior (unchanged) ---
         from backend.chess.piece import Scout
         if isinstance(moving_piece, Scout) and getattr(move, "metadata", {}).get("mark"):
             target_info = move.metadata.get("target")
@@ -111,18 +129,40 @@ class Board:
                 target_coord = Coordinate(target_info["file"], target_info["rank"])
                 Scout.mark_target(self, target_coord)
             return None  # Scout does not move
-    
-        # Regular movement otherwise
-        captured_piece = self.squares.pop(dest, None)
+
+        # --- Forbidden Lands rules ---
+        src_forbidden = self.is_forbidden(src) if self.forbidden_active else False
+        dest_forbidden = self.is_forbidden(dest) if self.forbidden_active else False
+
+        captured_piece = None
+
+        if self.forbidden_active:
+            # Case 1: destination is forbidden → cannot capture
+            if dest_forbidden and dest in self.squares:
+                raise ValueError("Cannot capture a piece inside Forbidden Lands.")
+
+            # Case 2: leaving Forbidden Lands → cannot capture while exiting
+            if src_forbidden and not dest_forbidden and dest in self.squares:
+                raise ValueError("Cannot capture while leaving Forbidden Lands.")
+
+            # otherwise, normal capture if not blocked
+            if not dest_forbidden and dest in self.squares:
+                captured_piece = self.squares.pop(dest)
+
+        else:
+            # Forbidden Lands inactive → normal chess capture
+            captured_piece = self.squares.pop(dest, None)
+
+        # --- Perform the move ---
         self.squares.pop(src)
         self.squares[dest] = moving_piece
         moving_piece.has_moved = True
-    
-        # Clear all marks if any capture occurs
+
+        # --- Clear all marks if a capture occurs ---
         if captured_piece:
             for p in self.squares.values():
                 p.marked = False
-    
+
         return captured_piece
 
 
@@ -173,22 +213,6 @@ class Board:
                     if move.to_coord == king_coord:
                         return True
         return False
-
-    def activate_forbidden_lands(self):
-        """
-        Activates the Forbidden Lands (outer ring of 10x10 board).
-        Pieces inside cannot be captured, and the King cannot enter.
-        """
-        self.dmz_Activate()
-        self.forbidden_active = True
-
-        # Outer ring coordinates (0 and 9 are border ranks/files)
-        self.forbidden_positions = {
-            Coordinate(x, y)
-            for x in range(10)
-            for y in range(10)
-            if x == 0 or y == 0 or x == 9 or y == 9
-        }
 
     def clone(self) -> 'Board':
         """Return a deep copy of the board."""
