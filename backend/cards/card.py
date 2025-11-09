@@ -117,12 +117,13 @@ import random
 class ForbiddenLands(Card):
     """
     Hidden: Forbidden Lands – Expands the board by adding a 'forbidden ring' around it.
+
     Rules:
       - Activates DMZ (10x10 board).
       - Marks outermost squares as 'forbidden'.
-      - Any piece inside Forbidden Lands cannot be captured.
+      - Pieces inside Forbidden Lands cannot be captured.
       - Kings cannot enter Forbidden Lands.
-      - Pieces leaving the zone cannot capture afterward.
+      - Moves leaving Forbidden Lands cannot capture.
       - Playing again while active spawns a Pawn in your back forbidden rank.
     """
 
@@ -131,8 +132,11 @@ class ForbiddenLands(Card):
             id="forbidden_lands",
             name="Forbidden Lands",
             description=(
-                "Creates a protected ring of tiles where pieces cannot be captured. "
-                "Kings cannot enter, and playing again summons a pawn within your back rank."
+                "Creates a protective ring of tiles (Forbidden Lands). "
+                "Pieces inside cannot be captured; kings cannot enter; "
+                "and pieces leaving the zone cannot perform a capture. "
+                "Playing this card again while active summons a pawn "
+                "in your back forbidden rank."
             ),
             big_img="static/cards/forbidden_lands_big.png",
             small_img="static/cards/forbidden_lands_small.png"
@@ -151,17 +155,15 @@ class ForbiddenLands(Card):
         Applies Forbidden Lands effect to the board.
         If already active, summons a pawn in player's back forbidden rank.
         """
-        # Case 1: First play → activate forbidden ring
+        # Case 1: First play — activate Forbidden Lands
         if not board.forbidden_active:
             board.activate_forbidden_lands()
+            return True, (
+                "Forbidden Lands activated — the outer ring is now marked as forbidden. "
+                "Pieces inside cannot be captured, and kings may not enter."
+            )
 
-            # Reset flags for pieces
-            for piece in board.squares.values():
-                piece.has_left_forbidden = False
-
-            return True, "Forbidden Lands activated — the outer ring is now protected."
-
-        # Case 2: Already active → summon pawn in player's back forbidden rank
+        # Case 2: Already active — summon a pawn in the player's back forbidden rank
         forbidden_back_rank = 0 if player.color == Color.WHITE else 9
         possible_tiles = [
             coord for coord in board.forbidden_positions
@@ -169,7 +171,7 @@ class ForbiddenLands(Card):
         ]
 
         if not possible_tiles:
-            return False, "No available space to summon a pawn in the Forbidden Lands."
+            return False, "No available space to summon a pawn in your forbidden back rank."
 
         spawn_square = random.choice(possible_tiles)
         pawn_id = f"{player.color.name[0].lower()}F{len(board.squares)}"
