@@ -17,7 +17,6 @@ class Piece(ABC):
         self.has_moved = False
         self.marked = False
         self.piece_type = piece_type
-        self.has_left_forbidden = False # For Forbidden Lands mechanic
 
     @abstractmethod
     def get_legal_moves(self, board: Board, at: Coordinate) -> List[Move]:
