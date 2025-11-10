@@ -301,29 +301,73 @@ class TransformToScout(Card):
 
 class TransformToHeadhunter(Card):
     """
-    Knight: Headhunter - Select a knight to transform into a headhunter.
-    Headhunters move like a king but can attack 3 squares in front of them.
-    Value of 5.
+    Knight: Headhunter - Select one knight to transform into a headhunter.
+    Headhunters move like a king and can attack up to 3 squares straight ahead.
+    Value: 5.
     """
-    
+
     def __init__(self):
-        super().__init__(id="knight_headhunter", name="Knight: Headhunter", description="Placeholder", big_img="static/example_big.png", small_img="static/example_small.png")
-    
+        super().__init__(
+            id="knight_headhunter",
+            name="Knight: Headhunter",
+            description="Transform a knight into a headhunter. Headhunters move like a king and project an attack 3 squares forward.",
+            big_img="static/example_big.png",
+            small_img="static/example_small.png"
+        )
+        self.target_type = TargetType.PIECE
+
     @property
     def card_type(self) -> CardType:
         return CardType.TRANSFORM
-    
+
     def can_play(self, board: Board, player: Player) -> bool:
-        # Need at least one knight to transform
-        # TODO: Check if player has any knights
-        return True
-    
+        """Check if player has any knights to transform"""
+        from backend.enums import PieceType
+
+        for coord, piece in board.squares.items():
+            if piece.color == player.color and piece.type == PieceType.KNIGHT:
+                return True
+        return False
+
     def apply_effect(self, board: Board, player: Player, target_data: Dict[str, Any]) -> tuple[bool, str]:
-        # TODO: Implement knight -> headhunter transformation
-        # - Expect target_data to contain knight coordinate
-        # - Remove knight, create Headhunter piece at same location
-        # - If no knight available, allow material sacrifice to summon
-        return True, "Knight transformed to Headhunter (effect not yet implemented)"
+        """
+        Transform a knight at the target coordinate into a headhunter.
+        Expects target_data['target'] as algebraic like 'e4'.
+        """
+        from backend.chess.coordinate import Coordinate
+        from backend.chess.piece import Headhunter
+        from backend.enums import PieceType
+
+        target_square = target_data.get("target")
+        if not target_square:
+            return False, "No target square provided"
+
+        # Parse coordinate
+        try:
+            target_coord = Coordinate.from_algebraic(target_square)
+        except Exception:
+            return False, f"Invalid coordinate: {target_square}"
+
+        # Validate piece existence & ownership
+        piece = board.piece_at_coord(target_coord)
+        if not piece:
+            return False, f"No piece at {target_square}"
+        if piece.color != player.color:
+            return False, "That's not your piece"
+
+        # Ensure it's a Knight
+        if piece.type != PieceType.KNIGHT:
+            return False, "Can only transform knights into headhunters"
+
+        # Create Headhunter with a unique ID and same owner/color
+        hh_id = f"headhunter_{player.color.value}_{target_coord.to_algebraic()}"
+        headhunter = Headhunter(hh_id, player.color)
+
+        # Replace the Knight with the Headhunter in-place
+        board.squares[target_coord] = headhunter
+
+        return True, f"Knight at {target_square} transformed into Headhunter!"
+
 
 
 class TransformToWarlock(Card):
