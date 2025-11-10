@@ -373,30 +373,86 @@ class TransformToHeadhunter(Card):
 class TransformToWarlock(Card):
     """
     Bishop: Warlock - Select any bishop to turn into a warlock.
-    Warlocks can move to any same-colored tile in 3 tile radius with clear line.
-    Can move 1 tile backward to change tile color.
-    When effigy destroyed, gains knight + rook movement for 2 turns.
-    Value of 5.
+    Warlocks can move to any same-colored tile within a 3-tile radius (clear line),
+    may move 1 tile backward to change tile color, and when an effigy is destroyed
+    they gain Knight + Rook movement for 2 turns. Value: 5.
     """
-    
+
     def __init__(self):
-        super().__init__(id="bishop_warlock", name="Bishop: Warlock", description="Placeholder", big_img="static/example_big.png", small_img="static/example_small.png")
-    
+        super().__init__(
+            id="bishop_warlock",
+            name="Bishop: Warlock",
+            description="Transform a bishop into a warlock. Warlocks blink to same-colored tiles (r=3), can step back 1, and gain Knight+Rook for 2 turns when an effigy dies.",
+            big_img="static/example_big.png",
+            small_img="static/example_small.png"
+        )
+        self.target_type = TargetType.PIECE
+
     @property
     def card_type(self) -> CardType:
         return CardType.TRANSFORM
-    
+
     def can_play(self, board: Board, player: Player) -> bool:
-        # Need at least one bishop to transform
-        # TODO: Check if player has any bishops
-        return True
-    
+        """Check if player has any bishops to transform."""
+        from backend.enums import PieceType
+
+        for _, piece in board.squares.items():
+            if piece.color == player.color and piece.type == PieceType.BISHOP:
+                return True
+        return False
+
     def apply_effect(self, board: Board, player: Player, target_data: Dict[str, Any]) -> tuple[bool, str]:
-        # TODO: Implement bishop -> warlock transformation
-        # - Expect target_data to contain bishop coordinate
-        # - Remove bishop, create Warlock piece at same location
-        # - If no bishop available, allow material sacrifice to summon
-        return True, "Bishop transformed to Warlock (effect not yet implemented)"
+        """
+        Transform a bishop at target coordinate into a warlock.
+        Expects target_data['target'] as algebraic like 'e4'.
+        """
+        from backend.chess.coordinate import Coordinate
+        from backend.chess.piece import Warlock
+        from backend.enums import PieceType
+
+        target_square = target_data.get("target")
+        if not target_square:
+            return False, "No target square provided"
+
+        # Parse coordinate (e.g., "c3")
+        try:
+            target_coord = Coordinate.from_algebraic(target_square)
+        except Exception:
+            return False, f"Invalid coordinate: {target_square}"
+
+        # Validate piece existence & ownership
+        piece = board.piece_at_coord(target_coord)
+        if not piece:
+            return False, f"No piece at {target_square}"
+        if piece.color != player.color:
+            return False, "That's not your piece"
+
+        # Ensure it's a Bishop
+        if piece.type != PieceType.BISHOP:
+            return False, "Can only transform bishops into warlocks"
+
+        # Capture state you want to preserve across transform
+        preserved = {}
+        for attr in ("has_moved", "status", "damage", "effects"):
+            if hasattr(piece, attr):
+                preserved[attr] = getattr(piece, attr)
+
+        # Create Warlock with unique id and same owner/color
+        wl_id = f"warlock_{player.color.value}_{target_coord.to_algebraic()}"
+        warlock = Warlock(wl_id, player.color)
+
+        # Reapply preserved state if applicable
+        for k, v in preserved.items():
+            try:
+                setattr(warlock, k, v)
+            except Exception:
+                pass  # ignore if Warlock doesn't support a field
+
+        # Replace the Bishop with the Warlock in-place
+        board.squares[target_coord] = warlock
+
+        return True, f"Bishop at {target_square} transformed into Warlock!"
+
 
 
 class TransformToDarkLord(Card):
