@@ -12,7 +12,10 @@ class Board:
         self.dmzActive = False
         self.forbidden_active = False
         self.forbidden_positions = set()
-
+        self.mines = []
+    # ================================================================
+    # Forbidden Lands Mechanics
+    # ================================================================
     def activate_forbidden_lands(self):
         """
         Expands the board to 10x10 and marks the outer ring as forbidden.
@@ -38,6 +41,55 @@ class Board:
         by changing dmzActive to True
         """
         self.dmzActive = True
+
+    # ================================================================
+    # Mine Mechanics
+    # ================================================================
+    def place_mine(self, coord: Coordinate, owner_color: Color):
+        """Place a mine on the board with a 4-turn lifespan."""
+        self.mines.append({"coord": coord, "owner": owner_color, "timer": 4})
+        print(f"Mine placed at {coord.file},{coord.rank} by {owner_color.name}")
+
+    def explode_mine(self, mine: dict):
+        """Explode a mine and capture all pieces within 1 tile (except kings)."""
+        cx, cy = mine["coord"].file, mine["coord"].rank
+        print(f"Mine exploded at ({cx},{cy})!")
+
+        to_remove = []
+        for dx in [-1, 0, 1]:
+            for dy in [-1, 0, 1]:
+                target = Coordinate(cx + dx, cy + dy)
+                if not self.is_in_bounds(target):
+                    continue
+                piece = self.piece_at_coord(target)
+                if piece and piece.type.name != "KING":  # king immune
+                    print(f"Captured by explosion: {piece.id} at {target.file},{target.rank}")
+                    to_remove.append(target)
+
+        for coord in to_remove:
+            self.squares.pop(coord, None)
+
+        # remove mine from board
+        self.mines.remove(mine)
+
+    def tick_mines(self):
+        """Decrement mine timers; dismantle expired ones."""
+        expired = []
+        for mine in list(self.mines):
+            mine["timer"] -= 1
+            if mine["timer"] <= 0:
+                expired.append(mine)
+        for mine in expired:
+            print(f"Mine at {mine['coord'].file},{mine['coord'].rank} dismantled (timer expired).")
+            self.mines.remove(mine)
+
+    def check_mine_trigger(self, dest: Coordinate):
+        """Check if a move lands on a mine and trigger explosion if so."""
+        for mine in list(self.mines):
+            if mine["coord"] == dest:
+                self.explode_mine(mine)
+                break
+
     
     def setup_standard(self):
         """Set up standard chessboard layout."""
@@ -176,6 +228,9 @@ class Board:
         if captured_piece:
             for p in self.squares.values():
                 p.marked = False
+        
+        # --- Check for mine trigger at destination ---
+        self.check_mine_trigger(dest)
 
         return captured_piece
 
@@ -320,6 +375,18 @@ class Board:
             ]
         else:
             board_data["forbiddenTiles"] = []
+        
+        # Include mine info if present
+        board_data["mine"] = (
+            {
+                "file": self.mines[0]["coord"].file,
+                "rank": self.mines[0]["coord"].rank,
+                "owner": self.mines[0]["owner"].name,
+                "timer": self.mines[0]["timer"]
+            }
+            if self.mines else None
+        )
+
         return board_data
 #------------------------------
 #Inline Test

@@ -94,22 +94,65 @@ class Mine(Card):
     """
     
     def __init__(self):
-        super().__init__(id="mine", name="Mine", description="Placeholder", big_img="static/example_big.png", small_img="static/example_small.png")
-    
+        super().__init__(
+            id="mine",
+            name="Mine",
+            description=(
+                "Places a hidden mine on a random empty square. "
+                "Explodes when any piece steps on it, capturing all nearby "
+                "pieces except kings. Dismantles after 4 turns if untouched."
+            ),
+            big_img="static/cards/mine_big.png",
+            small_img="static/cards/mine_small.png"
+        )    
     @property
     def card_type(self) -> CardType:
         return CardType.HIDDEN
     
     def can_play(self, board: Board, player: Player) -> bool:
-        # Can always play mine if you have it
-        return True
+        """Can always be played if at least one empty square exists."""
+        empty_tiles = [c for c in self._all_possible_coords(board) if board.is_empty(c)]
+        return len(empty_tiles) > 0
+    
+    def _all_possible_coords(self, board: Board):
+        """Helper to get all valid coordinates within bounds."""
+        max_file = 9 if board.dmzActive else 8
+        min_file = 0 if board.dmzActive else 1
+        coords = []
+        for f in range(min_file, max_file + 1):
+            for r in range(min_file, max_file + 1):
+                coord = Coordinate(f, r)
+                if board.is_in_bounds(coord):
+                    coords.append(coord)
+        return coords
     
     def apply_effect(self, board: Board, player: Player, target_data: Dict[str, Any]) -> tuple[bool, str]:
-        # TODO: Implement mine placement logic
-        # - Find random tile > 1 tile away from all pieces
-        # - Register mine in board state with 4-turn timer
-        # - Set up proximity reveal logic
-        return True, "Mine placed (effect not yet implemented)"
+        """
+        Places a mine on a random empty tile far enough from all pieces.
+        """
+        import random
+
+        # Gather all empty tiles that are at least 2 away from all pieces
+        possible_tiles = []
+        for coord in self._all_possible_coords(board):
+            if not board.is_empty(coord):
+                continue
+
+            # Check that it's >1 tile away from all existing pieces
+            too_close = any(
+                abs(coord.file - c.file) <= 1 and abs(coord.rank - c.rank) <= 1
+                for c in board.squares.keys()
+            )
+            if not too_close:
+                possible_tiles.append(coord)
+
+        if not possible_tiles:
+            return False, "No suitable empty space to place a mine safely."
+
+        chosen_tile = random.choice(possible_tiles)
+        board.place_mine(chosen_tile, player.color)
+
+        return True, f"Mine placed on a hidden tile. It will dismantle after 4 turns if untouched."
 
 
 class ForbiddenLands(Card):
@@ -537,6 +580,8 @@ CARD_REGISTRY = {
     "pawn_scout": TransformToScout,
     "knight_headhunter": TransformToHeadhunter,
     "bishop_warlock": TransformToWarlock,
+    "queen_darklord": TransformToDarkLord,
+    "forbidden_lands": ForbiddenLands,
 }
 
 
