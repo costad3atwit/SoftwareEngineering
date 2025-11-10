@@ -1078,16 +1078,179 @@ class Cleric(Piece):
 class DarkLord(Piece):
     def __init__(self, id: str, color: Color):
         super().__init__(id, color, PieceType.DARKLORD, value=10)
+        self.turn_counter = 0
+        self.enthralling_target = None
+        self.enthralling_progress = 0
+        self.daylight_mode = False  # True = hindered (King movement)
+    
+    def _check_daylight_cycle(self):
+        """
+        Every 2 turns, switch between daylight (King) and night (Queen) modes.
+        Should be called at start of get_legal_moves().
+        """
+        self.turn_counter += 1
+        if self.turn_counter % 4 in (1, 2):
+            self.daylight_mode = True   # hindered for 2 turns
+        else:
+            self.daylight_mode = False  # normal Queen moves
+
+    def check_death_condition(self, board: Board):
+        """If total enemy material ≤ 10, Dark Lord dies (removed from board)."""
+        total_enemy_value = 0
+        for piece in board.squares.values():
+            if piece.color != self.color:
+                total_enemy_value += getattr(piece, "value", 1)  # default 1 if not defined
+        if total_enemy_value <= 10:
+            # find this piece and remove it
+            to_remove = None
+            for coord, piece in board.squares.items():
+                if piece is self:
+                    to_remove = coord
+                    break
+            if to_remove:
+                del board.squares[to_remove]
+                print(f"{self.id} perished — enemy strength too weak (value ≤ 10).")
 
     def get_legal_moves(self, board: Board, at: Coordinate) -> List[Move]:
-        return [] # implement later
+        """
+        Moves like a Queen, but every 2 turns is hindered by daylight
+        and moves like a King instead.
+        """
+        moves: List[Move] = []
+        self._check_daylight_cycle()
+
+        if self.daylight_mode:
+            # --- Move like a King ---
+            steps = [
+                (-1, -1), (0, -1), (1, -1),
+                (-1, 0),           (1, 0),
+                (-1, 1),  (0, 1),  (1, 1),
+            ]
+            for dx, dy in steps:
+                new = Coordinate(at.file + dx, at.rank + dy)
+                if not board.is_in_bounds(new):
+                    continue
+                if board.is_empty(new) or board.is_enemy(new, self.color):
+                    moves.append(Move(at, new, self))
+        else:
+            # --- Move like a Queen (Rook + Bishop rays) ---
+            directions = [
+                (1, 0), (-1, 0),
+                (0, 1), (0, -1),
+                (1, 1), (1, -1),
+                (-1, 1), (-1, -1)
+            ]
+            for df, dr in directions:
+                next_coord = at.offset(df, dr)
+                while next_coord:
+                    if not board.is_in_bounds(next_coord):
+                        break
+                    if board.is_empty(next_coord):
+                        moves.append(Move(at, next_coord, self))
+                    elif board.is_enemy(next_coord, self.color):
+                        moves.append(Move(at, next_coord, self))
+                        break
+                    else:
+                        break
+                    next_coord = next_coord.offset(df, dr)
+        return moves
 
     def get_legal_captures(self, board: Board, at:Coordinate) -> List[Move]:
         # --- Forbidden Lands rule: cannot capture from inside Forbidden Lands ---
         if getattr(board, "forbidden_active", False) and board.is_forbidden(at):
             return [] # Don't remove this check, as it is important for the game rules.
         
-        return [] # implement later
+        # captures same as moves that land on enemy pieces
+        captures = []
+        for m in self.get_legal_moves(board, at):
+            target_piece = board.piece_at_coord(m.to_sq)
+            if target_piece and target_piece.color != self.color:
+                captures.append(m)
+        return captures
+    
+    # --- Enthralling Mechanic ---
+    def possible_enthrall_targets(self, board: Board, at: Coordinate) -> List[Coordinate]:
+        """Return 1-tile radius enemy pieces that can be enthralled."""
+        targets = []
+        for dx in [-1, 0, 1]:
+            for dy in [-1, 0, 1]:
+                if dx == 0 and dy == 0:
+                    continue
+                target = Coordinate(at.file + dx, at.rank + dy)
+                if not board.is_in_bounds(target):
+                    continue
+                piece = board.piece_at_coord(target)
+                if piece and piece.color != self.color:
+                    targets.append(target)
+        return targets
+
+    def start_enthralling(self, board: Board, target: Coordinate):
+        """Begin enthralling a nearby enemy piece."""
+        target_piece = board.piece_at_coord(target)
+        if not target_piece or target_piece.color == self.color:
+            raise ValueError("No valid enemy target to enthrall.")
+        self.enthralling_target = target
+        self.enthralling_progress = 0
+        print(f"{self.id} has begun enthralling {target_piece.id} at {target.file},{target.rank}")
+
+    def progress_enthralling(self, board: Board):
+        """
+        Advance enthrallment by 1 turn.
+        After 2 turns, convert target to friendly.
+        """
+        if not self.enthralling_target:
+            return
+        target_piece = board.piece_at_coord(self.enthralling_target)
+        if not target_piece:
+            # enthralling interrupted (piece gone)
+            self.cancel_enthralling()
+            return
+
+        self.enthralling_progress += 1
+        print(f"{self.id} is enthralling {target_piece.id} (turn {self.enthralling_progress}/2)")
+
+        # after 2 turns, convert to friendly
+        if self.enthralling_progress >= 2:
+            target_piece.color = self.color
+            self.cancel_enthralling()
+            print(f"{target_piece.id} has been enthralled and is now friendly!")
+
+    def cancel_enthralling(self):
+        """Cancel enthralling process (called when Dark Lord moves or is interrupted)."""
+        if self.enthralling_target:
+            print(f"{self.id}’s enthralling of {self.enthralling_target} has been cancelled.")
+        self.enthralling_target = None
+        self.enthralling_progress = 0
+    
+    # --- Dictionary Representation ---
+    def to_dict(self, at: Coordinate, include_moves: bool = False,
+                board: 'Board' = None, captures_only: bool = False) -> dict:
+        """Frontend-friendly dictionary representation."""
+        data = {
+            "id": self.id,
+            "type": self.type.name,
+            "color": self.color.name,
+            "position": {"file": at.file, "rank": at.rank},
+            "enthrallingTarget": (
+                {"file": self.enthralling_target.file, "rank": self.enthralling_target.rank}
+                if self.enthralling_target else None
+            ),
+            "enthrallingProgress": self.enthralling_progress,
+            "daylightMode": self.daylight_mode,
+            "value": self.value
+        }
+
+        if include_moves and board is not None:
+            moves = (self.get_legal_captures(board, at) if captures_only
+                     else self.get_legal_moves(board, at))
+            data["moves"] = [
+                {
+                    "from": {"file": m.from_sq.file, "rank": m.from_sq.rank},
+                    "to": {"file": m.to_sq.file, "rank": m.to_sq.rank},
+                }
+                for m in moves
+            ]
+        return data
 
 # ---------- Test ----------
 print("\n--- Testing Queen ---")
