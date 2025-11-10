@@ -775,31 +775,303 @@ class Witch(Piece):
 class Warlock(Piece):
     def __init__(self, id: str, color: Color):
         super().__init__(id, color, PieceType.WARLOCK)
+        self.empowered = False  # Set to True when effigy is destroyed
+        self.empowered_turns_remaining = 0  # Tracks remaining empowered turns
 
     def get_legal_moves(self, board: Board, at: Coordinate) -> List[Move]:
-        return [] # implement later
+        """
+        Warlock movement:
+        - Normal mode: Can move to any same-colored tile within 3 Manhattan distance
+          along diagonal paths, or 1 tile backwards to change tile color
+        - Empowered mode (2 turns after effigy destroyed): Gains knight + rook movement
+        """
+        moves: List[Move] = []
+        
+        if self.empowered and self.empowered_turns_remaining > 0:
+            # Empowered mode: Knight + Rook movement
+            moves.extend(self._get_knight_moves(board, at))
+            moves.extend(self._get_rook_moves(board, at))
+        else:
+            # Normal mode: Warlock-specific movement
+            moves.extend(self._get_warlock_moves(board, at))
+            moves.extend(self._get_backward_move(board, at))
+        
+        return moves
 
-    def get_legal_captures(self, board: Board, at:Coordinate) -> List[Move]:
+    def _get_warlock_moves(self, board: Board, at: Coordinate) -> List[Move]:
+        """
+        Get warlock's normal diagonal moves within 3 Manhattan distance.
+        Must have clear path and land on same-colored square.
+        """
+        moves: List[Move] = []
+        
+        # Check if starting square is light or dark
+        start_is_light = (at.file + at.rank) % 2 == 0
+        
+        # All potential warlock destination offsets
+        offsets = [
+            (1, 1), (1, -1), (-1, 1), (-1, -1),  # 1-step diagonals
+            (2, 2), (2, -2), (-2, 2), (-2, -2),  # 2-step diagonals
+            (2, 0), (-2, 0), (0, 2), (0, -2)      # 2-step orthogonals
+        ]
+        
+        for df, dr in offsets:
+            dest = Coordinate(at.file + df, at.rank + dr)
+            
+            # Check if destination is in bounds
+            if not board.is_in_bounds(dest):
+                continue
+            
+            # All these moves should land on same-colored square
+            dest_is_light = (dest.file + dest.rank) % 2 == 0
+            if dest_is_light != start_is_light:
+                continue
+            
+            # Check for clear path (diagonal or orthogonal)
+            if abs(df) == abs(dr):  # Diagonal move
+                if not self._has_clear_diagonal_path(board, at, dest):
+                    continue
+            else:  # Orthogonal move
+                if not self._has_clear_orthogonal_path(board, at, dest):
+                    continue
+            
+            # Check if destination is empty or has enemy piece
+            if board.is_empty(dest):
+                moves.append(Move(at, dest, self))
+            elif board.is_enemy(dest, self.color):
+                moves.append(Move(at, dest, self))
+        
+        return moves
+
+    def _has_clear_diagonal_path(self, board: Board, start: Coordinate, end: Coordinate) -> bool:
+        """Check if there's a clear diagonal path between start and end."""
+        df = 1 if end.file > start.file else -1 if end.file < start.file else 0
+        dr = 1 if end.rank > start.rank else -1 if end.rank < start.rank else 0
+        
+        # Check all squares between start and end
+        current_file = start.file + df
+        current_rank = start.rank + dr
+        
+        while current_file != end.file or current_rank != end.rank:
+            check_coord = Coordinate(current_file, current_rank)
+            if not board.is_empty(check_coord):
+                return False
+            current_file += df
+            current_rank += dr
+        
+        return True
+
+    def _has_clear_orthogonal_path(self, board: Board, start: Coordinate, end: Coordinate) -> bool:
+        """Check if there's a clear orthogonal path between start and end."""
+        df = 1 if end.file > start.file else -1 if end.file < start.file else 0
+        dr = 1 if end.rank > start.rank else -1 if end.rank < start.rank else 0
+        
+        # Check all squares between start and end
+        current_file = start.file + df
+        current_rank = start.rank + dr
+        
+        while current_file != end.file or current_rank != end.rank:
+            check_coord = Coordinate(current_file, current_rank)
+            if not board.is_empty(check_coord):
+                return False
+            current_file += df
+            current_rank += dr
+        
+        return True
+
+    def _get_backward_move(self, board: Board, at: Coordinate) -> List[Move]:
+        """
+        Get the one-square backward move to change tile color.
+        Backward means towards the warlock's own back rank.
+        """
+        moves: List[Move] = []
+        
+        # Determine backward direction (opposite of pawn forward)
+        direction = -1 if self.color == Color.WHITE else 1
+        
+        # One square backward
+        dest = Coordinate(at.file, at.rank + direction)
+        
+        if board.is_in_bounds(dest):
+            if board.is_empty(dest):
+                moves.append(Move(at, dest, self))
+            elif board.is_enemy(dest, self.color):
+                moves.append(Move(at, dest, self))
+        
+        return moves
+
+    def _get_knight_moves(self, board: Board, at: Coordinate) -> List[Move]:
+        """Get knight-like moves when empowered."""
+        moves: List[Move] = []
+        
+        # 8 possible L-shaped jumps
+        jumps = [
+            (1, 2), (2, 1), (-1, 2), (-2, 1),
+            (1, -2), (2, -1), (-1, -2), (-2, -1)
+        ]
+        
+        for df, dr in jumps:
+            dest = at.offset(df, dr)
+            if not dest:
+                continue
+            if dest and (board.is_empty(dest) or board.is_enemy(dest, self.color)):
+                moves.append(Move(at, dest, self))
+        
+        return moves
+
+    def _get_rook_moves(self, board: Board, at: Coordinate) -> List[Move]:
+        """Get rook-like moves when empowered."""
+        moves: List[Move] = []
+        directions = [(0, 1), (0, -1), (1, 0), (-1, 0)]
+        
+        for df, dr in directions:
+            next_coord = at.offset(df, dr)
+            while next_coord:
+                if not next_coord:
+                    break
+                elif board.is_empty(next_coord):
+                    moves.append(Move(at, next_coord, self))
+                elif board.is_enemy(next_coord, self.color):
+                    moves.append(Move(at, next_coord, self))
+                    break
+                else:
+                    break
+                next_coord = next_coord.offset(df, dr)
+        
+        return moves
+
+    def get_legal_captures(self, board: Board, at: Coordinate) -> List[Move]:
+        """Return only warlock capture moves."""
         # --- Forbidden Lands rule: cannot capture from inside Forbidden Lands ---
         if getattr(board, "forbidden_active", False) and board.is_forbidden(at):
-            return [] # Don't remove this check, as it is important for the game rules.
+            return []
         
-        return [] # implement later
+        return [m for m in self.get_legal_moves(board, at)
+                if board.piece_at_coord(m.to_sq) is not None]
 
+    def activate_empowerment(self):
+        """Activate empowered mode for 2 turns (called when effigy is destroyed)."""
+        self.empowered = True
+        self.empowered_turns_remaining = 2
+
+    def decrement_empowerment(self):
+        """Decrement empowerment counter (call at end of turn)."""
+        if self.empowered_turns_remaining > 0:
+            self.empowered_turns_remaining -= 1
+            if self.empowered_turns_remaining == 0:
+                self.empowered = False
+
+    def to_dict(self, at: Coordinate, include_moves: bool = False,
+                board: Board = None, captures_only: bool = False) -> dict:
+        """Frontend-friendly dictionary representation of Warlock."""
+        data = {
+            "id": self.id,
+            "type": self.type.name,
+            "color": self.color.name,
+            "position": {"file": at.file, "rank": at.rank},
+            "marked": self.marked,
+            "empowered": self.empowered,
+            "empowered_turns": self.empowered_turns_remaining
+        }
+
+        if include_moves and board is not None:
+            moves = (self.get_legal_captures(board, at) if captures_only
+                     else self.get_legal_moves(board, at))
+            data["moves"] = [
+                {
+                    "from": {"file": m.from_sq.file, "rank": m.from_sq.rank},
+                    "to": {"file": m.to_sq.file, "rank": m.to_sq.rank},
+                }
+                for m in moves
+            ]
+        return data
 
 class Cleric(Piece):
     def __init__(self, id: str, color: Color):
         super().__init__(id, color, PieceType.CLERIC)
-
+        self.value = 5
+    
     def get_legal_moves(self, board: Board, at: Coordinate) -> List[Move]:
-        return [] # implement later
+        moves: List[Move] = []
+        
+        # Determine forward/backward based on color
+        forward_dir = 1 if self.color == Color.WHITE else -1
+        backward_dir = -forward_dir
+        
+        # 1 square forward
+        moves.extend(self._try_orthogonal_move(board, at, 0, forward_dir, max_dist=1))
+        
+        # 2 squares backward
+        moves.extend(self._try_orthogonal_move(board, at, 0, backward_dir, max_dist=2))
+        
+        # 2 squares left
+        moves.extend(self._try_orthogonal_move(board, at, -1, 0, max_dist=2))
+        
+        # 2 squares right
+        moves.extend(self._try_orthogonal_move(board, at, 1, 0, max_dist=2))
+        
+        return moves
+    
+    def _try_orthogonal_move(self, board: Board, at: Coordinate, 
+                            df: int, dr: int, max_dist: int) -> List[Move]:
+        """
+        Try to move in a direction up to max_dist squares.
+        Stops at first blocking piece (friend or foe).
+        Only adds moves to empty squares (clerics cannot capture).
+        """
+        moves: List[Move] = []
+        
+        for dist in range(1, max_dist + 1):
+            dest = Coordinate(at.file + df * dist, at.rank + dr * dist)
+            
+            # Check if in bounds
+            if not board.is_in_bounds(dest):
+                break
+            
+            # Check if square is occupied
+            if not board.is_empty(dest):
+                break  # Blocked by any piece (friend or foe)
+            
+            # Empty square - cleric can move here
+            moves.append(Move(at, dest, self))
+        
+        return moves
+    
+    def get_legal_captures(self, board: Board, at: Coordinate) -> List[Move]:
+        """Clerics cannot capture, so this always returns an empty list."""
+        return []
+    
+    def is_protecting(self, at: Coordinate, capture_coord: Coordinate) -> bool:
+        """
+        Check if a capture at capture_coord is within the cleric's protection range.
+        Protection range is a 3-tile Manhattan distance diamond.
+        """
+        manhattan_dist = abs(capture_coord.file - at.file) + abs(capture_coord.rank - at.rank)
+        return 1 <= manhattan_dist <= 3
+    
+    def to_dict(self, at: Coordinate, include_moves: bool = False,
+                board: Board = None, captures_only: bool = False) -> dict:
+        """Frontend-friendly dictionary representation of Cleric."""
+        data = {
+            "id": self.id,
+            "type": self.type.name,
+            "color": self.color.name,
+            "position": {"file": at.file, "rank": at.rank},
+            "marked": self.marked,
+            "value": self.value
+        }
 
-    def get_legal_captures(self, board: Board, at:Coordinate) -> List[Move]:
-        # --- Forbidden Lands rule: cannot capture from inside Forbidden Lands ---
-        if getattr(board, "forbidden_active", False) and board.is_forbidden(at):
-            return [] # Don't remove this check, as it is important for the game rules.
-
-        return [] # implement later
+        if include_moves and board is not None:
+            moves = (self.get_legal_captures(board, at) if captures_only
+                     else self.get_legal_moves(board, at))
+            data["moves"] = [
+                {
+                    "from": {"file": m.from_sq.file, "rank": m.from_sq.rank},
+                    "to": {"file": m.to_sq.file, "rank": m.to_sq.rank},
+                }
+                for m in moves
+            ]
+        return data
         
 
 class DarkLord(Piece):

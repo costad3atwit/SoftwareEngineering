@@ -153,6 +153,20 @@ class Board:
             # Forbidden Lands inactive → normal chess capture
             captured_piece = self.squares.pop(dest, None)
 
+        # --- NEW: Check for Cleric protection ---
+        if captured_piece and self._should_cleric_protect(captured_piece, dest):
+            protecting_cleric = self._find_protecting_cleric(captured_piece, dest)
+            if protecting_cleric:
+                # Find cleric's position
+                cleric_pos = self._find_piece_position(protecting_cleric)
+                if cleric_pos:
+                    # Remove cleric from its position
+                    self.squares.pop(cleric_pos)
+                    # Resurrect the captured piece at cleric's old position
+                    self.squares[cleric_pos] = captured_piece
+                    # The cleric is now the piece that was "captured"
+                    captured_piece = protecting_cleric
+
         # --- Perform the move ---
         self.squares.pop(src)
         self.squares[dest] = moving_piece
@@ -165,6 +179,44 @@ class Board:
 
         return captured_piece
 
+    def _find_piece_position(self, piece: Piece) -> Optional[Coordinate]:
+        """Find the coordinate of a specific piece on the board."""
+        for coord, board_piece in self.squares.items():
+            if board_piece.id == piece.id:
+                return coord
+        return None
+
+    def _should_cleric_protect(self, captured_piece: Piece, capture_coord: Coordinate) -> bool:
+        """
+        Check if a captured piece should be protected by a cleric.
+        Protection applies if:
+        1. Captured piece has value > 1 (greater than pawn)
+        2. There's a friendly cleric within range
+        """
+        from backend.chess.piece import Cleric
+        
+        # Only protect pieces with value > 1
+        if not hasattr(captured_piece, 'value') or captured_piece.value <= 1:
+            return False
+        
+        # Check if there's a protecting cleric
+        return self._find_protecting_cleric(captured_piece, capture_coord) is not None
+
+    def _find_protecting_cleric(self, captured_piece: Piece, capture_coord: Coordinate) -> Optional[Piece]:
+        """
+        Find a friendly cleric that can protect the captured piece.
+        Returns the first cleric found within range, or None.
+        """
+        from backend.chess.piece import Cleric
+        
+        for coord, piece in self.squares.items():
+            # Check if it's a friendly cleric
+            if isinstance(piece, Cleric) and piece.color == captured_piece.color:
+                # Check if capture happened within cleric's protection range
+                if piece.is_protecting(coord, capture_coord):
+                    return piece
+        
+        return None
 
     def is_square_attacked(self, coord: Coordinate, by_color: Color) -> bool:
         """
