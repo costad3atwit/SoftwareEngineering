@@ -13,6 +13,8 @@ class Board:
         self.forbidden_active = False
         self.forbidden_positions = set()
         self.mines = []
+        self.glue_tiles = []     # List of dicts: {"coord": Coordinate, "owner": Color, "timer": int}
+        self.glued_pieces = {}   # { piece_id: turns_remaining }
     # ================================================================
     # Forbidden Lands Mechanics
     # ================================================================
@@ -90,6 +92,55 @@ class Board:
                 self.explode_mine(mine)
                 break
 
+    # ================================================================
+    # Glue Mechanics
+    # ================================================================
+    def place_glue(self, coord: Coordinate, owner_color: Color):
+        """Place a glue tile with a 4-turn lifespan."""
+        self.glue_tiles.append({"coord": coord, "owner": owner_color, "timer": 4})
+        print(f"Glue placed at {coord.file},{coord.rank} by {owner_color.name}")
+
+    def tick_glue(self):
+        """Decrement timers for glue tiles and glued pieces."""
+        # Decrement glue tile timers
+        expired_tiles = []
+        for glue in list(self.glue_tiles):
+            glue["timer"] -= 1
+            if glue["timer"] <= 0:
+                expired_tiles.append(glue)
+        for glue in expired_tiles:
+            print(f"🧩 Glue at {glue['coord'].file},{glue['coord'].rank} dried up.")
+            self.glue_tiles.remove(glue)
+
+        # Decrement glued piece timers
+        to_release = []
+        for pid, turns in self.glued_pieces.items():
+            self.glued_pieces[pid] = turns - 1
+            if self.glued_pieces[pid] <= 0:
+                to_release.append(pid)
+        for pid in to_release:
+            del self.glued_pieces[pid]
+            print(f"Piece {pid} is no longer glued.")
+
+    def check_glue_trigger(self, dest: Coordinate, moving_piece: 'Piece'):
+        """Check if the destination has glue and apply effect."""
+        for glue in list(self.glue_tiles):
+            if glue["coord"] == dest:
+                print(f"Piece {moving_piece.id} stepped on glue at {dest.file},{dest.rank}!")
+                self.glued_pieces[moving_piece.id] = 2
+                self.glue_tiles.remove(glue)
+                break
+
+    def apply_capture_glue(self, captor: 'Piece', captured: 'Piece'):
+        """When a glued piece is captured, captor becomes glued."""
+        if captured.id in self.glued_pieces:
+            print(f"Captor {captor.id} glued for 2 turns (captured glued piece).")
+            self.glued_pieces[captor.id] = 2
+            del self.glued_pieces[captured.id]
+
+    def is_glued(self, piece: 'Piece') -> bool:
+        """Return True if the piece is currently glued."""
+        return piece.id in self.glued_pieces
     
     def setup_standard(self):
         """Set up standard chessboard layout."""
@@ -170,6 +221,11 @@ class Board:
     def move_piece(self, move: Move) -> Optional[Piece]:
         src, dest = move.from_sq, move.to_sq
         moving_piece = self.squares.get(src)
+        
+        # --- Check for glue restriction ---
+        if self.is_glued(moving_piece):
+            raise ValueError(f"{moving_piece.id} is glued and cannot move for now!")
+        
         if not moving_piece:
             raise ValueError(f"No piece at {src}")
 
@@ -205,6 +261,10 @@ class Board:
             # Forbidden Lands inactive → normal chess capture
             captured_piece = self.squares.pop(dest, None)
 
+        # --- NEW: Glue transfer (if captured piece was glued) ---
+        if captured_piece:
+            self.apply_capture_glue(moving_piece, captured_piece)
+        
         # --- NEW: Check for Cleric protection ---
         if captured_piece and self._should_cleric_protect(captured_piece, dest):
             protecting_cleric = self._find_protecting_cleric(captured_piece, dest)
@@ -219,6 +279,8 @@ class Board:
                     # The cleric is now the piece that was "captured"
                     captured_piece = protecting_cleric
 
+
+
         # --- Perform the move ---
         self.squares.pop(src)
         self.squares[dest] = moving_piece
@@ -232,6 +294,9 @@ class Board:
         # --- Check for mine trigger at destination ---
         self.check_mine_trigger(dest)
 
+        # --- Check for glue trigger at destination ---
+        self.check_glue_trigger(dest, moving_piece)
+        
         return captured_piece
 
     def _find_piece_position(self, piece: Piece) -> Optional[Coordinate]:
@@ -386,6 +451,18 @@ class Board:
             }
             if self.mines else None
         )
+
+        # Include glue tile info
+        board_data["glueTiles"] = [
+            {
+                "file": g["coord"].file,
+                "rank": g["coord"].rank,
+                "owner": g["owner"].name,
+                "timer": g["timer"],
+            } for g in self.glue_tiles
+        ]
+
+        board_data["gluedPieces"] = list(self.glued_pieces.keys())
 
         return board_data
 #------------------------------

@@ -154,6 +154,68 @@ class Mine(Card):
 
         return True, f"Mine placed on a hidden tile. It will dismantle after 4 turns if untouched."
 
+class Glue(Card):
+    """
+    Hidden: Glue — Places a random glue tile.
+    Multiple glue tiles can exist simultaneously.
+    Any piece stepping on glue becomes immobilized for 2 turns.
+    Capturing a glued piece glues the captor for 2 turns.
+    Each glue tile lasts 4 turns if unused.
+    """
+
+    def __init__(self):
+        super().__init__(
+            id="glue",
+            name="Glue",
+            description=(
+                "One random tile becomes glued. Any piece stepping on it becomes stuck for "
+                "2 turns. Capturing a glued piece glues the captor for 2 turns. "
+                "Glue tiles dry after 4 turns. Multiple glues may exist at once."
+            ),
+            big_img="static/cards/glue_big.png",
+            small_img="static/cards/glue_small.png"
+        )
+
+    @property
+    def card_type(self) -> CardType:
+        return CardType.HIDDEN
+
+    def can_play(self, board: Board, player: Player) -> bool:
+        empty_tiles = [c for c in self._all_possible_coords(board) if board.is_empty(c)]
+        return len(empty_tiles) > 0
+
+    def _all_possible_coords(self, board: Board):
+        max_file = 9 if board.dmzActive else 8
+        min_file = 0 if board.dmzActive else 1
+        coords = []
+        for f in range(min_file, max_file + 1):
+            for r in range(min_file, max_file + 1):
+                c = Coordinate(f, r)
+                if board.is_in_bounds(c):
+                    coords.append(c)
+        return coords
+
+    def apply_effect(self, board: Board, player: Player, target_data: Dict[str, Any]) -> tuple[bool, str]:
+        import random
+
+        candidates = []
+        for coord in self._all_possible_coords(board):
+            if not board.is_empty(coord):
+                continue
+            too_close = any(
+                abs(coord.file - c.file) <= 1 and abs(coord.rank - c.rank) <= 1
+                for c in board.squares.keys()
+            )
+            if not too_close:
+                candidates.append(coord)
+
+        if not candidates:
+            return False, "No suitable space to place a glue tile."
+
+        chosen = random.choice(candidates)
+        board.place_glue(chosen, player.color)
+
+        return True, "A glue trap has been placed. It will dry in 4 turns if unused."
 
 class ForbiddenLands(Card):
     """
@@ -575,6 +637,7 @@ class TransformToDarkLord(Card):
 
 CARD_REGISTRY = {
     "mine": Mine,
+    "glue": Glue,
     "eye_for_an_eye": EyeForAnEye,
     "summon_peon": SummonPeon,
     "pawn_scout": TransformToScout,
