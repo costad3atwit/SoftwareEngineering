@@ -10,10 +10,11 @@ if TYPE_CHECKING:
     from backend.chess.board import Board
 
 class Piece(ABC):
-    def __init__(self, id: str, color: Color, piece_type: PieceType):
+    def __init__(self, id: str, color: Color, piece_type: PieceType, value: int):
         self.id = id
         self.color = color
         self.type = piece_type
+        self.value = -1
         self.has_moved = False
         self.marked = False
         self.piece_type = piece_type
@@ -45,6 +46,7 @@ class Piece(ABC):
             "color": self.color.name,
             "position": {"file": at.file, "rank": at.rank},
             "marked": self.marked,
+            "value": self.value
         }
         if include_moves and board is not None:
             moves = (self.get_legal_captures(board, at) if captures_only
@@ -59,7 +61,7 @@ class Piece(ABC):
 
 class King(Piece):
     def __init__(self, id: str, color: Color):
-        super().__init__(id, color, PieceType.KING)
+        super().__init__(id, color, PieceType.KING, value=0)
         self._has_moved = False  # used for castling checks
 
     def get_legal_moves(self, board: Board, at: Coordinate) -> List[Move]:
@@ -200,7 +202,7 @@ class King(Piece):
 
 class Queen(Piece):
     def __init__(self, id: str, color: Color):
-        super().__init__(id, color, PieceType.QUEEN)
+        super().__init__(id, color, PieceType.QUEEN, value=9)
 
     def _directions(self) -> List[Tuple[int, int]]:
         # rook + bishop rays
@@ -264,7 +266,7 @@ class Queen(Piece):
 
 class Rook(Piece):
     def __init__(self, id: str, color: Color):
-        super().__init__(id, color, PieceType.ROOK)
+        super().__init__(id, color, PieceType.ROOK, value=5)
 
     def get_legal_moves(self, board: 'Board', at: Coordinate) -> List[Move]:
         moves: List[Move] = []
@@ -325,7 +327,7 @@ class Rook(Piece):
 
 class Bishop(Piece):
     def __init__(self, id: str, color: Color):
-        super().__init__(id, color, PieceType.BISHOP)
+        super().__init__(id, color, PieceType.BISHOP, value=3)
 
     def get_legal_moves(self, board: 'Board', at: Coordinate) -> List[Move]:
         moves: List[Move] = []
@@ -383,7 +385,7 @@ class Bishop(Piece):
 
 class Knight(Piece):
     def __init__(self, id: str, color: Color):
-        super().__init__(id, color, PieceType.KNIGHT)
+        super().__init__(id, color, PieceType.KNIGHT, value=3)
 
     def get_legal_moves(self, board: 'Board', at: Coordinate) -> List[Move]:
         moves: List[Move] = []
@@ -427,7 +429,7 @@ class Knight(Piece):
 
 class Pawn(Piece):
     def __init__(self, id: str, color: Color):
-        super().__init__(id, color, PieceType.PAWN)
+        super().__init__(id, color, PieceType.PAWN, value=1)
         self._has_moved = False  # internal flag for 2-square move logic
 
     def get_legal_moves(self, board: 'Board', at: Coordinate) -> List[Move]:
@@ -514,7 +516,7 @@ class Pawn(Piece):
 
 class Peon(Piece):
     def __init__(self, id: str, color: Color):
-        super().__init__(id, color, PieceType.PEON)
+        super().__init__(id, color, PieceType.PEON, value=1)
         self._has_moved = False
         self._backwards_unlocked = False  # Becomes True after reaching the furthest rank
 
@@ -625,7 +627,7 @@ class Peon(Piece):
 
 class Scout(Piece):
     def __init__(self, id: str, color: Color):
-        super().__init__(id, color, PieceType.SCOUT)
+        super().__init__(id, color, PieceType.SCOUT, value=3)
 
     def get_legal_moves(self, board: 'Board', at: Coordinate) -> List[Move]:
         """
@@ -707,7 +709,7 @@ class Scout(Piece):
 
 class HeadHunter(Piece):
     def __init__(self, id: str, color: Color):
-        super().__init__(id, color, PieceType.HEADHUNTER)
+        super().__init__(id, color, PieceType.HEADHUNTER, value=5)
 
     def get_legal_moves(self, board: Board, at: Coordinate) -> List[Move]:
         moves: List[Move] = []
@@ -760,7 +762,7 @@ class HeadHunter(Piece):
 
 class Witch(Piece):
     def __init__(self, id: str, color: Color):
-        super().__init__(id, color, PieceType.WITCH)
+        super().__init__(id, color, PieceType.WITCH, value=5)
 
     def get_legal_moves(self, board: Board, at: Coordinate) -> List[Move]:
         return [] # implement later
@@ -774,7 +776,7 @@ class Witch(Piece):
 
 class Warlock(Piece):
     def __init__(self, id: str, color: Color):
-        super().__init__(id, color, PieceType.WARLOCK)
+        super().__init__(id, color, PieceType.WARLOCK, value=5)
         self.empowered = False  # Set to True when effigy is destroyed
         self.empowered_turns_remaining = 0  # Tracks remaining empowered turns
 
@@ -988,8 +990,7 @@ class Warlock(Piece):
 
 class Cleric(Piece):
     def __init__(self, id: str, color: Color):
-        super().__init__(id, color, PieceType.CLERIC)
-        self.value = 5
+        super().__init__(id, color, PieceType.CLERIC, value=3)
     
     def get_legal_moves(self, board: Board, at: Coordinate) -> List[Move]:
         moves: List[Move] = []
@@ -1076,7 +1077,7 @@ class Cleric(Piece):
 
 class DarkLord(Piece):
     def __init__(self, id: str, color: Color):
-        super().__init__(id, color, PieceType.DARKLORD)
+        super().__init__(id, color, PieceType.DARKLORD, value=10)
 
     def get_legal_moves(self, board: Board, at: Coordinate) -> List[Move]:
         return [] # implement later
