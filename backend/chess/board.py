@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import Dict, Optional, TYPE_CHECKING
 from backend.chess.coordinate import Coordinate
-from backend.chess.piece import Piece, King, Queen, Rook, Bishop, Knight, Pawn
+from backend.chess.piece import Piece, King, Queen, Rook, Bishop, Knight, Pawn, Scout, Peon, Cleric, Warlock, Witch, HeadHunter, DarkLord
 from backend.chess.move import Move
 from backend.enums import Color
 import copy
