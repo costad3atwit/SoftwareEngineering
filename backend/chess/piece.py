@@ -749,12 +749,7 @@ class HeadHunter(Piece):
         # --- Ranged capture (exactly 3 forward) ---
         target = Coordinate(at.file, at.rank + (3 * direction))
         if board.is_in_bounds(target):
-            # check path squares (1 and 2 ahead)
-            blocked = any(
-                not board.is_empty(Coordinate(at.file, at.rank + (i * direction)))
-                for i in [1, 2]
-            )
-            if not blocked and board.is_enemy(target, self.color):
+            if board.is_enemy(target, self.color):
                 captures.append(Move(at, target, self))
 
         return captures
