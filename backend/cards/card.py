@@ -2,6 +2,11 @@ from __future__ import annotations
 from abc import ABC, abstractmethod  # Abstract Base Class tools
 from backend.enums import CardType, TargetType
 from typing import Optional, Dict, Any, TYPE_CHECKING
+from backend.cards.card import Card
+from backend.enums import CardType, Color, PieceType
+from backend.chess.coordinate import Coordinate
+from backend.chess.piece import Pawn
+import random
 
 if TYPE_CHECKING:
     from backend.chess.board import Board
@@ -85,7 +90,7 @@ class Mine(Card):
     Hidden: Mine - Places a mine on a random tile on the board.
     Any friendly piece within 1 tile reveals its location.
     Explodes when landed on, capturing all pieces within 1 tile (except king).
-    Auto-detonates after 4 turns if not triggered.
+    Dismantles after 4 turns if not triggered.
     """
     
     def __init__(self):
@@ -105,13 +110,6 @@ class Mine(Card):
         # - Register mine in board state with 4-turn timer
         # - Set up proximity reveal logic
         return True, "Mine placed (effect not yet implemented)"
-
-
-from backend.cards.card import Card
-from backend.enums import CardType, Color
-from backend.chess.coordinate import Coordinate
-from backend.chess.piece import Pawn
-import random
 
 
 class ForbiddenLands(Card):
@@ -356,6 +354,77 @@ class TransformToWarlock(Card):
         # - If no bishop available, allow material sacrifice to summon
         return True, "Bishop transformed to Warlock (effect not yet implemented)"
 
+
+class TransformToDarkLord(Card):
+    """
+    Queen: Dark Lord — Select one of your Queens to transform into a Dark Lord.
+
+    The Dark Lord:
+      - Moves like a Queen, but every 2 turns (due to daylight) moves like a King for 2 turns.
+      - After moving, may enthrall an adjacent (1-tile radius) enemy piece.
+      - Enthralling lasts 2 turns: the target cannot move.
+      - After 2 turns, the piece is converted to the Dark Lord’s color.
+      - If the Dark Lord moves or is captured, enthralling is cancelled.
+      - If total enemy piece value ≤ 10, the Dark Lord dies instantly.
+      - Value: 9.
+    """
+
+    def __init__(self):
+        super().__init__(
+            id="queen_darklord",
+            name="Queen: Dark Lord",
+            description=(
+                "Transform a Queen into a Dark Lord. The Dark Lord can enthrall nearby enemies (turning them into an ally) "
+                "and suffers from daylight every 2 turns. Dies if enemy value ≤ 10."
+            ),
+            big_img="static/cards/queen_darklord_big.png",
+            small_img="static/cards/queen_darklord_small.png"
+        )
+        self.target_type = TargetType.PIECE
+
+    @property
+    def card_type(self) -> CardType:
+        return CardType.TRANSFORM
+
+    def can_play(self, board: Board, player: Player) -> bool:
+        """Check if player has at least one Queen to transform."""
+        from backend.enums import PieceType
+        for _, piece in board.squares.items():
+            if piece.color == player.color and piece.type == PieceType.QUEEN:
+                return True
+        return False
+
+    def apply_effect(self, board: Board, player: Player, target_data: Dict[str, Any]) -> tuple[bool, str]:
+        """Transform a selected Queen into a Dark Lord."""
+        from backend.chess.coordinate import Coordinate
+        from backend.chess.piece import DarkLord
+        from backend.enums import PieceType
+
+        # Parse and validate target coordinate
+        target_square = target_data.get("target")
+        if not target_square:
+            return False, "No target square provided."
+
+        try:
+            target_coord = Coordinate.from_algebraic(target_square)
+        except Exception:
+            return False, f"Invalid coordinate: {target_square}"
+
+        # Ensure the target is a Queen owned by the player
+        piece = board.piece_at_coord(target_coord)
+        if not piece:
+            return False, f"No piece found at {target_square}."
+        if piece.color != player.color:
+            return False, "You can only transform your own Queen."
+        if piece.type != PieceType.QUEEN:
+            return False, "Target must be a Queen."
+
+        # Perform transformation
+        darklord_id = f"{player.color.value}{PieceType.DARKLORD.value}1"
+        darklord = DarkLord(darklord_id, player.color)
+        board.squares[target_coord] = darklord
+
+        return True, f"Your Queen at {target_square} has been transformed into a Dark Lord!"
 
 # ============================================================================
 # CARD REGISTRY - Map card IDs to card classes
