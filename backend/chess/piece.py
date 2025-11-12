@@ -880,7 +880,6 @@ class Warlock(Piece):
     def __init__(self, id: str, color: Color):
         super().__init__(id, color, PieceType.WARLOCK, value=5)
         self.empowered = False  # Set to True when effigy is destroyed
-        self.empowered_turns_remaining = 0  # Tracks remaining empowered turns
 
     def get_legal_moves(self, board: Board, at: Coordinate) -> List[Move]:
         """
@@ -891,7 +890,7 @@ class Warlock(Piece):
         """
         moves: List[Move] = []
         
-        if self.empowered and self.empowered_turns_remaining > 0:
+        if self.empowered:
             # Empowered mode: Knight + Rook movement
             moves.extend(self._get_knight_moves(board, at))
             moves.extend(self._get_rook_moves(board, at))
@@ -1053,17 +1052,34 @@ class Warlock(Piece):
         return [m for m in self.get_legal_moves(board, at)
                 if board.piece_at_coord(m.to_sq) is not None]
 
-    def activate_empowerment(self):
+    def activate_empowerment(self, game_state):
         """Activate empowered mode for 2 turns (called when effigy is destroyed)."""
+        from backend.services.effect_tracker import EffectType
+        
         self.empowered = True
-        self.empowered_turns_remaining = 2
+        
+        # Register effect with tracker
+        game_state.effect_tracker.add_effect(
+            effect_type=EffectType.PIECE_EMPOWERMENT,
+            start_turn=game_state.fullmove_number,
+            duration=2,
+            target=self.id,
+            on_expire=lambda e: setattr(self, 'empowered', False)
+        )
 
-    def decrement_empowerment(self):
-        """Decrement empowerment counter (call at end of turn)."""
-        if self.empowered_turns_remaining > 0:
-            self.empowered_turns_remaining -= 1
-            if self.empowered_turns_remaining == 0:
-                self.empowered = False
+    def _get_empowered_turns_remaining(self, board) -> int:
+        """Get remaining empowered turns from effect tracker."""
+        if not board or not hasattr(board, 'game_state'):
+            return 0
+        
+        from backend.services.effect_tracker import EffectType
+        effects = board.game_state.effect_tracker.get_effects_by_target(self.id)
+        
+        for effect in effects:
+            if effect.effect_type == EffectType.PIECE_EMPOWERMENT:
+                return effect.turns_remaining(board.game_state.fullmove_number)
+    
+        return 0
 
     def to_dict(self, at: Coordinate, include_moves: bool = False,
                 board: Board = None, captures_only: bool = False) -> dict:
@@ -1075,7 +1091,7 @@ class Warlock(Piece):
             "position": {"file": at.file, "rank": at.rank},
             "marked": self.marked,
             "empowered": self.empowered,
-            "empowered_turns": self.empowered_turns_remaining
+            "empowered_turns": self._get_empowered_turns_remaining(board)
         }
 
         if include_moves and board is not None:

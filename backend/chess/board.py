@@ -3,7 +3,7 @@ from typing import Dict, Optional, TYPE_CHECKING
 from backend.chess.coordinate import Coordinate
 from backend.chess.piece import Piece, King, Queen, Rook, Bishop, Knight, Pawn, Scout, Peon, Cleric, Warlock, Witch, HeadHunter, DarkLord
 from backend.chess.move import Move
-from backend.enums import Color
+from backend.enums import Color, PieceType
 import copy
 
 class Board:
@@ -16,6 +16,7 @@ class Board:
         self.glue_tiles = []     # List of dicts: {"coord": Coordinate, "owner": Color, "timer": int}
         self.glued_pieces = {}   # { piece_id: turns_remaining }
         self.green_tiles: Dict[Coordinate, int] = {}
+        self.game_state = None
 
     # ================================================================
     # Forbidden Lands Mechanics
@@ -54,38 +55,26 @@ class Board:
         self.mines.append({"coord": coord, "owner": owner_color, "timer": 4})
         print(f"Mine placed at {coord.file},{coord.rank} by {owner_color.name}")
 
-    def explode_mine(self, mine: dict):
-        """Explode a mine and capture all pieces within 1 tile (except kings)."""
-        cx, cy = mine["coord"].file, mine["coord"].rank
-        print(f"Mine exploded at ({cx},{cy})!")
+    def remove_mine(self, coordinate: Coordinate):
+        """Remove a mine at the specified coordinate."""
+        self.mines = [m for m in self.mines if m["coord"] != coordinate]
+        print(f"Mine at {coordinate.to_algebraic()} removed from board")
 
-        to_remove = []
-        for dx in [-1, 0, 1]:
-            for dy in [-1, 0, 1]:
-                target = Coordinate(cx + dx, cy + dy)
-                if not self.is_in_bounds(target):
-                    continue
-                piece = self.piece_at_coord(target)
-                if piece and piece.type.name != "KING":  # king immune
-                    print(f"Captured by explosion: {piece.id} at {target.file},{target.rank}")
-                    to_remove.append(target)
-
-        for coord in to_remove:
-            self.squares.pop(coord, None)
-
-        # remove mine from board
-        self.mines.remove(mine)
-
-    def tick_mines(self):
-        """Decrement mine timers; dismantle expired ones."""
-        expired = []
-        for mine in list(self.mines):
-            mine["timer"] -= 1
-            if mine["timer"] <= 0:
-                expired.append(mine)
-        for mine in expired:
-            print(f"Mine at {mine['coord'].file},{mine['coord'].rank} dismantled (timer expired).")
-            self.mines.remove(mine)
+    def explode_mine(self, coordinate: Coordinate):
+        '''Explode mine at coordinate, capturing nearby pieces'''
+        # Capture all pieces within 1 tile radius except kings
+        for file_offset in [-1, 0, 1]:
+            for rank_offset in [-1, 0, 1]:
+                target = Coordinate(coordinate.file + file_offset, 
+                                coordinate.rank + rank_offset)
+                if target in self.squares:
+                    piece = self.squares[target]
+                    if piece.type != PieceType.KING:
+                        del self.squares[target]
+                        print(f"Mine explosion captured {piece.id}")
+        
+        # Remove mine from board
+        self.remove_mine(coordinate)
 
     def check_mine_trigger(self, dest: Coordinate):
         """Check if a move lands on a mine and trigger explosion if so."""
@@ -102,34 +91,34 @@ class Board:
         self.glue_tiles.append({"coord": coord, "owner": owner_color, "timer": 4})
         print(f"Glue placed at {coord.file},{coord.rank} by {owner_color.name}")
 
-    def tick_glue(self):
-        """Decrement timers for glue tiles and glued pieces."""
-        # Decrement glue tile timers
-        expired_tiles = []
-        for glue in list(self.glue_tiles):
-            glue["timer"] -= 1
-            if glue["timer"] <= 0:
-                expired_tiles.append(glue)
-        for glue in expired_tiles:
-            print(f"🧩 Glue at {glue['coord'].file},{glue['coord'].rank} dried up.")
-            self.glue_tiles.remove(glue)
-
-        # Decrement glued piece timers
-        to_release = []
-        for pid, turns in self.glued_pieces.items():
-            self.glued_pieces[pid] = turns - 1
-            if self.glued_pieces[pid] <= 0:
-                to_release.append(pid)
-        for pid in to_release:
-            del self.glued_pieces[pid]
-            print(f"Piece {pid} is no longer glued.")
+    def remove_glue(self, coordinate: Coordinate):
+        """Remove dried glue from coordinate."""
+        self.glue_tiles = [g for g in self.glue_tiles if g["coord"] != coordinate]
+        print(f"Glue at {coordinate.to_algebraic()} has been removed")
 
     def check_glue_trigger(self, dest: Coordinate, moving_piece: 'Piece'):
         """Check if the destination has glue and apply effect."""
         for glue in list(self.glue_tiles):
             if glue["coord"] == dest:
                 print(f"Piece {moving_piece.id} stepped on glue at {dest.file},{dest.rank}!")
-                self.glued_pieces[moving_piece.id] = 2
+                
+                if self.game_state:
+                    from backend.services.effect_tracker import EffectType
+                    
+                    def release_piece(effect):
+                        print(f"Piece {effect.target} is no longer glued.")
+                    
+                    self.game_state.effect_tracker.add_effect(
+                        effect_type=EffectType.PIECE_IMMOBILIZED,
+                        start_turn=self.game_state.fullmove_number,
+                        duration=2,
+                        target=moving_piece.id,
+                        metadata={'piece_id': moving_piece.id},
+                        on_expire=release_piece
+                    )
+                else:
+                    self.glued_pieces[moving_piece.id] = 2
+                
                 self.glue_tiles.remove(glue)
                 break
 

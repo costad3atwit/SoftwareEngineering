@@ -5,6 +5,8 @@ from typing import Optional, Dict, Any, TYPE_CHECKING
 from backend.enums import CardType, Color, PieceType
 from backend.chess.coordinate import Coordinate
 from backend.chess.piece import Pawn, Scout, HeadHunter, Warlock, DarkLord
+import random
+
 
 import random
 
@@ -129,8 +131,8 @@ class Mine(Card):
     def apply_effect(self, board: Board, player: Player, target_data: Dict[str, Any]) -> tuple[bool, str]:
         """
         Places a mine on a random empty tile far enough from all pieces.
+        Registers 4-turn auto-detonation with effect tracker.
         """
-        import random
 
         # Gather all empty tiles that are at least 2 away from all pieces
         possible_tiles = []
@@ -151,8 +153,30 @@ class Mine(Card):
 
         chosen_tile = random.choice(possible_tiles)
         board.place_mine(chosen_tile, player.color)
+        
+        # Register auto-detonation effect with tracker
+        if hasattr(board, 'game_state') and board.game_state:
+            from backend.services.effect_tracker import EffectType
+            def detonate_mine(effect):
+                """Auto-detonation callback after 4 turns"""
+                mine_coord = effect.metadata['coordinate']
+                # Explode the mine - capture all pieces within 1 tile radius
+                print(f"Mine at {mine_coord} auto-detonated after 4 turns!")
+                board.detonate_mine(mine_coord)
+            
+            board.game_state.effect_tracker.add_effect(
+                effect_type=EffectType.MINE,
+                start_turn=board.game_state.fullmove_number,
+                duration=4,
+                target=chosen_tile,
+                metadata={
+                    'coordinate': chosen_tile,
+                    'owner_color': player.color.name
+                },
+                on_expire=detonate_mine
+            )
 
-        return True, f"Mine placed on a hidden tile. It will dismantle after 4 turns if untouched."
+        return True, f"Mine placed on a hidden tile. It will auto-detonate after 4 turns if untouched."
 
 class Glue(Card):
     """
@@ -196,8 +220,6 @@ class Glue(Card):
         return coords
 
     def apply_effect(self, board: Board, player: Player, target_data: Dict[str, Any]) -> tuple[bool, str]:
-        import random
-
         candidates = []
         for coord in self._all_possible_coords(board):
             if not board.is_empty(coord):
@@ -214,8 +236,48 @@ class Glue(Card):
 
         chosen = random.choice(candidates)
         board.place_glue(chosen, player.color)
+        
+        # Register glue tile expiration after 4 turns
+        if hasattr(board, 'game_state') and board.game_state:
+            from backend.services.effect_tracker import EffectType
+            def dry_glue(effect):
+                """Glue dries after 4 turns"""
+                glue_coord = effect.metadata['coordinate']
+                print(f"Glue at {glue_coord} has dried after 4 turns.")
+                board.remove_glue(glue_coord)
+            
+            board.game_state.effect_tracker.add_effect(
+                effect_type=EffectType.GLUE_TRAP,
+                start_turn=board.game_state.fullmove_number,
+                duration=4,
+                target=chosen,
+                metadata={
+                    'coordinate': chosen,
+                    'owner_color': player.color.name
+                },
+                on_expire=dry_glue
+            )
 
         return True, "A glue trap has been placed. It will dry in 4 turns if unused."
+    
+    @staticmethod
+    def immobilize_piece(board: Board, piece_id: str, game_state):
+        """
+        Called when a piece steps on glue - immobilizes for 2 turns.
+        """
+        def release_piece(effect):
+            """Release piece after 2 turns"""
+            print(f"Piece {effect.target} is no longer glued.")
+        from backend.services.effect_tracker import EffectType
+
+        game_state.effect_tracker.add_effect(
+            effect_type=EffectType.PIECE_IMMOBILIZED,
+            start_turn=game_state.fullmove_number,
+            duration=2,
+            target=piece_id,
+            metadata={'piece_id': piece_id},
+            on_expire=release_piece
+        )
 
 class ForbiddenLands(Card):
     """
@@ -300,11 +362,72 @@ class EyeForAnEye(Card):
         return True  # Simplified for now
     
     def apply_effect(self, board: Board, player: Player, target_data: Dict[str, Any]) -> tuple[bool, str]:
-        # TODO: Implement marking logic
-        # - Expect target_data to contain friendly_piece and enemy_piece coordinates
-        # - Mark both pieces for 5 turns
-        # - Set up capture trigger for extra turn
-        return True, "Eye for an Eye marked pieces (effect not yet implemented)"
+        """
+        Mark two pieces for 5 turns.
+        Expects target_data with 'friendly_piece' and 'enemy_piece' coordinates.
+        """
+        
+        # Parse target coordinates
+        friendly_square = target_data.get("friendly_piece")
+        enemy_square = target_data.get("enemy_piece")
+        
+        if not friendly_square or not enemy_square:
+            return False, "Must specify both friendly and enemy pieces to mark"
+        
+        try:
+            friendly_coord = Coordinate.from_algebraic(friendly_square)
+            enemy_coord = Coordinate.from_algebraic(enemy_square)
+        except Exception as e:
+            return False, f"Invalid coordinates: {e}"
+        
+        # Validate pieces exist
+        friendly_piece = board.piece_at_coord(friendly_coord)
+        enemy_piece = board.piece_at_coord(enemy_coord)
+        
+        if not friendly_piece or friendly_piece.color != player.color:
+            return False, "Invalid friendly piece selection"
+        
+        if not enemy_piece or enemy_piece.color == player.color:
+            return False, "Invalid enemy piece selection"
+        
+        # Mark both pieces visually
+        friendly_piece.marked = True
+        enemy_piece.marked = True
+        
+        # Register mark effects with tracker
+        if hasattr(board, 'game_state') and board.game_state:
+            from backend.services.effect_tracker import EffectType
+            def unmark_piece(effect):
+                """Remove mark after 5 turns"""
+                piece_id = effect.metadata['piece_id']
+                # Find piece and unmark it
+                for coord, piece in board.squares.items():
+                    if piece.id == piece_id:
+                        piece.marked = False
+                        print(f"Mark expired on {piece_id}")
+                        break
+            
+            # Mark friendly piece
+            board.game_state.effect_tracker.add_effect(
+                effect_type=EffectType.PIECE_MARK,
+                start_turn=board.game_state.fullmove_number,
+                duration=5,
+                target=friendly_piece.id,
+                metadata={'piece_id': friendly_piece.id, 'marked_by': 'eye_for_eye'},
+                on_expire=unmark_piece
+            )
+            
+            # Mark enemy piece
+            board.game_state.effect_tracker.add_effect(
+                effect_type=EffectType.PIECE_MARK,
+                start_turn=board.game_state.fullmove_number,
+                duration=5,
+                target=enemy_piece.id,
+                metadata={'piece_id': enemy_piece.id, 'marked_by': 'eye_for_eye'},
+                on_expire=unmark_piece
+            )
+        
+        return True, f"Marked {friendly_square} and {enemy_square} for 5 turns. Capturing a marked piece grants an extra turn!"
 
 
 class SummonPeon(Card):

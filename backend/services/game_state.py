@@ -6,6 +6,8 @@ from backend.player import Player
 from backend.cards.deck import Deck
 from backend.chess.move import Move
 from backend.chess.coordinate import Coordinate
+from backend.services.effect_tracker import EffectTracker, EffectType
+
 
 
 class GameState:
@@ -17,6 +19,7 @@ class GameState:
         # Chess board
         self.board: Board = Board()  # Assumes Board() initializes standard setup
         Board.setup_standard(self.board)
+        self.board.game_state = self
         
         # Players
         self.players: Dict[Color, Player] = {
@@ -45,6 +48,8 @@ class GameState:
         self.winner: Optional[Color] = None
         self.win_reason: Optional[str] = None
 
+        # Effect tracker
+        self.effect_tracker = EffectTracker()
     # --- Helper Methods ---
     def get_current_player(self) -> Player:
         """Get the player whose turn it is"""
@@ -105,6 +110,14 @@ class GameState:
         if self.turn == Color.WHITE:
             self.fullmove_number += 1
 
+        # Process all effects at end of turn
+        expired_effects = self.effect_tracker.process_turn(self.fullmove_number)
+    
+        # Log expired effects for debugging
+        for effect in expired_effects:
+            print(f"Effect expired: {effect.effect_type.value} on {effect.target}")
+
+
     # --- Move Methods ---
     def legal_moves_for(self, coord: Coordinate) -> List[Move]:
         """Get all legal moves for the piece at the given coordinate"""
@@ -124,6 +137,35 @@ class GameState:
         """Check if a move is legal in the current position"""
         legal_moves = self.legal_moves_for(m.from_sq)
         return m in legal_moves
+
+    def can_piece_move(self, piece_id: str) -> bool:
+        '''Check if piece is immobilized (glued)'''
+        return not self.effect_tracker.has_effect(
+            EffectType.PIECE_IMMOBILIZED,
+            piece_id
+        )
+    
+    def on_piece_captured(self, captured_piece_id: str) -> bool:
+        """
+        Called when a piece is captured.
+        Returns True if the capturing player should get an extra turn.
+        """
+        if hasattr(self, 'effect_tracker'):
+            # Check if captured piece was marked
+            if self.effect_tracker.has_effect(EffectType.PIECE_MARK, captured_piece_id):
+                print(f"Marked piece {captured_piece_id} captured! Extra turn granted.")
+                
+                # Remove the mark effect since piece is captured
+                effects = self.effect_tracker.get_effects_by_target(captured_piece_id)
+                for effect in effects:
+                    if effect.effect_type == EffectType.PIECE_MARK:
+                        self.effect_tracker.remove_effect(effect.effect_id)
+                
+                return True
+        
+        return False
+
+
 
     def apply_move(self, player_id: str, m: Move) -> tuple[bool, str]:
         """
@@ -285,16 +327,17 @@ class GameState:
             "game_id": self.game_id,
             "status": self.status.value,
             "current_turn": self.turn.value,
-            "board": self.board.to_dict(),
             "white_time": self.white_time_remaining,
             "black_time": self.black_time_remaining,
             "halfmove_clock": self.halfmove_clock,
             "fullmove_number": self.fullmove_number,
-            "move_history": [m.to_dict() for m in self.move_history[-10:]],  # Last 10 moves
             "winner": self.winner.value if self.winner else None,
             "win_reason": self.win_reason,
             "created_at": self.created_at.isoformat(),
-            "last_update": self.last_update.isoformat()
+            "last_update": self.last_update.isoformat(),
+            "active_effects": self.effect_tracker.to_dict(self.fullmove_number),
+            "board": self.board.to_dict(),
+            "move_history": [m.to_dict() for m in self.move_history[-10:]]  # Last 10 moves
         }
         
         # If perspective is provided, add player-specific info
