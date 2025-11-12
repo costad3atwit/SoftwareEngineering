@@ -80,7 +80,7 @@ class Board:
         """Check if a move lands on a mine and trigger explosion if so."""
         for mine in list(self.mines):
             if mine["coord"] == dest:
-                self.explode_mine(mine)
+                self.explode_mine(mine["coord"])
                 break
 
     # ================================================================
@@ -128,7 +128,39 @@ class Board:
             print(f"Captor {captor.id} glued for 2 turns (captured glued piece).")
             self.glued_pieces[captor.id] = 2
             del self.glued_pieces[captured.id]
-
+    
+    def tick_traps(self):
+    """Advance all trap timers (mines and glue) by one turn and remove expired ones."""
+        # Tick down mines
+        expired_mines = []
+        for mine in list(self.mines):
+            mine["timer"] -= 1
+            if mine["timer"] <= 0:
+                expired_mines.append(mine)
+        for mine in expired_mines:
+            print(f"Mine at {mine['coord'].to_algebraic()} dismantled (timer expired).")
+            self.remove_mine(mine["coord"])
+    
+        # Tick down glue tiles
+        expired_glue = []
+        for glue in list(self.glue_tiles):
+            glue["timer"] -= 1
+            if glue["timer"] <= 0:
+                expired_glue.append(glue)
+        for glue in expired_glue:
+            print(f"Glue at {glue['coord'].to_algebraic()} dried up.")
+            self.remove_glue(glue["coord"])
+    
+        # Tick glued pieces
+        to_release = []
+        for pid, turns in self.glued_pieces.items():
+            self.glued_pieces[pid] = turns - 1
+            if self.glued_pieces[pid] <= 0:
+                to_release.append(pid)
+        for pid in to_release:
+            del self.glued_pieces[pid]
+            print(f"Piece {pid} is no longer glued.")
+    
     def is_glued(self, piece: 'Piece') -> bool:
         """Return True if the piece is currently glued."""
         return piece.id in self.glued_pieces
@@ -476,15 +508,15 @@ class Board:
         ]
         
         # Include mine info if present
-        board_data["mine"] = (
+        board_data["mines"] = [
             {
-                "file": self.mines[0]["coord"].file,
-                "rank": self.mines[0]["coord"].rank,
-                "owner": self.mines[0]["owner"].name,
-                "timer": self.mines[0]["timer"]
+                "file": m["coord"].file,
+                "rank": m["coord"].rank,
+                "owner": m["owner"].name,
+                "timer": m["timer"],
             }
-            if self.mines else None
-        )
+            for m in self.mines
+        ]
 
         # Include glue tile info
         board_data["glueTiles"] = [
