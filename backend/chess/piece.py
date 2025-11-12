@@ -46,7 +46,7 @@ class Piece(ABC):
             "color": self.color.name,
             "position": {"file": at.file, "rank": at.rank},
             "marked": self.marked,
-            "value": self.value
+            "value": self.value,
         }
         if include_moves and board is not None:
             moves = (self.get_legal_captures(board, at) if captures_only
