@@ -2,10 +2,10 @@ from __future__ import annotations
 from abc import ABC, abstractmethod  # Abstract Base Class tools
 from backend.enums import CardType, TargetType
 from typing import Optional, Dict, Any, TYPE_CHECKING
-from backend.cards.card import Card
 from backend.enums import CardType, Color, PieceType
 from backend.chess.coordinate import Coordinate
-from backend.chess.piece import Pawn
+from backend.chess.piece import Pawn, Scout, HeadHunter, Warlock, DarkLord
+
 import random
 
 if TYPE_CHECKING:
@@ -358,7 +358,6 @@ class TransformToScout(Card):
     
     def can_play(self, board: Board, player: Player) -> bool:
         """Check if player has any pawns to transform"""
-        from backend.enums import PieceType
         
         # Check if player has any pawns on the board
         for coord, piece in board.squares.items():
@@ -368,9 +367,7 @@ class TransformToScout(Card):
     
     def apply_effect(self, board: Board, player: Player, target_data: Dict[str, Any]) -> tuple[bool, str]:
         """Transform a pawn at target coordinate into a scout"""
-        from backend.chess.coordinate import Coordinate
-        from backend.chess.piece import Scout
-        from backend.enums import PieceType
+
         
         # Parse target coordinate
         target_square = target_data.get("target")
@@ -427,7 +424,6 @@ class TransformToHeadhunter(Card):
 
     def can_play(self, board: Board, player: Player) -> bool:
         """Check if player has any knights to transform"""
-        from backend.enums import PieceType
 
         for coord, piece in board.squares.items():
             if piece.color == player.color and piece.type == PieceType.KNIGHT:
@@ -439,9 +435,6 @@ class TransformToHeadhunter(Card):
         Transform a knight at the target coordinate into a headhunter.
         Expects target_data['target'] as algebraic like 'e4'.
         """
-        from backend.chess.coordinate import Coordinate
-        from backend.chess.piece import Headhunter
-        from backend.enums import PieceType
 
         target_square = target_data.get("target")
         if not target_square:
@@ -499,7 +492,6 @@ class TransformToWarlock(Card):
 
     def can_play(self, board: Board, player: Player) -> bool:
         """Check if player has any bishops to transform."""
-        from backend.enums import PieceType
 
         for _, piece in board.squares.items():
             if piece.color == player.color and piece.type == PieceType.BISHOP:
@@ -511,9 +503,6 @@ class TransformToWarlock(Card):
         Transform a bishop at target coordinate into a warlock.
         Expects target_data['target'] as algebraic like 'e4'.
         """
-        from backend.chess.coordinate import Coordinate
-        from backend.chess.piece import Warlock
-        from backend.enums import PieceType
 
         target_square = target_data.get("target")
         if not target_square:
@@ -593,7 +582,6 @@ class TransformToDarkLord(Card):
 
     def can_play(self, board: Board, player: Player) -> bool:
         """Check if player has at least one Queen to transform."""
-        from backend.enums import PieceType
         for _, piece in board.squares.items():
             if piece.color == player.color and piece.type == PieceType.QUEEN:
                 return True
@@ -601,9 +589,6 @@ class TransformToDarkLord(Card):
 
     def apply_effect(self, board: Board, player: Player, target_data: Dict[str, Any]) -> tuple[bool, str]:
         """Transform a selected Queen into a Dark Lord."""
-        from backend.chess.coordinate import Coordinate
-        from backend.chess.piece import DarkLord
-        from backend.enums import PieceType
 
         # Parse and validate target coordinate
         target_square = target_data.get("target")
