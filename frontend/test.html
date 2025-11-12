@@ -139,9 +139,9 @@
 
         // Sample deck (16 cards matching your card registry)
         const sampleDeck = [
-            "mine", "eye_for_an_eye", "summon_peon", "pawn_scout",
+            "mine", "eye_for_an_eye", "forbidden_lands", "pawn_scout",
             "knight_headhunter", "bishop_warlock",
-            "mine", "eye_for_an_eye", "summon_peon", "pawn_scout",
+            "queen_darklord", "eye_for_an_eye", "summon_peon", "pawn_scout",
             "knight_headhunter", "bishop_warlock",
             "mine", "eye_for_an_eye", "summon_peon", "pawn_scout"
         ];
@@ -227,10 +227,10 @@
                 return;
             }
 
-            ws = new WebSocket(`ws://localhost:8000/ws/${clientId}`);
+            ws = new WebSocket(`${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws/${clientId}`);
             
             ws.onopen = () => {
-                log('✓ Connected to server', 'info');
+                log('âœ“ Connected to server', 'info');
                 updateStatus(true);
             };
             
@@ -343,7 +343,7 @@
             };
             
             ws.send(JSON.stringify(message));
-            log(`Sent: make_move (${fromSquare} → ${toSquare})`, 'sent');
+            log(`Sent: make_move (${fromSquare} â†’ ${toSquare})`, 'sent');
         }
 
         function playCard() {

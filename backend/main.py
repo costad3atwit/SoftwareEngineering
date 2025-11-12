@@ -476,5 +476,5 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
 
 if __name__ == "__main__":
     import uvicorn
-    logger.info("Starting server on http://127.0.0.1:8000")
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    logger.info("Starting server on http://0.0.0.0:8000 (accessible from local network)")
+    uvicorn.run(app, host="0.0.0.0", port=8000)
