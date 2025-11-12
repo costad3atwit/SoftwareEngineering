@@ -130,7 +130,7 @@ class Board:
             del self.glued_pieces[captured.id]
     
     def tick_traps(self):
-    """Advance all trap timers (mines and glue) by one turn and remove expired ones."""
+        """Advance all trap timers (mines and glue) by one turn and remove expired ones."""
         # Tick down mines
         expired_mines = []
         for mine in list(self.mines):
