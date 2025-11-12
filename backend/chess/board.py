@@ -15,6 +15,8 @@ class Board:
         self.mines = []
         self.glue_tiles = []     # List of dicts: {"coord": Coordinate, "owner": Color, "timer": int}
         self.glued_pieces = {}   # { piece_id: turns_remaining }
+        self.green_tiles: Dict[Coordinate, int] = {}
+
     # ================================================================
     # Forbidden Lands Mechanics
     # ================================================================
@@ -221,11 +223,6 @@ class Board:
     def move_piece(self, move: Move) -> Optional[Piece]:
         src, dest = move.from_sq, move.to_sq
         moving_piece = self.squares.get(src)
-        
-        # --- Check for glue restriction ---
-        if self.is_glued(moving_piece):
-            raise ValueError(f"{moving_piece.id} is glued and cannot move for now!")
-        
         if not moving_piece:
             raise ValueError(f"No piece at {src}")
 
@@ -261,9 +258,15 @@ class Board:
             # Forbidden Lands inactive → normal chess capture
             captured_piece = self.squares.pop(dest, None)
 
-        # --- NEW: Glue transfer (if captured piece was glued) ---
+        # --- Apply glue from captured piece to capturing piece ---
         if captured_piece:
             self.apply_capture_glue(moving_piece, captured_piece)
+        
+        # ===== ADDITION A: Mark tile as green if capture occurred =====
+        if captured_piece:
+            # Mark the capture location as a green tile for 6 half-turns (3 full turns)
+            self.green_tiles[dest] = 6
+        # ===== END ADDITION A =====
         
         # --- NEW: Check for Cleric protection ---
         if captured_piece and self._should_cleric_protect(captured_piece, dest):
@@ -278,8 +281,6 @@ class Board:
                     self.squares[cleric_pos] = captured_piece
                     # The cleric is now the piece that was "captured"
                     captured_piece = protecting_cleric
-
-
 
         # --- Perform the move ---
         self.squares.pop(src)
@@ -296,6 +297,24 @@ class Board:
 
         # --- Check for glue trigger at destination ---
         self.check_glue_trigger(dest, moving_piece)
+        
+        # ===== ADDITION B: Handle Witch leaving green tile (spawn Peon) =====
+        from backend.chess.piece import Witch, Peon
+        if isinstance(moving_piece, Witch):
+            if getattr(move, "metadata", {}).get("leaving_green_tile"):
+                # Get the source coordinate where the Witch was
+                source_info = move.metadata.get("green_tile_source")
+                if source_info:
+                    source_coord = Coordinate(source_info["file"], source_info["rank"])
+                    
+                    # Spawn a Peon at the green tile the Witch just left
+                    # Only if the tile is now empty
+                    if source_coord not in self.squares:
+                        import time
+                        peon_id = f"peon_{moving_piece.color.name[0].lower()}_{int(time.time() * 1000)}"
+                        peon = Peon(peon_id, moving_piece.color)
+                        self.squares[source_coord] = peon
+        # ===== END ADDITION B =====
         
         return captured_piece
 
@@ -338,6 +357,22 @@ class Board:
         
         return None
 
+    def update_green_tiles(self):
+        """
+        Decrease green tile counters by 1 half-turn.
+        Remove expired tiles (when counter reaches 0).
+        Should be called at the end of each half-turn.
+        """
+        expired_tiles = []
+        for coord, half_turns_remaining in self.green_tiles.items():
+            self.green_tiles[coord] -= 1
+            if self.green_tiles[coord] <= 0:
+                expired_tiles.append(coord)
+        
+        # Remove expired tiles
+        for coord in expired_tiles:
+            del self.green_tiles[coord]
+    
     def is_square_attacked(self, coord: Coordinate, by_color: Color) -> bool:
         """
         Return True if the given square is attacked by any piece of the specified color.
@@ -440,6 +475,16 @@ class Board:
             ]
         else:
             board_data["forbiddenTiles"] = []
+    
+        # Include green tiles for frontend rendering
+        board_data["greenTiles"] = [
+            {
+                "file": coord.file,
+                "rank": coord.rank,
+                "turnsRemaining": half_turns // 2  # Convert half-turns to full turns for display
+            }
+            for coord, half_turns in self.green_tiles.items()
+        ]
         
         # Include mine info if present
         board_data["mine"] = (

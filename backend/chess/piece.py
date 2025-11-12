@@ -756,17 +756,124 @@ class HeadHunter(Piece):
 
 
 class Witch(Piece):
+    """
+    Witch piece that moves 2 squares diagonally or 1 square horizontally.
+    Can jump over pieces. When moving off a green tile, spawns a peon.
+    Green tiles are created globally when any piece is captured (tracked by Board).
+    Value: 5
+    """
     def __init__(self, id: str, color: Color):
         super().__init__(id, color, PieceType.WITCH, value=5)
 
     def get_legal_moves(self, board: Board, at: Coordinate) -> List[Move]:
-        return [] # implement later
+        """
+        Witch movement:
+        - 2 squares diagonally in each direction (can jump)
+        - 1 square left or right
+        """
+        moves: List[Move] = []
+        
+        # Diagonal moves (2 squares in each diagonal direction)
+        diagonal_offsets = [
+            (2, 2),   # up-right
+            (2, -2),  # down-right
+            (-2, 2),  # up-left
+            (-2, -2)  # down-left
+        ]
+        
+        for df, dr in diagonal_offsets:
+            dest = Coordinate(at.file + df, at.rank + dr)
+            if not board.is_in_bounds(dest):
+                continue
+            
+            # Can jump, so we don't check intermediate squares
+            target = board.piece_at_coord(dest)
+            
+            # Can move if empty or capture enemy
+            if target is None:
+                moves.append(Move(at, dest, self))
+            elif target.color != self.color:
+                moves.append(Move(at, dest, self))
+        
+        # Horizontal moves (1 square left or right)
+        horizontal_offsets = [(1, 0), (-1, 0)]
+        
+        for df, dr in horizontal_offsets:
+            dest = Coordinate(at.file + df, at.rank + dr)
+            if not board.is_in_bounds(dest):
+                continue
+            
+            target = board.piece_at_coord(dest)
+            
+            # Can move if empty or capture enemy
+            if target is None:
+                moves.append(Move(at, dest, self))
+            elif target.color != self.color:
+                moves.append(Move(at, dest, self))
+        
+        # Add metadata about green tile interaction if starting on one
+        if hasattr(board, 'green_tiles') and at in board.green_tiles:
+            for move in moves:
+                move.metadata['leaving_green_tile'] = True
+                move.metadata['green_tile_source'] = {'file': at.file, 'rank': at.rank}
+        
+        return moves
 
-    def get_legal_captures(self, board: Board, at:Coordinate) -> List[Move]:
+    def get_legal_captures(self, board: Board, at: Coordinate) -> List[Move]:
+        """Return only capture moves for the Witch."""
         # --- Forbidden Lands rule: cannot capture from inside Forbidden Lands ---
         if getattr(board, "forbidden_active", False) and board.is_forbidden(at):
-            return [] # Don't remove this check, as it is important for the game rules.
-        return [] # implement later
+            return []
+        
+        captures: List[Move] = []
+        
+        # Diagonal captures (2 squares)
+        diagonal_offsets = [
+            (2, 2), (2, -2), (-2, 2), (-2, -2)
+        ]
+        
+        for df, dr in diagonal_offsets:
+            dest = Coordinate(at.file + df, at.rank + dr)
+            if board.is_in_bounds(dest) and board.is_enemy(dest, self.color):
+                captures.append(Move(at, dest, self))
+        
+        # Horizontal captures (1 square)
+        horizontal_offsets = [(1, 0), (-1, 0)]
+        
+        for df, dr in horizontal_offsets:
+            dest = Coordinate(at.file + df, at.rank + dr)
+            if board.is_in_bounds(dest) and board.is_enemy(dest, self.color):
+                captures.append(Move(at, dest, self))
+        
+        return captures
+    
+    def to_dict(self, at: Coordinate, include_moves: bool = False,
+                board: Board = None, captures_only: bool = False) -> dict:
+        """Frontend-friendly dictionary representation of Witch."""
+        data = {
+            "id": self.id,
+            "type": self.type.name,
+            "color": self.color.name,
+            "position": {"file": at.file, "rank": at.rank},
+            "marked": self.marked,
+        }
+        
+        # Include whether we're on a green tile
+        if board and hasattr(board, 'green_tiles'):
+            data["on_green_tile"] = at in board.green_tiles
+        
+        if include_moves and board is not None:
+            moves = (self.get_legal_captures(board, at) if captures_only
+                     else self.get_legal_moves(board, at))
+            data["moves"] = [
+                {
+                    "from": {"file": m.from_sq.file, "rank": m.from_sq.rank},
+                    "to": {"file": m.to_sq.file, "rank": m.to_sq.rank},
+                    "leaving_green_tile": m.metadata.get('leaving_green_tile', False) if hasattr(m, 'metadata') else False
+                }
+                for m in moves
+            ]
+        return data
 
 
 class Warlock(Piece):
