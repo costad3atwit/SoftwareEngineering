@@ -442,8 +442,7 @@ class Pawn(Piece):
         """
         moves: List[Move] = []
         direction = 1 if self.color == Color.WHITE else -1
-        start_rank = 1 if self.color == Color.WHITE else 6
-        promotion_rank = 7 if self.color == Color.WHITE else 0
+        promotion_rank = 8 if self.color == Color.WHITE else 1
 
         # --- Forward move (1 square) ---
         one_step = Coordinate(at.file, at.rank + direction)
@@ -456,7 +455,7 @@ class Pawn(Piece):
 
             # --- Forward move (2 squares on first move) ---
             two_step = Coordinate(at.file, at.rank + 2 * direction)
-            if at.rank == start_rank and board.is_empty(two_step):
+            if not self._has_moved and board.is_empty(two_step):
                 moves.append(Move(at, two_step, self))
 
         # --- Captures (diagonals) ---
