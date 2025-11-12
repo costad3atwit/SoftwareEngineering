@@ -339,7 +339,7 @@ class ForbiddenLands(Card):
             return False, "No available space to summon a pawn in your forbidden back rank."
 
         spawn_square = random.choice(possible_tiles)
-        pawn_id = f"{player.color.name[0].lower()}F{len(board.squares)}"
+        pawn_id = f"{player.color.name[0].lower()}P{len(board.squares)}"
         board.squares[spawn_square] = Pawn(pawn_id, player.color)
 
         return True, f"A pawn has been summoned in the Forbidden Lands at {spawn_square.to_algebraic()}."
