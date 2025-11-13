@@ -4,6 +4,7 @@ from enum import Enum
 class EffectType(Enum):
     """Types of effects that can be tracked"""
     PIECE_EMPOWERMENT = "piece_empowerment"
+    ALL_SEEING = "all_seeing"
     PIECE_MARK = "piece_mark"
     MINE = "mine"
     PAWN_BOMB = "pawn_bomb"
