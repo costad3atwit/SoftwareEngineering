@@ -906,7 +906,7 @@ class PawnQueen(Card):
             f"{pawn_id} has transformed into a Queen for 2 turns. "
             "After that, it will become a Peon if deeply advanced, "
             "or revert to a Pawn."
-        )
+        ) 
 
     class Shroud(Card):
         """
