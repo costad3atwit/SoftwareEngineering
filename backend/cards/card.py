@@ -5,6 +5,7 @@ from typing import Optional, Dict, Any, TYPE_CHECKING
 from backend.enums import CardType, Color, PieceType
 from backend.services.effect_tracker import EffectType
 from backend.chess.coordinate import Coordinate
+from backend.cards.card import Shroud   
 from backend.chess.piece import Pawn, Scout, HeadHunter, Warlock, DarkLord, Queen, King, Peon, Piece
 import random
 
@@ -907,6 +908,318 @@ class PawnQueen(Card):
             "After that, it will become a Peon if deeply advanced, "
             "or revert to a Pawn."
         ) 
+    
+    class Shroud(Card):
+        """
+        Hidden: Shroud (3-turn duration)
+        When played, switches the position and appearance of two random friendly pieces for 3 turns.
+        If the player has fewer than two pieces, summons a peon on a safe tile and then swaps.
+        Never swaps either king into check; if no safe swap exists, summons a peon instead.
+        """
+
+    def __init__(self):
+        super().__init__(
+            id="shroud",
+            name="Shroud",
+            description=(
+                "Hidden: Shroud (3 turns) – Switches the position and appearance of two random "
+                "friendly pieces. If you control fewer than two pieces, summons a peon on a safe "
+                "tile first. Never swaps either king into check."
+            ),
+            big_img="static/cards/shroud_big.png",
+            small_img="static/cards/shroud_small.png"
+        )
+
+    @property
+    def card_type(self) -> CardType:
+        return CardType.HIDDEN
+
+    def _all_possible_coords(self, board: Board):
+        max_file = 9 if board.dmzActive else 8
+        min_file = 0 if board.dmzActive else 1
+        coords = []
+        for f in range(min_file, max_file + 1):
+            for r in range(min_file, max_file + 1):
+                c = Coordinate(f, r)
+                if board.is_in_bounds(c):
+                    coords.append(c)
+        return coords
+
+    def _get_player_pieces(self, board: Board, color: Color):
+        """Returns list[(coord, piece)] for given color."""
+        return [
+            (coord, piece)
+            for coord, piece in board.squares.items()
+            if piece is not None and piece.color == color
+        ]
+
+    def _summon_peon_safe(self, board: Board, color: Color) -> Optional[Coordinate]:
+        """Summon a peon on a random empty tile that does not leave own king in check."""
+        safe_tiles = []
+        for coord in self._all_possible_coords(board):
+            if not board.is_empty(coord):
+                continue
+
+            temp_peon = Peon(id="temp_peon", color=color, piece_type=PieceType.PEON, value=1)
+            board.place_piece(temp_peon, coord)
+            safe = not board.is_in_check(color)
+            board.remove_piece(coord)
+
+            if safe:
+                safe_tiles.append(coord)
+
+        if not safe_tiles:
+            return None
+
+        chosen = random.choice(safe_tiles)
+        real_peon = Peon(
+            id=board.generate_piece_id(color),
+            color=color,
+            piece_type=PieceType.PEON,
+            value=1
+        )
+        board.place_piece(real_peon, chosen)
+        return chosen
+    
+    def can_play(self, board: Board, player: Player) -> bool:
+        """
+        Playable if:
+        - player has at least 2 pieces, OR
+        - player has at least 1 piece and there is an empty tile for a peon.
+        """
+        pieces = self._get_player_pieces(board, player.color)
+        if len(pieces) >= 2:
+            return True
+
+        if len(pieces) == 1:
+            empty_tiles = [c for c in self._all_possible_coords(board) if board.is_empty(c)]
+            return len(empty_tiles) > 0
+
+        return False
+    
+    def apply_effect(
+        self,
+        board: Board,
+        player: Player,
+        target_data: Dict[str, Any]
+    ) -> tuple[bool, str]:
+
+        color = player.color
+        opponent_color = color.opponent()
+
+        # Ensure at least 2 friendly pieces (summon peon if needed)
+        pieces = self._get_player_pieces(board, color)
+        if len(pieces) < 2:
+            spawned = self._summon_peon_safe(board, color)
+            if spawned is None:
+                return False, "No safe tile to summon a peon for Shroud."
+            pieces = self._get_player_pieces(board, color)
+            if len(pieces) < 2:
+                return False, "Still not enough pieces to activate Shroud."
+
+        # Try to find a legal swap pair (no king in check after swap)
+        random.shuffle(pieces)
+        swap_pair = None
+
+        for i in range(len(pieces)):
+            for j in range(i + 1, len(pieces)):
+                coord_a, piece_a = pieces[i]
+                coord_b, piece_b = pieces[j]
+
+                # temp swap
+                board.remove_piece(coord_a)
+                board.remove_piece(coord_b)
+                board.place_piece(piece_a, coord_b)
+                board.place_piece(piece_b, coord_a)
+
+                illegal = board.is_in_check(color) or board.is_in_check(opponent_color)
+
+                # revert
+                board.remove_piece(coord_a)
+                board.remove_piece(coord_b)
+                board.place_piece(piece_a, coord_a)
+                board.place_piece(piece_b, coord_b)
+
+                if not illegal:
+                    swap_pair = (coord_a, piece_a, coord_b, piece_b)
+                    break
+            if swap_pair:
+                break
+
+        # If no safe swap, just try to summon a peon and exit
+        if not swap_pair:
+            spawned = self._summon_peon_safe(board, color)
+            if spawned is None:
+                return False, "Shroud could not find a legal swap or safe spawn."
+            return True, "No legal swap found; a peon was summoned instead."
+
+        coord_a, piece_a, coord_b, piece_b = swap_pair
+
+        # Perform real swap
+        board.remove_piece(coord_a)
+        board.remove_piece(coord_b)
+        board.place_piece(piece_a, coord_b)
+        board.place_piece(piece_b, coord_a)
+
+        # Swap appearance (piece type)
+        orig_a_type = piece_a.type
+        orig_b_type = piece_b.type
+        piece_a.type, piece_b.type = orig_b_type, orig_a_type
+
+        # Register 3-turn effect to restore appearance
+        if hasattr(board, "game_state") and board.game_state:
+            from backend.services.effect_tracker import EffectType
+
+            def revert_shroud(effect):
+                meta = effect.metadata
+                a_id = meta["piece_a_id"]
+                b_id = meta["piece_b_id"]
+                a_type = meta["orig_a_type"]
+                b_type = meta["orig_b_type"]
+
+                for p in board.squares.values():
+                    if p is None or not hasattr(p, "id"):
+                        continue
+                    if p.id == a_id:
+                        p.type = a_type
+                    elif p.id == b_id:
+                        p.type = b_type
+
+            board.game_state.effect_tracker.add_effect(
+                effect_type=EffectType.SHROUD,   # add SHROUD to your EffectType enum
+                start_turn=board.game_state.fullmove_number,
+                duration=3,
+                target=None,
+                metadata={
+                    "piece_a_id": piece_a.id,
+                    "piece_b_id": piece_b.id,
+                    "orig_a_type": orig_a_type,
+                    "orig_b_type": orig_b_type,
+                },
+                on_expire=revert_shroud
+            )
+
+        return True, "Shroud activated: two pieces swapped positions and appearance for 3 turns."
+    
+class PawnBomb(Card):
+    """
+    Hidden: Pawn Bomb (8-turn fuse, shortened to 4 after moving).
+    A random friendly pawn becomes a hidden bomb. Upon capture, it explodes,
+    capturing all pieces within 1 tile (friend or foe). If not captured within
+    8 turns, it explodes automatically. On its first move after this card is
+    played, remaining fuse is truncated to 4 turns and it is revealed to the
+    friendly player as the bomb pawn.
+    """
+
+    def __init__(self):
+        super().__init__(
+            id="pawn_bomb",
+            name="Pawn Bomb",
+            description=(
+                "A random friendly pawn becomes a hidden bomb for up to 8 turns. "
+                "If captured or its fuse runs out, it explodes in a 1-tile radius, "
+                "capturing all nearby pieces. On its first move after arming, the "
+                "fuse shortens to 4 turns and it is revealed to you."
+            ),
+            big_img="static/cards/pawn_bomb_big.png",
+            small_img="static/cards/pawn_bomb_small.png",
+        )
+
+    @property
+    def card_type(self) -> CardType:
+        return CardType.HIDDEN
+
+    def _get_friendly_pawns(self, board: Board, color: Color) -> list[tuple[Coordinate, Any]]:
+        """Return list of (coord, piece) for all friendly pawns."""
+        pawns: list[tuple[Coordinate, Any]] = []
+        for coord, piece in board.squares.items():
+            if piece is None or piece.color != color:
+                continue
+            # Treat PAWN / PEON as valid pawn types
+            if piece.type in (PieceType.PAWN, getattr(PieceType, "PEON", PieceType.PAWN)):
+                pawns.append((coord, piece))
+        return pawns
+
+    def _find_piece_coord_by_id(self, board: Board, piece_id: str) -> Optional[Coordinate]:
+        for coord, piece in board.squares.items():
+            if piece is not None and getattr(piece, "id", None) == piece_id:
+                return coord
+        return None
+
+    def _explode_pawn_bomb(self, board: Board, center: Coordinate) -> None:
+        """
+        Detonate the bomb at `center`.
+        Here we just reuse the mine's explosion logic if available.
+        """
+        if hasattr(board, "detonate_mine"):
+            board.detonate_mine(center)
+        else:
+            # Fallback: capture all pieces in 1-tile radius (including the pawn itself)
+            for df in (-1, 0, 1):
+                for dr in (-1, 0, 1):
+                    c = Coordinate(center.file + df, center.rank + dr)
+                    if not board.is_in_bounds(c):
+                        continue
+                    if not board.is_empty(c):
+                        board.remove_piece(c)
+
+    def can_play(self, board: Board, player: Player) -> bool:
+        """Can be played if the player controls at least one pawn."""
+        pawns = self._get_friendly_pawns(board, player.color)
+        return len(pawns) > 0
+
+    def apply_effect(
+        self,
+        board: Board,
+        player: Player,
+        target_data: dict[str, Any],
+    ) -> tuple[bool, str]:
+
+        color = player.color
+        pawns = self._get_friendly_pawns(board, color)
+        if not pawns:
+            return False, "You have no pawns to turn into a bomb."
+
+        # Choose random friendly pawn to arm
+        pawn_coord, pawn_piece = random.choice(pawns)
+        bomb_pawn_id = pawn_piece.id
+
+        # Register 8-turn fuse in effect tracker
+        if hasattr(board, "game_state") and board.game_state:
+            from backend.services.effect_tracker import EffectType
+
+            def on_expire(effect):
+                """
+                Called when the fuse runs out.
+                If pawn is still on the board, explode at its current location.
+                """
+                pid = effect.target
+                coord = self._find_piece_coord_by_id(board, pid)
+                if coord is not None:
+                    self._explode_pawn_bomb(board, coord)
+
+            board.game_state.effect_tracker.add_effect(
+                effect_type=EffectType.PAWN_BOMB,          # define in EffectType enum
+                start_turn=board.game_state.fullmove_number,
+                duration=8,
+                target=bomb_pawn_id,                       # tie effect to pawn id
+                metadata={
+                    "owner_color": color.name,
+                    "revealed_to_owner": False,
+                    "fuse_shortened": False,
+                    # movement hook elsewhere can use these flags
+                },
+                on_expire=on_expire,
+            )
+
+        # NOTE: explosion on capture and fuse-shortening on first move
+        # should be handled in your move/capture logic by:
+        # - checking for an active EffectType.PAWN_BOMB on the moving/captured pawn
+        # - if pawn moves for the first time: reduce remaining turns to 4,
+        #   set metadata["fuse_shortened"] = True and metadata["revealed_to_owner"] = True
+        # - if pawn is captured: immediately call _explode_pawn_bomb at its square.
+
+        return True, "A random pawn has become a hidden bomb with an 8-turn fuse."
 
     class Shroud(Card):
         """
@@ -1101,7 +1414,6 @@ class PawnQueen(Card):
         return True, "Shroud activated: two pieces swapped positions and appearance for 3 turns."
 
 
-
 # ============================================================================
 # CARD REGISTRY - Map card IDs to card classes
 # ============================================================================
@@ -1117,6 +1429,7 @@ CARD_REGISTRY = {
     "queen_darklord": TransformToDarkLord,
     "forbidden_lands": ForbiddenLands,
     "pawn_queen": PawnQueen,
+    "pawn_bomb": PawnBomb,
     "shroud": Shroud,
 
 }
