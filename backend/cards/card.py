@@ -14,7 +14,7 @@ import random
 
 if TYPE_CHECKING:
     from backend.chess.board import Board
-    from backend.player import Player
+    from backend.player import Player 
 
 class Card(ABC):
     """
