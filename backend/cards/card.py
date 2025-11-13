@@ -739,6 +739,153 @@ class TransformToDarkLord(Card):
 
         return True, f"Your Queen at {target_square} has been transformed into a Dark Lord!"
 
+
+class PawnQueen(Card):
+    """
+    Pawn: Queen – The pawn furthest from the enemy king transforms into a queen for 2 turns.
+    After the 2 turns, if the pawn is on any of the last 3 ranks (toward the enemy),
+    it becomes a peon; otherwise it reverts to a normal pawn.
+    """
+
+    def __init__(self):
+        super().__init__(
+            id="pawn_queen",
+            name="Pawn: Queen",
+            description=(
+                "The pawn furthest from the enemy king transforms into a queen for 2 turns. "
+                "After 2 turns, if it is on any of the last 3 ranks toward the enemy, "
+                "it becomes a peon; otherwise, it reverts to a pawn."
+            ),
+            big_img="static/cards/pawn_queen_big.png",
+            small_img="static/cards/pawn_queen_small.png",
+        )
+
+    @property
+    def card_type(self) -> CardType:
+        # Adjust if you want it to be SPELL/TACTIC/etc.
+        return CardType.HIDDEN
+
+    # -------------------------------------------------------------------------
+    # Playability
+    # -------------------------------------------------------------------------
+    def can_play(self, board, player) -> bool:
+        """
+        Card can be played if the player has at least one pawn on the board.
+        (We only consider actual Pawn pieces, not already-transformed queens.)
+        """
+        for piece in board.squares.values():
+            if isinstance(piece, Pawn) and piece.color == player.color:
+                return True
+        return False
+
+    # -------------------------------------------------------------------------
+    # Main effect
+    # -------------------------------------------------------------------------
+    def apply_effect(self, board, player, target_data: dict) -> tuple[bool, str]:
+        """
+        - Find the pawn of `player` that is furthest (Chebyshev distance) from the enemy king.
+        - Transform it into a Queen for 2 turns.
+        - Use the effect tracker to revert it to Pawn/Peon afterward.
+        """
+        # Sanity: need game_state & effect_tracker
+        if not hasattr(board, "game_state") or not hasattr(board.game_state, "effect_tracker"):
+            return False, "Game state or effect tracker not available."
+
+        game_state = board.game_state
+        effect_tracker = game_state.effect_tracker
+
+        # 1. Find enemy king and its coordinate
+        enemy_color = Color.BLACK if player.color == Color.WHITE else Color.WHITE
+        enemy_king_coord = None
+
+        for coord, piece in board.squares.items():
+            if isinstance(piece, King) and piece.color == enemy_color:
+                enemy_king_coord = coord
+                break
+
+        if enemy_king_coord is None:
+            return False, "Enemy king not found on the board."
+
+        # 2. Find player's pawn furthest from that king
+        target_coord, target_pawn = self._get_furthest_pawn_from_enemy_king(
+            board, player.color, enemy_king_coord
+        )
+
+        if target_pawn is None:
+            return False, "You have no pawns to target with this card."
+
+        pawn_id = target_pawn.id
+        pawn_color = target_pawn.color
+
+        # 3. Transform that pawn into a Queen (replace piece on this square)
+        transformed_queen = Queen(pawn_id, pawn_color)
+        # Keep the piece_type consistent with the class
+        transformed_queen.type = PieceType.QUEEN
+        transformed_queen.piece_type = PieceType.QUEEN
+        board.squares[target_coord] = transformed_queen
+
+        # 4. Register an effect lasting 2 turns for this piece ID
+        def on_expire(effect):
+            """
+            Called by effect tracker after 2 turns.
+            We:
+              - Find the current piece with this id on the board.
+              - Replace it with a Pawn.
+              - If it's on the last 3 ranks (toward enemy), flag it as PEON.
+            """
+            # Find piece by id on the current board
+            found_coord = None
+            found_piece: Piece | None = None
+
+            for c, p in board.squares.items():
+                if getattr(p, "id", None) == pawn_id:
+                    found_coord = c
+                    found_piece = p
+                    break
+
+            # If the piece isn't on the board anymore (captured, etc.), do nothing
+            if found_coord is None or found_piece is None:
+                return
+
+            # Determine board height / max rank
+            # Try to pull from board, otherwise assume 8 (classic)
+            max_rank = getattr(board, "rows", getattr(board, "height", 8))
+
+            rank = found_coord.rank
+            # Create a fresh pawn with same id/color
+            new_pawn = Pawn(pawn_id, pawn_color)
+
+            # Default: normal pawn
+            new_pawn.type = PieceType.PAWN
+            new_pawn.piece_type = PieceType.PAWN
+
+            # If it's in the "last 3 ranks" toward the enemy, it becomes a peon
+            if self._is_in_last_three_ranks(pawn_color, rank, max_rank):
+                # Use a distinct PieceType if you have PEON in your enum
+                if hasattr(PieceType, "PEON"):
+                    new_pawn.type = PieceType.PEON
+                    new_pawn.piece_type = PieceType.PEON
+                # You can also adjust its value here if you want it weaker, e.g.:
+                # new_pawn.value = 0
+
+            # Replace the queen with the new pawn/peon
+            board.squares[found_coord] = new_pawn
+
+        effect_tracker.add_effect(
+            effect_type=EffectType.PAWN_QUEEN,      # define this in your EffectType enum
+            start_turn=game_state.fullmove_number,
+            duration=2,
+            target=pawn_id,                         # tie effect to piece id
+            on_expire=on_expire,
+        )
+
+        return True, (
+            f"{pawn_id} has transformed into a Queen for 2 turns. "
+            "After that, it will become a Peon if deeply advanced, "
+            "or revert to a Pawn."
+        )
+
+
 # ============================================================================
 # CARD REGISTRY - Map card IDs to card classes
 # ============================================================================
@@ -765,3 +912,4 @@ def create_card_by_id(card_id: str) -> Optional[Card]:
     if card_class:
         return card_class()
     return None
+
