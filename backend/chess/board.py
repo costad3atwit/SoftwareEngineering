@@ -442,6 +442,15 @@ class Board:
                         return True
         return False
 
+    def _all_board_coords(self):
+        """Generator for all coordinates on the board."""
+        max_range = 10 if self.dmzActive else 8
+        min_range = 0 if self.dmzActive else 1
+
+        for f in range(min_range, max_range):
+            for r in range(min_range, max_range):
+                yield Coordinate(f, r)
+
     def clone(self) -> 'Board':
         """Return a deep copy of the board."""
         new_board = Board()
