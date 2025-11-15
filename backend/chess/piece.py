@@ -1,6 +1,6 @@
 from __future__ import annotations
 from typing import List, Optional, Tuple, TYPE_CHECKING
-from backend.enums import Color, PieceType
+from backend.enums import Color, PieceType, EffectType
 from backend.chess.coordinate import Coordinate
 from backend.chess.move import Move
 from abc import ABC, abstractmethod
@@ -57,7 +57,30 @@ class Piece(ABC):
         return payload
 
 
+class Effigy(Piece):
+    """An inert piece representing a curse anchor."""
+    def __init__(self, id: str, color: Color, effect_type: EffectType):
+        super().__init__(id, color, PieceType.EFFIGY, value=0)
+        self.is_effigy = True
+        self.effect_type = effect_type  # Ties this effigy to the curse that spawned it
 
+    def get_legal_moves(self, board: 'Board', at: Coordinate) -> List[Move]:
+        return []  # Effigies cannot move
+
+    def get_legal_captures(self, board: 'Board', at: Coordinate) -> List[Move]:
+        return []  # Effigies cannot attack
+
+    def to_dict(self, at: Coordinate, include_moves: bool = False,
+                board: 'Board' = None, captures_only: bool = False) -> dict:
+        """Frontend-friendly representation of Effigy."""
+        return {
+            "id": self.id,
+            "type": "EFFIGY",
+            "color": self.color.name,
+            "position": {"file": at.file, "rank": at.rank},
+            "isEffigy": True,
+            "effectType": self.effect_type.value,  # send enum value to frontend
+        }
 
 class King(Piece):
     def __init__(self, id: str, color: Color):
