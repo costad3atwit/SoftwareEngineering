@@ -7,6 +7,7 @@ import asyncio
 import logging
 from pathlib import Path
 from datetime import datetime
+import uuid
 
 from backend.services.game_manager import GameManager
 from backend.enums import GameStatus
@@ -190,6 +191,15 @@ async def status():
         "active_games": stats["active_games"],
         "total_games": stats["total_games"],
         "finished_games": stats["finished_games"]
+    }
+
+@app.get("/get_player_id")
+async def get_player_id():
+    """Generate a unique player ID for a new client"""
+    player_id = f"player_{uuid.uuid4().hex[:8]}"
+    logger.info(f"Generated new player ID: {player_id}")
+    return {
+        "player_id": player_id
     }
 
 @app.post("/test/create_sample_game")
@@ -476,5 +486,5 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
 
 if __name__ == "__main__":
     import uvicorn
-    logger.info("Starting server on http://0.0.0.0:8000 (accessible from local network)")
+    logger.info("Starting server on http://0.0.0.0:8000")
     uvicorn.run(app, host="0.0.0.0", port=8000)
