@@ -231,6 +231,10 @@ class Board:
         if self.forbidden_active and coord in self.forbidden_positions:
             return False  # cannot capture pieces inside Forbidden Lands
         piece = self.squares.get(coord)
+
+        #Barricades cannot be captured
+        if piece.type == PieceType.BARRICADE:
+            return False
         return piece is not None and piece.color != color
 
     def is_frendly(self, coord: Coordinate, color: Color) -> bool:
