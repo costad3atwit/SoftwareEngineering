@@ -196,142 +196,150 @@ class EffectTracker:
 # HELPER FUNCTIONS for common effect patterns
 # ============================================================================
 
-def create_empowerment_effect(
-    tracker: EffectTracker,
-    piece_id: str,
-    current_turn: int,
-    piece_ref: Any = None
-) -> str:
-    """
-    Helper to create a Warlock empowerment effect.
+# THIS IS DEAD CODE - DO NOT CONTINUE ADDING HELPERS. INSTEAD USE add_effect() 
+# DIRECTLY WITHIN CARD/PIECE LOGIC TO ADD EFFECTS LIKE IS ALREADY BEING DONE.
+
+# WILL DELETE AFTER DISCUSSING WITH TEAM.
+
+
+
+# def create_empowerment_effect(
+#     tracker: EffectTracker,
+#     piece_id: str,
+#     current_turn: int,
+#     piece_ref: Any = None
+# ) -> str:
+#     """
+#     Helper to create a Warlock empowerment effect.
     
-    Args:
-        tracker: The EffectTracker instance
-        piece_id: ID of the piece being empowered
-        current_turn: Current turn number
-        piece_ref: Optional reference to the actual piece object
+#     Args:
+#         tracker: The EffectTracker instance
+#         piece_id: ID of the piece being empowered
+#         current_turn: Current turn number
+#         piece_ref: Optional reference to the actual piece object
         
-    Returns:
-        effect_id
-    """
-    def on_expire(effect):
-        # Set empowered flag to False when expired
-        if piece_ref:
-            piece_ref.empowered = False
+#     Returns:
+#         effect_id
+#     """
+#     def on_expire(effect):
+#         # Set empowered flag to False when expired
+#         if piece_ref:
+#             piece_ref.empowered = False
     
-    return tracker.add_effect(
-        effect_type=EffectType.PIECE_EMPOWERMENT,
-        start_turn=current_turn,
-        duration=2,
-        target=piece_id,
-        metadata={"piece_id": piece_id},
-        on_expire=on_expire
-    )
+#     return tracker.add_effect(
+#         effect_type=EffectType.PIECE_EMPOWERMENT,
+#         start_turn=current_turn,
+#         duration=2,
+#         target=piece_id,
+#         metadata={"piece_id": piece_id},
+#         on_expire=on_expire
+#     )
 
 
-def create_mark_effect(
-    tracker: EffectTracker,
-    piece_id: str,
-    current_turn: int,
-    duration: int = 5
-) -> str:
-    """
-    Helper to create a piece mark effect (Eye for an Eye).
+# def create_mark_effect(
+#     tracker: EffectTracker,
+#     piece_id: str,
+#     current_turn: int,
+#     duration: int = 5
+# ) -> str:
+#     """
+#     Helper to create a piece mark effect (Eye for an Eye).
     
-    Args:
-        tracker: The EffectTracker instance
-        piece_id: ID of the piece being marked
-        current_turn: Current turn number
-        duration: How many turns the mark lasts (default 5)
+#     Args:
+#         tracker: The EffectTracker instance
+#         piece_id: ID of the piece being marked
+#         current_turn: Current turn number
+#         duration: How many turns the mark lasts (default 5)
         
-    Returns:
-        effect_id
-    """
-    return tracker.add_effect(
-        effect_type=EffectType.PIECE_MARK,
-        start_turn=current_turn,
-        duration=duration,
-        target=piece_id,
-        metadata={"piece_id": piece_id}
-    )
+#     Returns:
+#         effect_id
+#     """
+#     return tracker.add_effect(
+#         effect_type=EffectType.PIECE_MARK,
+#         start_turn=current_turn,
+#         duration=duration,
+#         target=piece_id,
+#         metadata={"piece_id": piece_id}
+#     )
 
 
-def create_mine_effect(
-    tracker: EffectTracker,
-    coordinate: tuple,
-    current_turn: int,
-    on_detonate: Optional[Callable] = None
-) -> str:
-    """
-    Helper to create a mine effect (4-turn auto-detonation).
+# def create_mine_effect(
+#     tracker: EffectTracker,
+#     coordinate: tuple,
+#     current_turn: int,
+#     on_detonate: Optional[Callable] = None
+# ) -> str:
+#     """
+#     Helper to create a mine effect (4-turn auto-detonation).
     
-    Args:
-        tracker: The EffectTracker instance
-        coordinate: (file, rank) tuple of mine location
-        current_turn: Current turn number
-        on_detonate: Callback to execute when mine detonates
+#     Args:
+#         tracker: The EffectTracker instance
+#         coordinate: (file, rank) tuple of mine location
+#         current_turn: Current turn number
+#         on_detonate: Callback to execute when mine detonates
         
-    Returns:
-        effect_id
-    """
-    return tracker.add_effect(
-        effect_type=EffectType.MINE,
-        start_turn=current_turn,
-        duration=4,
-        target=coordinate,
-        metadata={"coordinate": coordinate},
-        on_expire=on_detonate
-    )
+#     Returns:
+#         effect_id
+#     """
+#     return tracker.add_effect(
+#         effect_type=EffectType.MINE,
+#         start_turn=current_turn,
+#         duration=4,
+#         target=coordinate,
+#         metadata={"coordinate": coordinate},
+#         on_expire=on_detonate
+#     )
 
 
-def create_pawn_bomb_effect(
-    tracker: EffectTracker,
-    piece_id: str,
-    current_turn: int,
-    on_detonate: Optional[Callable] = None
-) -> str:
-    """
-    Helper to create a pawn bomb effect (8-turn fuse, shortened to 4 on move).
+# def create_pawn_bomb_effect(
+#     tracker: EffectTracker,
+#     piece_id: str,
+#     current_turn: int,
+#     on_detonate: Optional[Callable] = None
+# ) -> str:
+#     """
+#     Helper to create a pawn bomb effect (8-turn fuse, shortened to 4 on move).
     
-    Args:
-        tracker: The EffectTracker instance
-        piece_id: ID of the pawn that is a bomb
-        current_turn: Current turn number
-        on_detonate: Callback when bomb explodes
+#     Args:
+#         tracker: The EffectTracker instance
+#         piece_id: ID of the pawn that is a bomb
+#         current_turn: Current turn number
+#         on_detonate: Callback when bomb explodes
         
-    Returns:
-        effect_id
-    """
-    return tracker.add_effect(
-        effect_type=EffectType.PAWN_BOMB,
-        start_turn=current_turn,
-        duration=8,
-        target=piece_id,
-        metadata={"piece_id": piece_id, "has_moved": False},
-        on_expire=on_detonate
-    )
+#     Returns:
+#         effect_id
+#     """
+#     return tracker.add_effect(
+#         effect_type=EffectType.PAWN_BOMB,
+#         start_turn=current_turn,
+#         duration=8,
+#         target=piece_id,
+#         metadata={"piece_id": piece_id, "has_moved": False},
+#         on_expire=on_detonate
+#     )
 
 
-def create_glue_effect(
-    tracker: EffectTracker,
-    coordinate: tuple,
-    current_turn: int
-) -> str:
-    """
-    Helper to create a glue trap effect (2 turns immobilization).
+# def create_glue_effect(
+#     tracker: EffectTracker,
+#     coordinate: tuple,
+#     current_turn: int
+# ) -> str:
+#     """
+#     Helper to create a glue trap effect (2 turns immobilization).
     
-    Args:
-        tracker: The EffectTracker instance
-        coordinate: (file, rank) tuple of glued tile
-        current_turn: Current turn number
+#     Args:
+#         tracker: The EffectTracker instance
+#         coordinate: (file, rank) tuple of glued tile
+#         current_turn: Current turn number
         
-    Returns:
-        effect_id
-    """
-    return tracker.add_effect(
-        effect_type=EffectType.GLUE_TRAP,
-        start_turn=current_turn,
-        duration=2,
-        target=coordinate,
-        metadata={"coordinate": coordinate}
-    )
+#     Returns:
+#         effect_id
+#     """
+#     return tracker.add_effect(
+#         effect_type=EffectType.GLUE_TRAP,
+#         start_turn=current_turn,
+#         duration=2,
+#         target=coordinate,
+#         metadata={"coordinate": coordinate}
+#     )
+
