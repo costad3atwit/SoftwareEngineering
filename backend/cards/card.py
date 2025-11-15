@@ -4,10 +4,8 @@ from typing import Optional, Dict, Any, TYPE_CHECKING
 from backend.enums import CardType, Color, PieceType, EffectType, TargetType
 from backend.services.effect_tracker import EffectType
 from backend.chess.coordinate import Coordinate
-from backend.cards.card import Shroud   
 from backend.chess.piece import Pawn, Scout, HeadHunter, Warlock, DarkLord, Queen, King, Peon, Piece
 from backend.chess.piece import Effigy
-from backend.player import Player
 
 import random
 
