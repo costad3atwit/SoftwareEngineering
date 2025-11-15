@@ -12,6 +12,8 @@ class EffectType(Enum):
     FORBIDDEN_LANDS = "forbidden_lands"
     CARD_ACTIVE = "card_active"
     PIECE_IMMOBILIZED = "piece_immobilized"
+    PAWN_QUEEN = "pawn_queen"
+    SHROUD = "shroud"
     # Add more as needed
 
 class PieceType(Enum):
@@ -28,6 +30,7 @@ class PieceType(Enum):
     WARLOCK = "W" 
     CLERIC = "C"
     DARKLORD = "D"
+    EFFIGY = "F"
     
 class TargetType(Enum):
     BOARD = "BOARD"
@@ -41,6 +44,7 @@ class CardType(Enum):
     HIDDEN = "HIDDEN"
     TRANSFORM = "TRANSFORM"
     FORCED = "FORCED"
+    SUMMON = "SUMMON"
 
 class Color(Enum):
     WHITE = "W"
