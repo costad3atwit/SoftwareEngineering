@@ -438,7 +438,7 @@ class Board:
         for coord, piece in self.squares.items():
             if piece.color != color:
                 for move in piece.get_legal_captures(self, coord):
-                    if move.to_coord == king_coord:
+                    if move.to_sq == king_coord:
                         return True
         return False
 
