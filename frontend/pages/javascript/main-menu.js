@@ -27,7 +27,7 @@ let playerId = null;
 let gameId = null;
 let playerColor = null;
 
-// Sample deck (16 cards matching your card registry)
+// Sample deck
 const sampleDeck = [
     "mine", "eye_for_an_eye", "summon_peon", "pawn_scout",
     "knight_headhunter", "bishop_warlock",
@@ -126,7 +126,7 @@ function handleServerMessage(data) {
             console.log(`Game started! ID: ${gameId}, Color: ${playerColor}`);
             
             // Redirect to game page
-            // TODO: Update this URL to match your game page
+            // TODO: Update this URL to match the game page once it's ready
             window.location.href = `/game.html?game_id=${gameId}&player_id=${playerId}`;
             break;
             
@@ -222,19 +222,19 @@ document.getElementById('tutorial').addEventListener('click', () => {
 
 document.getElementById('credits').addEventListener('click', () => {
     console.log('Credits clicked');
-    // TODO: Show credits modal or page
+    // TODO: Show credits page
     showStatus('Credits not yet implemented');
 });
 
 document.getElementById('settings').addEventListener('click', () => {
     console.log('Settings clicked');
-    // TODO: Show settings modal
+    // TODO: Show settings
     showStatus('Settings not yet implemented');
 });
 
 document.getElementById('exit').addEventListener('click', () => {
     console.log('Exit clicked');
-    // For web app, this could close the tab or show a confirmation
+    // Closes the window
     if (confirm('Are you sure you want to exit?')) {
         window.close();
     }
