@@ -1,6 +1,6 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse
+from fastapi.responses import RedirectResponse
 from typing import Dict, List, Optional
 import json
 import asyncio
@@ -120,53 +120,8 @@ async def notify_game_timeout(game: GameState):
 
 @app.get("/")
 async def get():
-    """Serve the main page"""
-    return HTMLResponse("""
-    <html>
-        <head>
-            <title>Arcane Chess</title>
-            <style>
-                body { font-family: Arial, sans-serif; max-width: 800px; margin: 50px auto; padding: 20px; }
-                h1 { color: #333; }
-                .stat { display: inline-block; margin: 10px 20px; padding: 10px; background: #f0f0f0; border-radius: 5px; }
-                .stat-value { font-size: 24px; font-weight: bold; color: #007bff; }
-            </style>
-        </head>
-        <body>
-            <h1> Arcane Chess Server</h1>
-            <p>Server is running! Connect via WebSocket at <code>ws://localhost:8000/ws/{client_id}</code></p>
-            
-            <h2>Server Status</h2>
-            <div class="stat">
-                <div>Active Connections</div>
-                <div class="stat-value" id="connections">0</div>
-            </div>
-            <div class="stat">
-                <div>Queue Size</div>
-                <div class="stat-value" id="queue">0</div>
-            </div>
-            <div class="stat">
-                <div>Active Games</div>
-                <div class="stat-value" id="games">0</div>
-            </div>
-            
-            <h2>Logs</h2>
-            <p>Server logs are saved to: <code>logs/</code></p>
-            
-            <script>
-                setInterval(() => {
-                    fetch('/status')
-                        .then(r => r.json())
-                        .then(data => {
-                            document.getElementById('connections').textContent = data.connections;
-                            document.getElementById('queue').textContent = data.queue;
-                            document.getElementById('games').textContent = data.active_games;
-                        });
-                }, 1000);
-            </script>
-        </body>
-    </html>
-    """)
+    """Redirect to main menu"""
+    return RedirectResponse(url="/frontend/pages/html/main_menu.html")
 
 @app.on_event("startup")
 async def startup_event():
