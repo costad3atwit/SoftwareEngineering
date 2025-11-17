@@ -17,7 +17,6 @@ class Piece(ABC):
         self.value = -1
         self.has_moved = False
         self.marked = False
-        self.piece_type = piece_type
 
     @abstractmethod
     def get_legal_moves(self, board: Board, at: Coordinate) -> List[Move]:
@@ -63,6 +62,7 @@ class Effigy(Piece):
         super().__init__(id, color, PieceType.EFFIGY, value=0)
         self.is_effigy = True
         self.effect_type = effect_type  # Ties this effigy to the curse that spawned it
+        self.effect_id = None  # to be set when effect is created
 
     def get_legal_moves(self, board: 'Board', at: Coordinate) -> List[Move]:
         return []  # Effigies cannot move
