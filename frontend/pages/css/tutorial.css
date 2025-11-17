@@ -2,7 +2,7 @@
   --bg: #24336a;
   --ui-panel: rgba(255,255,255,0.06);
   --card-w: 120px;
-  --card-h: 160px;
+  --card-h: 168px;
   --accent: rgba(150,80,255,0.9);
   --capture-overlay: rgba(255,80,80,0.45);
   --move-overlay: rgba(80,200,255,0.25);
@@ -28,13 +28,13 @@ html,body { height:100%; margin:0; font-family: "Segoe UI", system-ui, -apple-sy
   align-items: stretch;
 }
 
-/* LEFT: board area (board closer to bottom) */
+/* LEFT: board area (board in middle) */
 .left-column {
   flex: 1 1 60%;
   display:flex;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-start; /* put board towards bottom */
+  justify-content: center; /* put board towards center */
   padding-top: 10%;
 }
 
@@ -80,7 +80,7 @@ html,body { height:100%; margin:0; font-family: "Segoe UI", system-ui, -apple-sy
 
 /* RIGHT: UI column (cards, timers, deck) */
 .right-column {
-  width: 360px;
+  width: 568px;
   display:flex;
   flex-direction: column;
   gap:12px;
@@ -100,7 +100,7 @@ html,body { height:100%; margin:0; font-family: "Segoe UI", system-ui, -apple-sy
 }
 .card-area {
   margin-top: auto;
-  background: var(--ui-panel);
+  background: color(white);
   padding: 12px;
   border-radius: 10px;
 }
@@ -118,7 +118,7 @@ html,body { height:100%; margin:0; font-family: "Segoe UI", system-ui, -apple-sy
   width: var(--card-w);
   height: var(--card-h);
   border-radius: 10px;
-  background: linear-gradient(180deg,#fff,#f1eae0);
+  background: url('../assets/game/game_cards/card-front-default.png') center/cover no-repeat;
   color: #222;
   box-shadow: 0 6px 18px rgba(0,0,0,0.6);
   transform-origin: center bottom;

@@ -100,8 +100,8 @@ body {
   background-image: url('../assets/main_menu/btn-directconnect.png');
 }
 
-#tutorial {
-  background-image: url('../assets/main_menu/btn-tutorial.png');
+#build-deck {
+  background-image: url('../assets/main_menu/btn-exit.png');
 }
 
 #credits {
@@ -112,8 +112,8 @@ body {
   background-image: url('../assets/main_menu/btn-settings.png');
 }
 
-#exit {
-  background-image: url('../assets/main_menu/btn-exit.png');
+#tutorial {
+  background-image: url('../assets/main_menu/btn-tutorial.png');
 }
 
 /* Version label */
