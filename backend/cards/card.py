@@ -1,6 +1,6 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod  # Abstract Base Class tools
-from typing import Optional, Dict, Any, TYPE_CHECKING
+from typing import Optional, Tuple, Dict, Any, TYPE_CHECKING
 from backend.enums import CardType, Color, PieceType, EffectType, TargetType
 from backend.services.effect_tracker import EffectType
 from backend.chess.coordinate import Coordinate
@@ -8,8 +8,10 @@ from backend.cards.card import Shroud
 from backend.chess.piece import Pawn, Scout, HeadHunter, Warlock, DarkLord, Queen, King, Peon, Piece
 from backend.chess.piece import Effigy
 from backend.player import Player
-
+from backend.chess.board import Board
+from backend.services.effect_tracker import EffectTracker
 import random
+
 
 if TYPE_CHECKING:
     from backend.chess.board import Board
@@ -282,143 +284,212 @@ class Glue(Card):
 
 class AllSeeing(Card):
     """
-    Curse: All-Seeing
-    -----------------
-    • Requires the enemy king to exist.
-    • Summons an Effigy on the furthest available non-forbidden empty tile
-      from the enemy King.
-    • While Effigy exists:
-         → Every 3 turns: mark a random enemy piece for 1 turn.
-    • Ends immediately if Effigy is captured or removed.
-    • Cannot stack (only 1 All-Seeing curse at a time).
+    CURSE — All-Seeing
+    --------------------------------------------------
+    • Summons an Effigy on the farthest available NON-FORBIDDEN empty tile
+      away from the enemy king.
+    • While the Effigy exists, every 3 turns it marks ONE random enemy piece
+      (non-effigy, non-king) for 1 turn.
+    • When the Effigy is captured/removed, the effect ends immediately.
+    • A player may only have ONE active All-Seeing effect.
     """
 
     def __init__(self):
         super().__init__(
             id="all_seeing",
             name="All-Seeing",
-            description="Marks a random enemy piece every 3 turns while its effigy exists.",
-            big_img="static/cards/all_seeing_big.png",
-            small_img="static/cards/all_seeing_small.png",
+            description="Summons an Effigy far from the enemy king. Every 3 turns marks a random enemy piece for 1 turn.",
+            big_img="static/cards/allseeing_big.png",
+            small_img="static/cards/allseeing_small.png"
         )
 
     @property
     def card_type(self) -> CardType:
         return CardType.CURSE
 
-    # ---------------------------------------------------------------
-    # Prevent stacking
-    # ---------------------------------------------------------------
-    def can_play(self, board:Board, player:Player) -> bool:
-        for piece in board.squares.values():
-            if getattr(piece, "is_effigy", False) and piece.effect_type == EffectType.ALL_SEEING:
+    # =====================================================
+    # --- CAN PLAY (Per-player restriction) --------------
+    # =====================================================
+    def can_play(self, board: Board, player: Player) -> bool:
+        """
+        A player may have ONE active All-Seeing effect.
+        Opponent’s All-Seeing does NOT block this player.
+        """
+
+        # Check existing effigies
+        for p in board.squares.values():
+            if getattr(p, "is_effigy", False) and \
+               p.effect_type == EffectType.ALL_SEEING and \
+               p.color == player.color:
                 return False
+
+        # Check EffectTracker for this player's All-Seeing
+        if hasattr(board, "game_state") and board.game_state:
+            tracker = board.game_state.effect_tracker
+            for eff in tracker.get_effects_by_type(EffectType.ALL_SEEING):
+                if eff.metadata.get("owner") == player.color.name:
+                    return False
+
         return True
 
-    # ---------------------------------------------------------------
-    # APPLY EFFECT
-    # ---------------------------------------------------------------
-    def apply_effect(self, board: Board, player: Player, target_data: Dict[str, Any]) -> tuple[bool, str]:
-
-        enemy_color = Color.BLACK if player.color == Color.WHITE else Color.WHITE
-
-        # -----------------------------------------------------------
-        # 1. Locate enemy king — REQUIRED
-        # -----------------------------------------------------------
-        enemy_king_coord = None
+    # =====================================================
+    # --- Helper: find enemy king -------------------------
+    # =====================================================
+    def _find_enemy_king(self, board: Board, enemy_color: Color) -> Optional[Coordinate]:
         for coord, piece in board.squares.items():
-            if piece.type.name == "KING" and piece.color == enemy_color:
-                enemy_king_coord = coord
-                break
+            if piece.type == PieceType.KING and piece.color == enemy_color:
+                return coord
+        return None
 
-        if enemy_king_coord is None:
-            return False, "Cannot activate All-Seeing — enemy King is not on the board."
-
-        # -----------------------------------------------------------
-        # 2. Build list of valid placement tiles
-        # -----------------------------------------------------------
-        candidates = []
+    # =====================================================
+    # --- Helper: find farthest legal placement tile ------
+    # =====================================================
+    def _find_farthest_tile(self, board: Board, king_coord: Coordinate) -> Optional[Coordinate]:
+        farthest = None
+        max_dist = -1
 
         for coord in board._all_board_coords():
-            if coord in board.squares:         # must be empty
-                continue
-            if board.forbidden_active and board.is_forbidden(coord):  # cannot place in forbidden
-                continue
+
             if not board.is_in_bounds(coord):
                 continue
+            if not board.is_empty(coord):
+                continue
+            if board.forbidden_active and board.is_forbidden(coord):
+                continue
 
-            dist = abs(coord.file - enemy_king_coord.file) + abs(coord.rank - enemy_king_coord.rank)
-            candidates.append((dist, coord))
+            dist = abs(coord.file - king_coord.file) + abs(coord.rank - king_coord.rank)
+            if dist > max_dist:
+                max_dist = dist
+                farthest = coord
+
+        return farthest
+
+    # =====================================================
+    # --- Helper: summon effigy ---------------------------
+    # =====================================================
+    def _summon_effigy(self, board: Board, coord: Coordinate, color: Color) -> Effigy:
+        effigy_id = f"effigy_allseeing_{color.name.lower()}_{random.randint(10000,99999)}"
+        effigy = Effigy(effigy_id, color, EffectType.ALL_SEEING)
+        board.squares[coord] = effigy
+        return effigy
+
+    # =====================================================
+    # --- Helper: mark enemy piece ------------------------
+    # =====================================================
+    def _mark_random_enemy(self, board: Board, enemy_color: Color, tracker: EffectTracker):
+        # Filter real enemy pieces (skip effigies and kings)
+        candidates = [
+            p for p in board.squares.values()
+            if p.color == enemy_color
+            and not getattr(p, "is_effigy", False)
+            and p.type != PieceType.KING
+        ]
 
         if not candidates:
-            return False, "No legal tile to place Effigy."
+            return
 
-        # place on furthest tile
-        candidates.sort(key=lambda x: -x[0])
-        _, effigy_coord = candidates[0]
+        target = random.choice(candidates)
+        target.marked = True
 
-        # -----------------------------------------------------------
-        # 3. Spawn the Effigy
-        # -----------------------------------------------------------
-        effigy_id = f"effigy_allseeing_{player.color.value}_{effigy_coord.file}{effigy_coord.rank}"
-        effigy = Effigy(effigy_id, player.color, EffectType.ALL_SEEING)
-        board.squares[effigy_coord] = effigy
+        # On expire (1 turn)
+        def _unmark(effect):
+            for piece in board.squares.values():
+                if piece.id == effect.target:
+                    piece.marked = False
 
-        # -----------------------------------------------------------
-        # 4. Register recurring effect (every 3 turns)
-        # -----------------------------------------------------------
-        if board.game_state:
-            tracker = board.game_state.effect_tracker
-            start_turn = board.game_state.fullmove_number
+        tracker.add_effect(
+            effect_type=EffectType.PIECE_MARK,
+            start_turn=board.game_state.fullmove_number,
+            duration=1,
+            target=target.id,
+            metadata={"piece_id": target.id, "source": "all_seeing"},
+            on_expire=_unmark
+        )
 
-            def on_tick(effect, current_turn):
-                """Executes every turn while the effigy exists."""
+    # =====================================================
+    # ------------ APPLY EFFECT (MAIN) --------------------
+    # =====================================================
+    def apply_effect(
+        self,
+        board: Board,
+        player: Player,
+        target_data: Dict[str, Any]
+    ) -> Tuple[bool, str]:
 
-                # End if effigy is gone
-                if effigy_id not in [p.id for p in board.squares.values()]:
-                    tracker.remove_effect(effect.effect_id)
-                    return
+        if not hasattr(board, "game_state") or not board.game_state:
+            return False, "No game state available."
 
-                # Only fire every 3 turns
-                if (current_turn - start_turn) % 3 != 0:
-                    return
+        gs = board.game_state
+        tracker = gs.effect_tracker
+        color = player.color
+        enemy_color = Color.BLACK if color == Color.WHITE else Color.WHITE
 
-                # Select enemy pieces to mark
-                enemy_pieces = [
-                    p for p in board.squares.values()
-                    if p.color == enemy_color and not getattr(p, "is_effigy", False)
-                ]
-                if not enemy_pieces:
-                    return
+        # 1. Locate enemy king
+        enemy_king_coord = self._find_enemy_king(board, enemy_color)
+        if enemy_king_coord is None:
+            return False, "Enemy king not found — cannot activate All-Seeing."
 
-                chosen = random.choice(enemy_pieces)
-                chosen.marked = True
+        # 2. Pick farthest tile
+        effigy_coord = self._find_farthest_tile(board, enemy_king_coord)
+        if effigy_coord is None:
+            return False, "No available tile to place an All-Seeing effigy."
 
-                # one-turn mark expiration
-                def remove_mark(e):
-                    if chosen.id in [p.id for p in board.squares.values()]:
-                        chosen.marked = False
+        # 3. Summon effigy
+        effigy = self._summon_effigy(board, effigy_coord, color)
 
-                tracker.add_effect(
-                    effect_type=EffectType.PIECE_MARK,
-                    start_turn=current_turn,
-                    duration=1,
-                    target=chosen.id,
-                    metadata={"piece_id": chosen.id, "marked_by": "all_seeing"},
-                    on_expire=remove_mark
-                )
+        # 4. Register effect logic
+        start_turn = gs.fullmove_number
 
-            # long-lasting effect that auto-cancels once effigy disappears
-            tracker.add_effect(
-                effect_type=EffectType.ALL_SEEING,
-                start_turn=start_turn,
-                duration=9999,
-                target=effigy_id,
-                metadata={"effigy_id": effigy_id},
-                on_tick=on_tick
-            )
+        def _tick(effect, current_turn):
+            """
+            Called each turn:
+            • If effigy gone → end effect
+            • Else every 3 turns → mark enemy piece
+            """
 
-        return True, f"All-Seeing effigy placed at {effigy_coord.to_algebraic()}."
+            # Effigy no longer exists → end effect immediately
+            if effigy.id not in [p.id for p in board.squares.values()]:
+                tracker.remove_effect(effect.effect_id)
+                if effect.on_expire:
+                    effect.on_expire(effect)
+                return
+
+            turns_passed = current_turn - effect.start_turn
+
+            # Mark enemy piece every 3 turns (excluding turn 0)
+            if turns_passed > 0 and turns_passed % 3 == 0:
+                self._mark_random_enemy(board, enemy_color, tracker)
+
+        def _expire(effect):
+            """
+            When the All-Seeing effect ends,
+            remove the effigy from the board if still present.
+            """
+            to_delete = None
+            for coord, piece in board.squares.items():
+                if piece.id == effigy.id:
+                    to_delete = coord
+                    break
+
+            if to_delete:
+                del board.squares[to_delete]
+
+        # Register the ongoing effect
+        eff_id = tracker.add_effect(
+            effect_type=EffectType.ALL_SEEING,
+            start_turn=start_turn,
+            duration=9999,
+            target=effigy.id,
+            metadata={"owner": color.name},
+            on_tick=_tick,
+            on_expire=_expire
+        )
+
+        # Attach effect ID to the effigy (optional convenience)
+        effigy.effect_tracker_id = eff_id
+
+        return True, f"All-Seeing Effigy placed at {effigy_coord.to_algebraic()}."
+
 
 class ForbiddenLands(Card):
     """
