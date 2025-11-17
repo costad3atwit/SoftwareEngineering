@@ -1,5 +1,22 @@
 from enum import Enum
 
+
+class EffectType(Enum):
+    """Types of effects that can be tracked"""
+    PIECE_EMPOWERMENT = "piece_empowerment"
+    ALL_SEEING = "all_seeing"
+    PIECE_MARK = "piece_mark"
+    MINE = "mine"
+    PAWN_BOMB = "pawn_bomb"
+    GLUE_TRAP = "glue_trap"
+    FORBIDDEN_LANDS = "forbidden_lands"
+    CARD_ACTIVE = "card_active"
+    PIECE_IMMOBILIZED = "piece_immobilized"
+    PAWN_QUEEN = "pawn_queen"
+    SHROUD = "shroud"
+    BARRICADE = "barricade"
+    # Add more as needed
+
 class PieceType(Enum):
     KING = "K"
     QUEEN = "Q"
@@ -14,6 +31,8 @@ class PieceType(Enum):
     WARLOCK = "W" 
     CLERIC = "C"
     DARKLORD = "D"
+    EFFIGY = "F"
+    BARRICADE = "X"
     
 class TargetType(Enum):
     BOARD = "BOARD"
@@ -27,6 +46,7 @@ class CardType(Enum):
     HIDDEN = "HIDDEN"
     TRANSFORM = "TRANSFORM"
     FORCED = "FORCED"
+    SUMMON = "SUMMON"
 
 class Color(Enum):
     WHITE = "W"

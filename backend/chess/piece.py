@@ -1,6 +1,6 @@
 from __future__ import annotations
 from typing import List, Optional, Tuple, TYPE_CHECKING
-from backend.enums import Color, PieceType
+from backend.enums import Color, PieceType, EffectType
 from backend.chess.coordinate import Coordinate
 from backend.chess.move import Move
 from abc import ABC, abstractmethod
@@ -57,7 +57,52 @@ class Piece(ABC):
         return payload
 
 
+class Effigy(Piece):
+    """An inert piece representing a curse anchor."""
+    def __init__(self, id: str, color: Color, effect_type: EffectType):
+        super().__init__(id, color, PieceType.EFFIGY, value=0)
+        self.effect_type = effect_type  # Ties this effigy to the curse that spawned it
 
+    def get_legal_moves(self, board: 'Board', at: Coordinate) -> List[Move]:
+        return []  # Effigies cannot move
+
+    def get_legal_captures(self, board: 'Board', at: Coordinate) -> List[Move]:
+        return []  # Effigies cannot attack
+
+    def to_dict(self, at: Coordinate, include_moves: bool = False,
+                board: 'Board' = None, captures_only: bool = False) -> dict:
+        """Frontend-friendly representation of Effigy."""
+        return {
+            "id": self.id,
+            "type": "EFFIGY",
+            "color": self.color.name,
+            "position": {"file": at.file, "rank": at.rank},
+            "isEffigy": True,
+            "effectType": self.effect_type.value,  # send enum value to frontend
+        }
+
+class Barricade(Piece):
+    """An uncapturable obstacle that blocks movement for 5 turns."""
+    def __init__(self, id: str):
+        # Barricades are neutral (no color ownership)
+        super().__init__(id, None, PieceType.BARRICADE, value=0)
+
+    def get_legal_moves(self, board: 'Board', at: Coordinate) -> List[Move]:
+        return []  # Barricades cannot move
+
+    def get_legal_captures(self, board: 'Board', at: Coordinate) -> List[Move]:
+        return []  # Barricades cannot attack
+
+    def to_dict(self, at: Coordinate, include_moves: bool = False,
+                board: 'Board' = None, captures_only: bool = False) -> dict:
+        """Frontend-friendly representation of Barricade."""
+        return {
+            "id": self.id,
+            "type": "BARRICADE",
+            "color": None,  # Neutral piece
+            "position": {"file": at.file, "rank": at.rank},
+            "isBarricade": True,
+        }
 
 class King(Piece):
     def __init__(self, id: str, color: Color):
@@ -442,8 +487,7 @@ class Pawn(Piece):
         """
         moves: List[Move] = []
         direction = 1 if self.color == Color.WHITE else -1
-        start_rank = 1 if self.color == Color.WHITE else 6
-        promotion_rank = 7 if self.color == Color.WHITE else 0
+        promotion_rank = 8 if self.color == Color.WHITE else 1
 
         # --- Forward move (1 square) ---
         one_step = Coordinate(at.file, at.rank + direction)
@@ -456,7 +500,7 @@ class Pawn(Piece):
 
             # --- Forward move (2 squares on first move) ---
             two_step = Coordinate(at.file, at.rank + 2 * direction)
-            if at.rank == start_rank and board.is_empty(two_step):
+            if not self._has_moved and board.is_empty(two_step):
                 moves.append(Move(at, two_step, self))
 
         # --- Captures (diagonals) ---
@@ -880,7 +924,6 @@ class Warlock(Piece):
     def __init__(self, id: str, color: Color):
         super().__init__(id, color, PieceType.WARLOCK, value=5)
         self.empowered = False  # Set to True when effigy is destroyed
-        self.empowered_turns_remaining = 0  # Tracks remaining empowered turns
 
     def get_legal_moves(self, board: Board, at: Coordinate) -> List[Move]:
         """
@@ -891,7 +934,7 @@ class Warlock(Piece):
         """
         moves: List[Move] = []
         
-        if self.empowered and self.empowered_turns_remaining > 0:
+        if self.empowered:
             # Empowered mode: Knight + Rook movement
             moves.extend(self._get_knight_moves(board, at))
             moves.extend(self._get_rook_moves(board, at))
@@ -1053,17 +1096,34 @@ class Warlock(Piece):
         return [m for m in self.get_legal_moves(board, at)
                 if board.piece_at_coord(m.to_sq) is not None]
 
-    def activate_empowerment(self):
+    def activate_empowerment(self, game_state):
         """Activate empowered mode for 2 turns (called when effigy is destroyed)."""
+        from backend.services.effect_tracker import EffectType
+        
         self.empowered = True
-        self.empowered_turns_remaining = 2
+        
+        # Register effect with tracker
+        game_state.effect_tracker.add_effect(
+            effect_type=EffectType.PIECE_EMPOWERMENT,
+            start_turn=game_state.fullmove_number,
+            duration=2,
+            target=self.id,
+            on_expire=lambda e: setattr(self, 'empowered', False)
+        )
 
-    def decrement_empowerment(self):
-        """Decrement empowerment counter (call at end of turn)."""
-        if self.empowered_turns_remaining > 0:
-            self.empowered_turns_remaining -= 1
-            if self.empowered_turns_remaining == 0:
-                self.empowered = False
+    def _get_empowered_turns_remaining(self, board) -> int:
+        """Get remaining empowered turns from effect tracker."""
+        if not board or not hasattr(board, 'game_state'):
+            return 0
+        
+        from backend.services.effect_tracker import EffectType
+        effects = board.game_state.effect_tracker.get_effects_by_target(self.id)
+        
+        for effect in effects:
+            if effect.effect_type == EffectType.PIECE_EMPOWERMENT:
+                return effect.turns_remaining(board.game_state.fullmove_number)
+    
+        return 0
 
     def to_dict(self, at: Coordinate, include_moves: bool = False,
                 board: Board = None, captures_only: bool = False) -> dict:
@@ -1075,7 +1135,7 @@ class Warlock(Piece):
             "position": {"file": at.file, "rank": at.rank},
             "marked": self.marked,
             "empowered": self.empowered,
-            "empowered_turns": self.empowered_turns_remaining
+            "empowered_turns": self._get_empowered_turns_remaining(board)
         }
 
         if include_moves and board is not None:
@@ -1180,73 +1240,95 @@ class Cleric(Piece):
 class DarkLord(Piece):
     def __init__(self, id: str, color: Color):
         super().__init__(id, color, PieceType.DARKLORD, value=10)
-        self.turn_counter = 0
         self.enthralling_target = None
         self.enthralling_progress = 0
         self.daylight_mode = False  # True = hindered (King movement)
     
-    def _check_daylight_cycle(self):
+    # ================================================================
+    # === Day/Night Cycle via EffectTracker ==========================
+    # ================================================================
+    def _start_daylight_cycle(self, game_state):
         """
-        Every 2 turns, switch between daylight (King) and night (Queen) modes.
-        Should be called at start of get_legal_moves().
+        Begin a 2-turn daylight (hindered) phase using the EffectTracker.
+        When the effect expires, switch back to night mode automatically.
         """
-        self.turn_counter += 1
-        if self.turn_counter % 4 in (1, 2):
-            self.daylight_mode = True   # hindered for 2 turns
-        else:
-            self.daylight_mode = False  # normal Queen moves
+        from backend.services.effect_tracker import EffectType
 
-    def check_death_condition(self, board: Board):
-        """If total enemy material ≤ 10, Dark Lord dies (removed from board)."""
-        total_enemy_value = 0
-        for piece in board.squares.values():
-            if piece.color != self.color:
-                total_enemy_value += getattr(piece, "value", 1)  # default 1 if not defined
+        self.daylight_mode = True
+        game_state.effect_tracker.add_effect(
+            effect_type=EffectType.PIECE_EMPOWERMENT,   # reuse the empowerment type
+            start_turn=game_state.fullmove_number,
+            duration=2,
+            target=self.id,
+            on_expire=lambda e: setattr(self, "daylight_mode", False)
+        )
+        print(f"{self.id} is now hindered by daylight for 2 turns.")
+
+    def _ensure_daylight_effect(self, board: "Board"):
+        """
+        Ensures the correct daylight/night effect is active according to the global turn cycle.
+        Called each time get_legal_moves() runs.
+        """
+        if not board or not hasattr(board, "game_state") or not board.game_state:
+            return
+
+        gs = board.game_state
+        # every 4 turns -> 2 dark (night) + 2 daylight
+        cycle_pos = gs.fullmove_number % 4
+
+        # If it's time for daylight but not already active, start a new 2-turn effect
+        if cycle_pos in (2, 3) and not self.daylight_mode:
+            self._start_daylight_cycle(gs)
+        # Otherwise, stay in night mode
+        elif cycle_pos in (0, 1) and self.daylight_mode:
+            self.daylight_mode = False
+
+    def check_death_condition(self, board: "Board"):
+        """If total enemy material ≤ 10, Dark Lord dies."""
+        total_enemy_value = sum(
+            getattr(p, "value", 1) for p in board.squares.values() if p.color != self.color
+        )
         if total_enemy_value <= 10:
-            # find this piece and remove it
-            to_remove = None
-            for coord, piece in board.squares.items():
-                if piece is self:
-                    to_remove = coord
-                    break
-            if to_remove:
-                del board.squares[to_remove]
-                print(f"{self.id} perished — enemy strength too weak (value ≤ 10).")
+            coord_to_remove = next(
+                (coord for coord, piece in board.squares.items() if piece is self),
+                None
+            )
+            if coord_to_remove:
+                del board.squares[coord_to_remove]
+                print(f"{self.id} perished — enemy strength too weak (≤10).")
 
     def get_legal_moves(self, board: Board, at: Coordinate) -> List[Move]:
         """
-        Moves like a Queen, but every 2 turns is hindered by daylight
-        and moves like a King instead.
+        Moves like a Queen by default.
+        Every 2 turns (daylight), hindered to move like a King.
         """
         moves: List[Move] = []
-        self._check_daylight_cycle()
+        self._ensure_daylight_effect(board)
 
         if self.daylight_mode:
             # --- Move like a King ---
             steps = [
                 (-1, -1), (0, -1), (1, -1),
-                (-1, 0),           (1, 0),
-                (-1, 1),  (0, 1),  (1, 1),
+                (-1,  0),          (1,  0),
+                (-1,  1), (0,  1), (1,  1),
             ]
             for dx, dy in steps:
-                new = Coordinate(at.file + dx, at.rank + dy)
-                if not board.is_in_bounds(new):
+                dest = Coordinate(at.file + dx, at.rank + dy)
+                if not board.is_in_bounds(dest):
                     continue
-                if board.is_empty(new) or board.is_enemy(new, self.color):
-                    moves.append(Move(at, new, self))
+                if board.is_empty(dest) or board.is_enemy(dest, self.color):
+                    moves.append(Move(at, dest, self))
         else:
-            # --- Move like a Queen (Rook + Bishop rays) ---
+            # --- Move like a Queen ---
             directions = [
                 (1, 0), (-1, 0),
                 (0, 1), (0, -1),
                 (1, 1), (1, -1),
-                (-1, 1), (-1, -1)
+                (-1, 1), (-1, -1),
             ]
             for df, dr in directions:
                 next_coord = at.offset(df, dr)
-                while next_coord:
-                    if not board.is_in_bounds(next_coord):
-                        break
+                while next_coord and board.is_in_bounds(next_coord):
                     if board.is_empty(next_coord):
                         moves.append(Move(at, next_coord, self))
                     elif board.is_enemy(next_coord, self.color):
@@ -1272,18 +1354,18 @@ class DarkLord(Piece):
     
     # --- Enthralling Mechanic ---
     def possible_enthrall_targets(self, board: Board, at: Coordinate) -> List[Coordinate]:
-        """Return 1-tile radius enemy pieces that can be enthralled."""
+        """Return enemy pieces within 1 tile radius that can be enthralled."""
         targets = []
         for dx in [-1, 0, 1]:
             for dy in [-1, 0, 1]:
                 if dx == 0 and dy == 0:
                     continue
-                target = Coordinate(at.file + dx, at.rank + dy)
-                if not board.is_in_bounds(target):
+                pos = Coordinate(at.file + dx, at.rank + dy)
+                if not board.is_in_bounds(pos):
                     continue
-                piece = board.piece_at_coord(target)
+                piece = board.piece_at_coord(pos)
                 if piece and piece.color != self.color:
-                    targets.append(target)
+                    targets.append(pos)
         return targets
 
     def start_enthralling(self, board: Board, target: Coordinate):
@@ -1296,31 +1378,25 @@ class DarkLord(Piece):
         print(f"{self.id} has begun enthralling {target_piece.id} at {target.file},{target.rank}")
 
     def progress_enthralling(self, board: Board):
-        """
-        Advance enthrallment by 1 turn.
-        After 2 turns, convert target to friendly.
-        """
+        """Advance enthrallment by 1 turn; convert target after 2 turns."""
         if not self.enthralling_target:
             return
         target_piece = board.piece_at_coord(self.enthralling_target)
         if not target_piece:
-            # enthralling interrupted (piece gone)
             self.cancel_enthralling()
             return
 
         self.enthralling_progress += 1
         print(f"{self.id} is enthralling {target_piece.id} (turn {self.enthralling_progress}/2)")
-
-        # after 2 turns, convert to friendly
         if self.enthralling_progress >= 2:
             target_piece.color = self.color
             self.cancel_enthralling()
             print(f"{target_piece.id} has been enthralled and is now friendly!")
 
     def cancel_enthralling(self):
-        """Cancel enthralling process (called when Dark Lord moves or is interrupted)."""
+        """Cancel enthralling process."""
         if self.enthralling_target:
-            print(f"{self.id}’s enthralling of {self.enthralling_target} has been cancelled.")
+            print(f"{self.id}'s enthralling of {self.enthralling_target} was cancelled.")
         self.enthralling_target = None
         self.enthralling_progress = 0
     
@@ -1333,23 +1409,28 @@ class DarkLord(Piece):
             "type": self.type.name,
             "color": self.color.name,
             "position": {"file": at.file, "rank": at.rank},
+            "daylightMode": self.daylight_mode,
             "enthrallingTarget": (
                 {"file": self.enthralling_target.file, "rank": self.enthralling_target.rank}
                 if self.enthralling_target else None
             ),
             "enthrallingProgress": self.enthralling_progress,
-            "daylightMode": self.daylight_mode,
-            "value": self.value
+            "value": self.value,
         }
 
+        if board and hasattr(board, "game_state"):
+            turn = board.game_state.fullmove_number
+            data["daylightTurnsRemaining"] = 2 - (turn % 2)
+
         if include_moves and board is not None:
-            moves = (self.get_legal_captures(board, at) if captures_only
-                     else self.get_legal_moves(board, at))
+            moves = (
+                self.get_legal_captures(board, at)
+                if captures_only
+                else self.get_legal_moves(board, at)
+            )
             data["moves"] = [
-                {
-                    "from": {"file": m.from_sq.file, "rank": m.from_sq.rank},
-                    "to": {"file": m.to_sq.file, "rank": m.to_sq.rank},
-                }
+                {"from": {"file": m.from_sq.file, "rank": m.from_sq.rank},
+                 "to": {"file": m.to_sq.file, "rank": m.to_sq.rank}}
                 for m in moves
             ]
         return data

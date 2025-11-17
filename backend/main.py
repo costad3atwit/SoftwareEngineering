@@ -1,12 +1,13 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse
+from fastapi.responses import RedirectResponse
 from typing import Dict, List, Optional
 import json
 import asyncio
 import logging
 from pathlib import Path
 from datetime import datetime
+import uuid
 
 from backend.services.game_manager import GameManager
 from backend.enums import GameStatus
@@ -119,53 +120,8 @@ async def notify_game_timeout(game: GameState):
 
 @app.get("/")
 async def get():
-    """Serve the main page"""
-    return HTMLResponse("""
-    <html>
-        <head>
-            <title>Arcane Chess</title>
-            <style>
-                body { font-family: Arial, sans-serif; max-width: 800px; margin: 50px auto; padding: 20px; }
-                h1 { color: #333; }
-                .stat { display: inline-block; margin: 10px 20px; padding: 10px; background: #f0f0f0; border-radius: 5px; }
-                .stat-value { font-size: 24px; font-weight: bold; color: #007bff; }
-            </style>
-        </head>
-        <body>
-            <h1> Arcane Chess Server</h1>
-            <p>Server is running! Connect via WebSocket at <code>ws://localhost:8000/ws/{client_id}</code></p>
-            
-            <h2>Server Status</h2>
-            <div class="stat">
-                <div>Active Connections</div>
-                <div class="stat-value" id="connections">0</div>
-            </div>
-            <div class="stat">
-                <div>Queue Size</div>
-                <div class="stat-value" id="queue">0</div>
-            </div>
-            <div class="stat">
-                <div>Active Games</div>
-                <div class="stat-value" id="games">0</div>
-            </div>
-            
-            <h2>Logs</h2>
-            <p>Server logs are saved to: <code>logs/</code></p>
-            
-            <script>
-                setInterval(() => {
-                    fetch('/status')
-                        .then(r => r.json())
-                        .then(data => {
-                            document.getElementById('connections').textContent = data.connections;
-                            document.getElementById('queue').textContent = data.queue;
-                            document.getElementById('games').textContent = data.active_games;
-                        });
-                }, 1000);
-            </script>
-        </body>
-    </html>
-    """)
+    """Redirect to main menu"""
+    return RedirectResponse(url="/frontend/pages/html/main_menu.html")
 
 @app.on_event("startup")
 async def startup_event():
@@ -190,6 +146,15 @@ async def status():
         "active_games": stats["active_games"],
         "total_games": stats["total_games"],
         "finished_games": stats["finished_games"]
+    }
+
+@app.get("/get_player_id")
+async def get_player_id():
+    """Generate a unique player ID for a new client"""
+    player_id = f"player_{uuid.uuid4().hex[:8]}"
+    logger.info(f"Generated new player ID: {player_id}")
+    return {
+        "player_id": player_id
     }
 
 @app.post("/test/create_sample_game")
@@ -476,5 +441,5 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
 
 if __name__ == "__main__":
     import uvicorn
-    logger.info("Starting server on http://0.0.0.0:8000 (accessible from local network)")
+    logger.info("Starting server on http://0.0.0.0:8000")
     uvicorn.run(app, host="0.0.0.0", port=8000)
