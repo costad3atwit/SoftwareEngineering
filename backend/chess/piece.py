@@ -60,7 +60,6 @@ class Effigy(Piece):
     """An inert piece representing a curse anchor."""
     def __init__(self, id: str, color: Color, effect_type: EffectType):
         super().__init__(id, color, PieceType.EFFIGY, value=0)
-        self.is_effigy = True
         self.effect_type = effect_type  # Ties this effigy to the curse that spawned it
         self.effect_id = None  # to be set when effect is created
 
@@ -80,6 +79,29 @@ class Effigy(Piece):
             "position": {"file": at.file, "rank": at.rank},
             "isEffigy": True,
             "effectType": self.effect_type.value,  # send enum value to frontend
+        }
+
+class Barricade(Piece):
+    """An uncapturable obstacle that blocks movement for 5 turns."""
+    def __init__(self, id: str):
+        # Barricades are neutral (no color ownership)
+        super().__init__(id, None, PieceType.BARRICADE, value=0)
+
+    def get_legal_moves(self, board: 'Board', at: Coordinate) -> List[Move]:
+        return []  # Barricades cannot move
+
+    def get_legal_captures(self, board: 'Board', at: Coordinate) -> List[Move]:
+        return []  # Barricades cannot attack
+
+    def to_dict(self, at: Coordinate, include_moves: bool = False,
+                board: 'Board' = None, captures_only: bool = False) -> dict:
+        """Frontend-friendly representation of Barricade."""
+        return {
+            "id": self.id,
+            "type": "BARRICADE",
+            "color": None,  # Neutral piece
+            "position": {"file": at.file, "rank": at.rank},
+            "isBarricade": True,
         }
 
 class King(Piece):

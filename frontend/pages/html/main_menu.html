@@ -16,21 +16,26 @@
       <button class="menu-btn" id="quickplay"></button>
       <button class="menu-btn" id="directconnect"></button>
       <button class="menu-btn" id="tutorial"></button>
-      <button class="menu-btn" id="credits"></button>
+      <button class="menu-btn" id="build-deck"></button>
       <button class="menu-btn" id="settings"></button>
-      <button class="menu-btn" id="exit"></button>
+      <button class="menu-btn" id="credits"></button>
+    </div>
+    
+    <!-- Status indicator -->
+    <div id="statusIndicator" style="text-align: center; margin-top: 20px; color: #fff; font-family: serif; display: none;">
+      <p id="statusMessage"></p>
     </div>
   </div>
 
   <div class="version">Version 1.1</div>
 
   <audio id="menuMusic" loop>
-  <source src="../assets/music/menu-theme-temp.mp3" type="audio/mpeg">
+    <source src="../assets/music/menu-theme-temp.mp3" type="audio/mpeg">
   </audio>
 
   <audio id="menuClickOff" src="../assets/sfx_menu/click-off.wav" preload="auto"></audio>
   <audio id="menuClickOn" src="../assets/sfx_menu/click-on.wav" preload="auto"></audio>
 
-  <script src="../javascript/main-menu.js" defer></script>
+  <script src="../javascript/main-menu.js"></script>
 </body>
 </html>

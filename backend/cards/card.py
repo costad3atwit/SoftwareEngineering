@@ -4,7 +4,6 @@ from typing import Optional, Tuple, Dict, Any, TYPE_CHECKING
 from backend.enums import CardType, Color, PieceType, EffectType, TargetType
 from backend.services.effect_tracker import EffectType
 from backend.chess.coordinate import Coordinate
-from backend.cards.card import Shroud   
 from backend.chess.piece import Pawn, Scout, HeadHunter, Warlock, DarkLord, Queen, King, Peon, Piece
 from backend.chess.piece import Effigy
 from backend.player import Player
@@ -1636,7 +1635,108 @@ class Shroud(Card):
 
         return True, "Shroud activated: two pieces swapped positions and appearance for 3 turns."
 
-
+class SummonBarricade(Card):
+    """
+    Summon: Barricade - Places an uncapturable barricade on a target square.
+    Barricades block movement for both players and last for 5 turns.
+    Cannot move through or capture barricades.
+    """
+    
+    def __init__(self):
+        super().__init__(
+            id="summon_barricade",
+            name="Summon Barricade",
+            description=(
+                "Place an uncapturable barricade on an empty square. "
+                "Barricades block all movement and last for 5 turns."
+            ),
+            big_img="static/cards/summon_barricade_big.png",
+            small_img="static/cards/summon_barricade_small.png"
+        )
+    
+    @property
+    def card_type(self) -> CardType:
+        return CardType.SUMMON
+    
+    @property
+    def target_type(self) -> TargetType:
+        """Requires targeting an empty square"""
+        return TargetType.EMPTY_SQUARE
+    
+    def can_play(self, board: Board, player: Player) -> bool:
+        """Can play if at least one empty square exists on the board."""
+        for coord in board.squares.keys():
+            # If we find any piece, there must be empty squares (board isn't full)
+            return True
+        
+        # If board.squares is empty, all squares are empty (can definitely play)
+        return True
+    
+    def apply_effect(self, board: Board, player: Player, target_data: Dict[str, Any]) -> tuple[bool, str]:
+        """
+        Places an uncapturable barricade on the target square for 5 turns.
+        
+        Args:
+            board: The game board
+            player: The player playing the card
+            target_data: Dictionary containing 'file' and 'rank' of target square
+        
+        Returns:
+            tuple[bool, str]: (Success boolean, message string)
+        """
+        # Extract target coordinate from target_data
+        try:
+            target_file = target_data['file']
+            target_rank = target_data['rank']
+            target_coord = Coordinate(target_file, target_rank)
+        except (KeyError, TypeError):
+            return False, "Invalid target coordinate provided."
+        
+        # Validate target is in bounds
+        if not board.is_in_bounds(target_coord):
+            return False, "Target square is out of bounds."
+        
+        # Validate target square is empty
+        if not board.is_empty(target_coord):
+            return False, "Target square must be empty to place a barricade."
+        
+        # Create unique barricade ID
+        import time
+        barricade_id = f"barricade_{int(time.time() * 1000)}"
+        
+        # Create and place barricade piece
+        from backend.chess.piece import Barricade
+        barricade = Barricade(barricade_id)
+        board.squares[target_coord] = barricade
+        
+        print(f"Barricade placed at {target_coord.to_algebraic()} by {player.color.name}")
+        
+        # Track effect for automatic removal after 5 turns
+        if hasattr(board, 'game_state') and board.game_state:
+            from backend.services.effect_tracker import EffectType
+            
+            def remove_barricade(effect):
+                """Callback to remove barricade when effect expires"""
+                coord = Coordinate(target_coord.file, target_coord.rank)
+                if coord in board.squares:
+                    piece = board.squares[coord]
+                    if piece.type == PieceType.BARRICADE:
+                        del board.squares[coord]
+                        print(f"Barricade at {coord.to_algebraic()} expired and removed")
+            
+            board.game_state.effect_tracker.add_effect(
+                effect_type=EffectType.BARRICADE,
+                start_turn=board.game_state.fullmove_number,
+                duration=5,
+                target=target_coord,
+                metadata={
+                    'coordinate': target_coord,
+                    'placed_by': player.color.name
+                },
+                on_expire=remove_barricade
+            )
+        
+        return True, f"Barricade placed at {target_coord.to_algebraic()} for 5 turns."
 
 # ============================================================================
 # CARD REGISTRY - Map card IDs to card classes
@@ -1656,6 +1756,7 @@ CARD_REGISTRY = {
     "pawn_bomb": PawnBomb,
     "shroud": Shroud,
     "all_seeing": AllSeeing,
+    "summon_barricade": SummonBarricade
 
 }
 

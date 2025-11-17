@@ -14,6 +14,7 @@ class EffectType(Enum):
     PIECE_IMMOBILIZED = "piece_immobilized"
     PAWN_QUEEN = "pawn_queen"
     SHROUD = "shroud"
+    BARRICADE = "barricade"
     # Add more as needed
 
 class PieceType(Enum):
@@ -31,6 +32,7 @@ class PieceType(Enum):
     CLERIC = "C"
     DARKLORD = "D"
     EFFIGY = "F"
+    BARRICADE = "X"
     
 class TargetType(Enum):
     BOARD = "BOARD"
