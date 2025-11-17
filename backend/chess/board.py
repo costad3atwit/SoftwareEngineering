@@ -3,7 +3,7 @@ from typing import Dict, Optional, TYPE_CHECKING
 from backend.chess.coordinate import Coordinate
 from backend.chess.piece import Piece, King, Queen, Rook, Bishop, Knight, Pawn, Scout, Peon, Cleric, Warlock, Witch, HeadHunter, DarkLord
 from backend.chess.move import Move
-from backend.enums import Color, PieceType
+from backend.enums import Color, PieceType, EffectType
 import copy
 
 class Board:
@@ -441,6 +441,17 @@ class Board:
                     if move.to_sq == king_coord:
                         return True
         return False
+    
+    def place_piece(self, piece: Piece, coord: Coordinate) -> None:
+        """Place a piece on the board."""
+        if not self.is_in_bounds(coord):
+            raise ValueError(f"Cannot place piece outside the board: {coord}")
+        self.squares[coord] = piece
+
+    def remove_piece(self, coord: Coordinate) -> None:
+        """Remove a piece from a square if present."""
+        if coord in self.squares:
+            del self.squares[coord]
 
     def _all_board_coords(self):
         """Generator for all coordinates on the board."""
