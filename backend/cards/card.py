@@ -281,6 +281,178 @@ class Glue(Card):
             on_expire=release_piece
         )
 
+class Insurance(Card):
+    """
+    Hidden: Insurance
+    -----------------
+    Select a friendly piece valued > 1. When it is captured:
+      • Spawn ceil(value/2) glued Peons on random empty squares.
+      • Peons cannot spawn in a way that would place the enemy king in check once unglued.
+      • Peons are glued for 3 turns.
+    """
+
+    def __init__(self):
+        super().__init__(
+            id="insurance",
+            name="Insurance",
+            description=(
+                "Select a piece to insure. When it is captured, summon glued Peons "
+                "equal to half its value (rounded up). Peons cannot spawn in positions "
+                "that would check the enemy king once unglued."
+            ),
+            big_img="static/cards/insurance_big.png",
+            small_img="static/cards/insurance_small.png"
+        )
+        self.target_type = TargetType.PIECE
+
+    @property
+    def card_type(self) -> CardType:
+        return CardType.HIDDEN
+
+    # ------------------------------------------------------------------
+    # Player may only insure pieces worth > 1
+    # ------------------------------------------------------------------
+    def can_play(self, board: Board, player: Player) -> bool:
+        for p in board.squares.values():
+            if p.color == player.color and getattr(p, "value", 1) > 1:
+                return True
+        return False
+
+    # ------------------------------------------------------------------
+    # Helper: Find all empty tiles on the board
+    # ------------------------------------------------------------------
+    def _empty_tiles(self, board: Board) -> list[Coordinate]:
+        return [
+            coord for coord in board._all_board_coords()
+            if board.is_empty(coord)
+        ]
+
+    # ------------------------------------------------------------------
+    # Helper: ensure placing a Peon does NOT give check to enemy king
+    # ------------------------------------------------------------------
+    def _is_safe_spawn(self, board: Board, tile: Coordinate, color: Color) -> bool:
+        enemy_color = Color.BLACK if color == Color.WHITE else Color.WHITE
+        temp = board.clone()
+
+        # place temporary peon
+        temp.squares[tile] = Peon("TEMP_INSURANCE", color)
+
+        # locate enemy king
+        king_coord = None
+        for c, p in temp.squares.items():
+            if p.type == PieceType.KING and p.color == enemy_color:
+                king_coord = c
+                break
+
+        if not king_coord:
+            return False  # enemy king must exist
+
+        # check if peon could capture king
+        potential_caps = temp.squares[tile].get_legal_captures(temp, tile)
+        return all(mv.to_sq != king_coord for mv in potential_caps)
+
+    # ------------------------------------------------------------------
+    # APPLY EFFECT
+    # ------------------------------------------------------------------
+    def apply_effect(
+        self, board: Board, player: Player, target_data: Dict[str, Any]
+    ) -> tuple[bool, str]:
+
+        gs = board.game_state
+        tracker = gs.effect_tracker
+        color = player.color
+
+        # ------------------------------------------
+        # Validate selected target
+        # ------------------------------------------
+        algebraic = target_data.get("target")
+        if not algebraic:
+            return False, "You must select a piece to insure."
+
+        try:
+            chosen_coord = Coordinate.from_algebraic(algebraic)
+        except:
+            return False, "Invalid coordinate format."
+
+        piece = board.piece_at_coord(chosen_coord)
+        if not piece:
+            return False, "No piece exists at the chosen square."
+
+        if piece.color != color:
+            return False, "You may only insure your own piece."
+
+        if getattr(piece, "value", 1) <= 1:
+            return False, "You may not insure pieces valued at 1."
+
+        insured_id = piece.id
+        spawn_count = (piece.value + 1) // 2  # half rounded up
+
+        # ------------------------------------------
+        # This function executes when insured piece is captured
+        # ------------------------------------------
+        def on_insured_captured(effect):
+            empty_tiles = self._empty_tiles(board)
+            random.shuffle(empty_tiles)
+
+            spawned = 0
+
+            for tile in empty_tiles:
+                if spawned >= spawn_count:
+                    break
+
+                if not self._is_safe_spawn(board, tile, color):
+                    continue
+
+                # Create real Peon
+                new_id = f"ins_{color.name.lower()}_{random.randint(10000,99999)}"
+                peon = Peon(new_id, color)
+                board.squares[tile] = peon
+
+                # Give 3 turns of glue
+                def _unglue(e):
+                    # No need to handle anything special here
+                    pass
+
+                tracker.add_effect(
+                    effect_type=EffectType.PIECE_IMMOBILIZED,
+                    start_turn=gs.fullmove_number,
+                    duration=3,
+                    target=new_id,
+                    metadata={"piece_id": new_id},
+                    on_expire=_unglue
+                )
+
+                spawned += 1
+
+            print(f"Insurance: spawned {spawned}/{spawn_count} glued Peons.")
+
+        # ------------------------------------------
+        # Monitor effect — triggers on piece death
+        # ------------------------------------------
+        def capture_monitor(effect, current_turn):
+            # If insured piece is still alive, do nothing
+            for p in board.squares.values():
+                if p.id == insured_id:
+                    return
+
+            # The insured piece has been captured
+            on_insured_captured(effect)
+            tracker.remove_effect(effect.effect_id)
+
+        # ------------------------------------------
+        # Register the persistent insurance effect
+        # ------------------------------------------
+        effect_id = tracker.add_effect(
+            effect_type=EffectType.CARD_ACTIVE,
+            start_turn=gs.fullmove_number,
+            duration=9999,        # persists until piece dies
+            target=insured_id,
+            metadata={"insured_piece": insured_id},
+            on_tick=capture_monitor
+        )
+
+        return True, f"{piece.id} is now insured. {spawn_count} glued Peons will spawn if it is captured."
+
 class AllSeeing(Card):
     """
     CURSE — All-Seeing
@@ -1756,7 +1928,8 @@ CARD_REGISTRY = {
     "pawn_bomb": PawnBomb,
     "shroud": Shroud,
     "all_seeing": AllSeeing,
-    "summon_barricade": SummonBarricade
+    "summon_barricade": SummonBarricade,
+    "insurance": Insurance,
 
 }
 
