@@ -162,8 +162,17 @@ class Board:
             print(f"Piece {pid} is no longer glued.")
     
     def is_glued(self, piece: 'Piece') -> bool:
-        """Return True if the piece is currently glued."""
-        return piece.id in self.glued_pieces
+        # Local glue (legacy)
+        if piece.id in self.glued_pieces:
+            return True
+    
+        # EffectTracker-based glue
+        if self.game_state:
+            for ef in self.game_state.effect_tracker.get_effects_by_target(piece.id):
+                if ef.effect_type == EffectType.PIECE_IMMOBILIZED:
+                    return True
+    
+        return False
     
     def setup_standard(self):
         """Set up standard chessboard layout."""
