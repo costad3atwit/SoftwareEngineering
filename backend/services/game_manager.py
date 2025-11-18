@@ -9,11 +9,12 @@ GameManager - Handles the complete lifecycle of games
 from typing import Dict, Optional, List, Tuple
 import asyncio
 from datetime import datetime
+from backend.chess.piece import Queen, Rook, Bishop, Knight
 from backend.services.game_state import GameState, GameStatus
 from backend.player import Player
 from backend.cards.deck import Deck
 from backend.cards.card import Card, create_card_by_id
-from backend.enums import Color
+from backend.enums import Color, PieceType
 from backend.chess.coordinate import Coordinate
 from backend.chess.move import Move
 
@@ -300,6 +301,67 @@ class GameManager:
         
         success, message = game.play_card(player_id, card_id, target_data)
         return success, message, game
+    
+    def handle_promotion(self, game_id: str, player_id: str, piece_type: str) -> Tuple[bool, str, Optional[GameState]]:
+        """
+        Handle pawn promotion choice.
+        
+        Args:
+            game_id: The game identifier
+            player_id: The player making the choice
+            piece_type: The piece to promote to ("QUEEN", "ROOK", "BISHOP", "KNIGHT")
+        
+        Returns:
+            (success, message, updated_game_state)
+        """
+        game = self.get_game(game_id)
+        if not game:
+            return False, "Game not found", None
+        
+        if not game.pending_promotion:
+            return False, "No pending promotion", game
+        
+        if game.pending_promotion["player_id"] != player_id:
+            return False, "Not your promotion", game
+        
+        # Validate piece type
+        valid_promotions = ["QUEEN", "ROOK", "BISHOP", "KNIGHT"]
+        if piece_type.upper() not in valid_promotions:
+            return False, f"Invalid promotion type: {piece_type}", game
+        
+        try:
+            # Get promotion square
+            square = Coordinate.from_algebraic(game.pending_promotion["square"])
+            pawn_color = Color[game.pending_promotion["color"]]
+            
+            # Create the promoted piece
+            piece_type_enum = PieceType[piece_type.upper()]
+            piece_class_map = {
+                PieceType.QUEEN: Queen,
+                PieceType.ROOK: Rook,
+                PieceType.BISHOP: Bishop,
+                PieceType.KNIGHT: Knight,
+            }
+            
+            piece_class = piece_class_map[piece_type_enum]
+            new_piece_id = f"{pawn_color.value}_{piece_type_enum.name}_{square.to_algebraic()}_promoted"
+            new_piece = piece_class(new_piece_id, pawn_color)
+            
+            # Replace pawn with promoted piece
+            game.board.squares[square] = new_piece
+            
+            # Clear pending promotion
+            game.pending_promotion = None
+            
+            # Now switch turns
+            game.check_end_conditions()
+            if game.status == GameStatus.IN_PROGRESS:
+                game.switch_turn()
+            
+            return True, f"Promoted to {piece_type}", game
+            
+        except Exception as e:
+            return False, f"Promotion error: {str(e)}", game
     
     # ============================================================================
     # TIMER MANAGEMENT

@@ -399,6 +399,51 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                         "type": "error",
                         "message": msg
                     }, client_id)
+            elif message_type == "card_query":
+                # Generic card query handler
+                game_id = message.get("game_id")
+                card_id = message.get("card_id")
+                action = message.get("action")
+                query_data = message.get("data", {})
+                
+                logger.info(f"Card query: {client_id} asking {card_id} for {action}")
+                
+                game = game_manager.get_game(game_id)
+                if not game:
+                    await manager.send_personal_message({
+                        "type": "error",
+                        "message": "Game not found"
+                    }, client_id)
+                    continue
+                
+                # Delegate to game state
+                response = game.get_card_metadata(client_id, card_id, action, query_data)
+                
+                if response:
+                    await manager.send_personal_message({
+                        "type": "card_query_response",
+                        "card_id": card_id,
+                        "action": action,
+                        "data": response
+                    }, client_id)
+                else:
+                    await manager.send_personal_message({
+                        "type": "error",
+                        "message": "Invalid card query"
+                    }, client_id)
+            elif message_type == "get_promotion_options":
+                # Generic promotion query
+                game_id = message.get("game_id")
+                square = message.get("square")
+                
+                game = game_manager.get_game(game_id)
+                if game:
+                    options = game.get_promotion_options(square)
+                    if options:
+                        await manager.send_personal_message({
+                            "type": "promotion_options",
+                            "data": options
+                        }, client_id)
             elif message_type == "get_game_state":
                 # Request current game state
                 game_id = message.get("game_id")

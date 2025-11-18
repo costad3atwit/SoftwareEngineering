@@ -1,9 +1,10 @@
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 from backend.enums import Color, GameStatus, PieceType
 from backend.chess.board import Board
 from backend.player import Player
 from backend.cards.deck import Deck
+from backend.cards.card import create_card_by_id
 from backend.chess.move import Move
 from backend.chess.coordinate import Coordinate
 from backend.services.effect_tracker import EffectTracker, EffectType
@@ -50,6 +51,9 @@ class GameState:
 
         # Effect tracker
         self.effect_tracker = EffectTracker()
+
+        # Pending promotion (if any)
+        self.pending_promotion: Optional[Dict[str, Any]] = None
     # --- Helper Methods ---
     def get_current_player(self) -> Player:
         """Get the player whose turn it is"""
@@ -77,6 +81,23 @@ class GameState:
     def is_players_turn(self, player_id: str) -> bool:
         """Check if it's this player's turn"""
         return self.get_current_player().id == player_id
+        
+    def get_promotion_options(self, square: str) -> Optional[Dict[str, Any]]:
+        """
+        Get promotion options for a pawn at the given square.
+        Returns None if no promotion is pending at that square.
+        """
+        if not self.pending_promotion:
+            return None
+        
+        if self.pending_promotion["square"] != square:
+            return None
+        
+        return {
+            "square": square,
+            "color": self.pending_promotion["color"],
+            "options": ["QUEEN", "ROOK", "BISHOP", "KNIGHT"]
+        }
 
     # --- Timer Management ---
     def update_timer(self) -> None:
@@ -116,6 +137,40 @@ class GameState:
         # Log expired effects for debugging
         for effect in expired_effects:
             print(f"Effect expired: {effect.effect_type.value} on {effect.target}")
+
+    def get_card_metadata(self, player_id: str, card_id: str, action: str, data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """
+        Generic interface for cards to provide metadata/options to the frontend.
+        This allows cards to respond to queries without main.py knowing card internals.
+        
+        Args:
+            player_id: The player making the request
+            card_id: Which card is being queried
+            action: What information is needed (e.g., "get_options", "validate_target")
+            data: Action-specific data (e.g., {"target_square": "e4"})
+        
+        Returns:
+            Card-specific response data, or None if invalid
+        """
+        
+        player = self.get_player_by_id(player_id)
+        if not player:
+            return None
+        
+        # Verify player has this card
+        if not player.has_card(card_id):
+            return None
+        
+        # Get the card instance
+        card = create_card_by_id(card_id)
+        if not card:
+            return None
+        
+        # Delegate to card's handle_query method
+        if hasattr(card, 'handle_query'):
+            return card.handle_query(self.board, player, action, data)
+        
+        return None
 
 
     # --- Move Methods ---
@@ -201,6 +256,20 @@ class GameState:
         # Execute the move on the board
         captured = self.board.move_piece(m)
         
+        # Check if this was a pawn promotion move
+        piece = self.board.piece_at_coord(m.to_sq)
+        if piece and piece.type == PieceType.PAWN:
+            promotion_rank = 8 if piece.color == Color.WHITE else 1
+            if m.to_sq.rank == promotion_rank:
+                # Don't switch turns yet - wait for promotion choice
+                self.pending_promotion = {
+                    "square": m.to_sq.to_algebraic(),
+                    "player_id": player_id,
+                    "pawn_id": piece.id,
+                    "color": piece.color.name
+                }
+                return True, "promotion_required"
+            
         # Update halfmove clock (resets on capture or pawn move)
         if captured or piece.type == PieceType.PAWN:
             self.halfmove_clock = 0

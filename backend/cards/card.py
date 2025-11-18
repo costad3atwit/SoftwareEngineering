@@ -1,11 +1,10 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod  # Abstract Base Class tools
-from typing import Optional, Tuple, Dict, Any, TYPE_CHECKING
+from typing import List, Optional, Tuple, Dict, Any, TYPE_CHECKING
 from backend.enums import CardType, Color, PieceType, EffectType, TargetType
 from backend.services.effect_tracker import EffectType
 from backend.chess.coordinate import Coordinate
-from backend.chess.piece import Pawn, Scout, HeadHunter, Warlock, DarkLord, Queen, King, Peon, Piece
-from backend.chess.piece import Effigy
+from backend.chess.piece import Pawn, Scout, HeadHunter, Warlock, DarkLord, Queen, Cleric, King, Peon, Piece, Knight, Bishop, Rook, Witch, Effigy, Barricade
 from backend.chess.board import Board
 from backend.services.effect_tracker import EffectTracker
 import random
@@ -60,6 +59,23 @@ class Card(ABC):
     def get_name(self) -> str:
         """Return the card name."""
         return self.name
+    
+    def handle_query(self, board: 'Board', player: 'Player', action: str, data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """
+        Handle queries from the frontend about this card.
+        Default implementation returns None. Cards that need pre-play queries
+        should override this method.
+        
+        Args:
+            board: Current board state
+            player: The player making the query
+            action: Type of query (e.g., "get_options", "validate_target")
+            data: Query-specific data
+        
+        Returns:
+            Query response, or None if not supported
+        """
+        return None
 
     # --- Dictionary for frontend/UI ---
     def to_dict(self, include_target: bool = False) -> dict:
@@ -1909,6 +1925,235 @@ class SummonBarricade(Card):
         
         return True, f"Barricade placed at {target_coord.to_algebraic()} for 5 turns."
 
+class Transmute(Card):
+    """
+    Transmute - Select a piece to convert it to any piece of equal value.
+    Cannot transmute Kings, Effigies, or Barricades.
+    Player must select which piece type to transform into.
+    """
+
+    def __init__(self):
+        super().__init__(
+            id="transmute",
+            name="Transmute",
+            description=(
+                "Select one of your pieces to transform into any other piece of equal value. "
+                "Cannot transmute Kings, Effigies, or Barricades."
+            ),
+            big_img="static/cards/transmute_big.png",
+            small_img="static/cards/transmute_small.png"
+        )
+        self.target_type = TargetType.PIECE
+
+    @property
+    def card_type(self) -> CardType:
+        return CardType.TRANSFORM
+
+    def _get_piece_value(self, piece: Piece) -> int:
+        """Get the value of a piece, handling special cases."""
+        return getattr(piece, 'value', 0)
+
+    def _is_transmutable(self, piece: Piece) -> bool:
+        """
+        Check if a piece can be transmuted.
+        Excludes: Kings, Effigies, Barricades, and any piece with value 0.
+        """
+        # Explicit exclusions
+        if piece.type == PieceType.KING:
+            return False
+        if piece.type == PieceType.EFFIGY:
+            return False
+        if piece.type == PieceType.BARRICADE:
+            return False
+        
+        value = self._get_piece_value(piece)
+        return value > 0
+
+    def _get_available_transformations(self, value: int) -> List[PieceType]:
+        """
+        Get list of piece types that can be created with the given value.
+        Excludes Kings, Effigies, and Barricades.
+        """
+        value_to_types = {
+            1: [PieceType.PAWN, PieceType.PEON],
+            3: [PieceType.BISHOP, PieceType.KNIGHT, PieceType.SCOUT, PieceType.CLERIC],
+            5: [PieceType.ROOK, PieceType.HEADHUNTER, PieceType.WARLOCK, PieceType.WITCH],
+            9: [PieceType.QUEEN],
+            10: [PieceType.DARKLORD]
+        }
+        
+        return value_to_types.get(value, [])
+
+    def can_play(self, board: Board, player: Player) -> bool:
+        """Check if player has any transmutable pieces."""
+        for coord, piece in board.squares.items():
+            if piece.color == player.color and self._is_transmutable(piece):
+                return True
+        return False
+
+    def get_transmute_options(self, board: Board, player: Player, target_square: str) -> Optional[Dict[str, Any]]:
+        """
+        Get available transformation options for a piece at target square.
+        This method is called by the frontend to display options to the player.
+        
+        Returns None if piece cannot be transmuted, otherwise returns:
+        {
+            "square": "d1",
+            "current_type": "BISHOP",
+            "value": 3,
+            "options": ["BISHOP", "KNIGHT", "SCOUT", "CLERIC"]
+        }
+        """
+        try:
+            target_coord = Coordinate.from_algebraic(target_square)
+        except Exception:
+            return None
+
+        piece = board.piece_at_coord(target_coord)
+        if not piece or piece.color != player.color:
+            return None
+
+        if not self._is_transmutable(piece):
+            return None
+
+        value = self._get_piece_value(piece)
+        available_types = self._get_available_transformations(value)
+
+        if not available_types:
+            return None
+
+        return {
+            "square": target_square,
+            "current_type": piece.type.name,
+            "value": value,
+            "options": [pt.name for pt in available_types]
+        }
+
+    def apply_effect(self, board: Board, player: Player, target_data: Dict[str, Any]) -> tuple[bool, str]:
+        """
+        Transform a piece at target coordinate into selected piece type.
+        
+        Expected target_data format:
+        {
+            "target": "e4",          # Square containing piece to transmute
+            "transform_to": "ROOK"   # Desired piece type (uppercase string)
+        }
+        """
+        # Parse target coordinate
+        target_square = target_data.get("target")
+        if not target_square:
+            return False, "No target square provided"
+
+        try:
+            target_coord = Coordinate.from_algebraic(target_square)
+        except Exception:
+            return False, f"Invalid coordinate: {target_square}"
+
+        # Validate piece exists and belongs to player
+        piece = board.piece_at_coord(target_coord)
+        if not piece:
+            return False, f"No piece at {target_square}"
+        if piece.color != player.color:
+            return False, "That's not your piece"
+
+        # Check if piece can be transmuted
+        if not self._is_transmutable(piece):
+            return False, f"Cannot transmute {piece.type.name}"
+
+        # Get target transformation type
+        transform_to_str = target_data.get("transform_to")
+        if not transform_to_str:
+            return False, "No transformation type specified"
+
+        try:
+            transform_to = PieceType[transform_to_str.upper()]
+        except KeyError:
+            return False, f"Invalid piece type: {transform_to_str}"
+
+        # Verify transformation is valid for this value
+        piece_value = self._get_piece_value(piece)
+        available_types = self._get_available_transformations(piece_value)
+        
+        if transform_to not in available_types:
+            return False, f"Cannot transform value {piece_value} piece into {transform_to.name}"
+
+        # Perform the transformation
+        new_piece = self._create_transformed_piece(piece, transform_to, target_coord, player.color)
+        if not new_piece:
+            return False, f"Cannot create piece of type {transform_to.name}"
+
+        # Replace the piece on the board
+        board.squares[target_coord] = new_piece
+
+        return True, f"{piece.type.name} at {target_square} transmuted into {transform_to.name}!"
+
+    def _create_transformed_piece(self, old_piece: Piece, new_type: PieceType, 
+                                   coord: Coordinate, color: Color) -> Optional[Piece]:
+        """
+        Create a new piece of the specified type, preserving relevant attributes.
+        """
+        # Generate unique ID
+        new_piece_id = f"{color.value}_{new_type.name}_{coord.to_algebraic()}"
+        
+        # Map piece types to their classes
+        piece_class_map = {
+            PieceType.PAWN: Pawn,
+            PieceType.PEON: Peon,
+            PieceType.KNIGHT: Knight,
+            PieceType.BISHOP: Bishop,
+            PieceType.ROOK: Rook,
+            PieceType.QUEEN: Queen,
+            PieceType.SCOUT: Scout,
+            PieceType.HEADHUNTER: HeadHunter,
+            PieceType.WARLOCK: Warlock,
+            PieceType.WITCH: Witch,
+            PieceType.CLERIC: Cleric,
+            PieceType.DARKLORD: DarkLord,
+        }
+
+        piece_class = piece_class_map.get(new_type)
+        if not piece_class:
+            return None
+
+        # Create new piece
+        new_piece = piece_class(new_piece_id, color)
+
+        # Preserve has_moved status if both pieces support it
+        # (Important for castling rights on Rooks)
+        if hasattr(old_piece, 'has_moved') and hasattr(new_piece, 'has_moved'):
+            new_piece.has_moved = old_piece.has_moved
+
+        return new_piece
+    
+    def handle_query(self, board: 'Board', player: 'Player', action: str, data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """
+        Handle frontend queries for Transmute card.
+        
+        Supported actions:
+            - "get_options": Get available transformations for a target piece
+                Required data: {"target_square": "e4"}
+                Returns: {"square": "e4", "current_type": "BISHOP", "value": 3, "options": [...]}
+            
+            - "get_valid_targets": Get all pieces that can be transmuted
+                Returns: {"valid_targets": ["e4", "d1", ...]}
+        """
+        if action == "get_options":
+            target_square = data.get("target_square")
+            if not target_square:
+                return None
+            return self.get_transmute_options(board, player, target_square)
+        
+        elif action == "get_valid_targets":
+            # Return all squares with transmutable pieces
+            valid_targets = []
+            for coord, piece in board.squares.items():
+                if piece.color == player.color and self._is_transmutable(piece):
+                    valid_targets.append(coord.to_algebraic())
+            return {"valid_targets": valid_targets}
+        
+        return None
+
+
 # ============================================================================
 # CARD REGISTRY - Map card IDs to card classes
 # ============================================================================
@@ -1929,6 +2174,7 @@ CARD_REGISTRY = {
     "all_seeing": AllSeeing,
     "summon_barricade": SummonBarricade,
     "insurance": Insurance,
+    "transmute": Transmute
 
 }
 
