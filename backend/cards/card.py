@@ -2086,6 +2086,83 @@ class Transmute(Card):
         board.squares[target_coord] = new_piece
 
         return True, f"{piece.type.name} at {target_square} transmuted into {transform_to.name}!"
+    
+class OfFleshAndBlood(Card):
+    """
+    Of Flesh and Blood – Select a piece.
+    For the next 2 moves this piece makes, summon a Peon on the square it leaves.
+    """
+
+    def __init__(self):
+        super().__init__(
+            id="of_flesh_and_blood",
+            name="Of Flesh and Blood",
+            description=(
+                "Select a piece. For its next 2 moves, a Peon is summoned on each "
+                "square it leaves behind."
+            ),
+            big_img="static/cards/of_flesh_and_blood_big.png",
+            small_img="static/cards/of_flesh_and_blood_small.png"
+        )
+
+    @property
+    def card_type(self) -> CardType:
+        return CardType.SUMMON   # summons Peons
+
+    @property
+    def target_type(self) -> TargetType:
+        return TargetType.PIECE  # the card targets a piece
+
+    def can_play(self, board: Board, player: Player) -> bool:
+        """Can play if at least one piece exists on the board."""
+        return any(piece is not None for piece in board.squares.values())
+
+    def apply_effect(self, board: Board, player: Player, target_data: Dict[str, Any]):
+        """
+        Apply the Of Flesh and Blood effect to the selected piece.
+        target_data must contain: {"piece_id": "..."}
+        """
+        try:
+            piece_id = target_data["piece_id"]
+        except (KeyError, TypeError):
+            return False, "Invalid target: piece must be selected."
+
+        # Find the piece on the board
+        target_piece = None
+        for coord, piece in board.squares.items():
+            if piece and getattr(piece, "id", None) == piece_id:
+                target_piece = piece
+                break
+
+        if not target_piece:
+            return False, "Selected piece does not exist."
+
+        # Register effect
+        if hasattr(board, "game_state") and board.game_state:
+            from backend.services.effect_tracker import EffectType
+
+            metadata = {
+                "piece_id": piece_id,
+                "moves_remaining": 2,
+                "owner_color": player.color.value
+            }
+
+            board.game_state.effect_tracker.add_effect(
+                effect_type=EffectType.OF_FLESH_AND_BLOOD,
+                start_turn=board.game_state.fullmove_number,
+                duration=0,         # managed manually
+                target=piece_id,    # piece this effect is attached to
+                metadata=metadata
+            )
+
+        print(f"Of Flesh and Blood applied to piece {piece_id}")
+
+        return True, (
+            f"Of Flesh and Blood applied to piece {piece_id}. "
+            "It will summon Peons on the next 2 squares it leaves."
+        )
+
+
 
     def _create_transformed_piece(self, old_piece: Piece, new_type: PieceType, 
                                    coord: Coordinate, color: Color) -> Optional[Piece]:
@@ -2152,6 +2229,7 @@ class Transmute(Card):
             return {"valid_targets": valid_targets}
         
         return None
+    
 
 
 # ============================================================================
