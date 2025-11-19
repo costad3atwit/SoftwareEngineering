@@ -27,6 +27,9 @@ let playerId = null;
 let gameId = null;
 let playerColor = null;
 
+let inMatchmakingQueue = false;
+let pendingChallenges = {}; // Store incoming challenges
+
 // Sample deck
 const sampleDeck = [
     "mine", "eye_for_an_eye", "summon_peon", "pawn_scout",
@@ -55,6 +58,9 @@ async function initializePlayer() {
         playerId = data.player_id;
         console.log('✓ Assigned player ID:', playerId);
         
+        // Display player ID in UI
+        displayPlayerId();
+        
         // Connect WebSocket
         connectWebSocket();
     } catch (error) {
@@ -62,7 +68,16 @@ async function initializePlayer() {
         // Fallback to generating ID client-side if server is unavailable
         playerId = `player_${Math.random().toString(36).substr(2, 9)}`;
         console.log('Using fallback player ID:', playerId);
+        displayPlayerId();
         connectWebSocket();
+    }
+}
+
+function displayPlayerId() {
+    const display = document.getElementById('playerIdDisplay');
+    if (display && playerId) {
+        display.textContent = `Player ID: ${playerId}`;
+        display.style.display = 'block';
     }
 }
 
@@ -117,6 +132,7 @@ function handleServerMessage(data) {
     switch(msgType) {
         case 'queue_joined':
             console.log('Joined matchmaking queue:', data.message);
+            inMatchmakingQueue = true;
             showStatus('Searching for opponent...');
             break;
             
@@ -125,9 +141,25 @@ function handleServerMessage(data) {
             playerColor = data.game_state.your_color;
             console.log(`Game started! ID: ${gameId}, Color: ${playerColor}`);
             
+            inMatchmakingQueue = false;
+            
             // Redirect to game page
-            // TODO: Update this URL to match the game page once it's ready
             window.location.href = `/game.html?game_id=${gameId}&player_id=${playerId}`;
+            break;
+            
+        case 'challenge_received':
+            console.log('Challenge received from:', data.challenger_id);
+            handleChallengeReceived(data);
+            break;
+            
+        case 'challenge_accepted':
+            console.log('Challenge accepted by:', data.accepter_id);
+            showStatus('Challenge accepted! Starting game...');
+            break;
+            
+        case 'challenge_declined':
+            console.log('Challenge declined by:', data.decliner_id);
+            showStatus('Challenge was declined', true);
             break;
             
         case 'error':
@@ -153,7 +185,7 @@ function joinQueue() {
     
     const message = { 
         type: 'join_queue',
-        name: playerId, // Use player ID as name for now
+        name: playerId,
         deck: sampleDeck
     };
     
@@ -179,6 +211,151 @@ function showStatus(message, isError = false) {
             statusIndicator.style.display = 'none';
         }, 5000);
     }
+}
+
+function sendChallenge() {
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+        showStatus('Connection error. Please refresh.', true);
+        return;
+    }
+    
+    // Remove from queue if in it
+    if (inMatchmakingQueue) {
+        removeFromQueue();
+    }
+    
+    // Prompt for player ID
+    const targetPlayerId = prompt('Enter the Player ID of the opponent you want to challenge:');
+    
+    if (!targetPlayerId || targetPlayerId.trim() === '') {
+        console.log('Challenge cancelled - no ID entered');
+        return;
+    }
+    
+    if (targetPlayerId.trim() === playerId) {
+        showStatus('You cannot challenge yourself!', true);
+        return;
+    }
+    
+    console.log('Sending challenge to:', targetPlayerId);
+    
+    const message = {
+        type: 'send_challenge',
+        target_player_id: targetPlayerId.trim(),
+        challenger_name: playerId,
+        deck: sampleDeck
+    };
+    
+    ws.send(JSON.stringify(message));
+    showStatus(`Challenge sent to ${targetPlayerId}...`);
+}
+
+function removeFromQueue() {
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+        return;
+    }
+    
+    console.log('Removing from matchmaking queue');
+    
+    const message = {
+        type: 'leave_queue'
+    };
+    
+    ws.send(JSON.stringify(message));
+    inMatchmakingQueue = false;
+}
+
+function handleChallengeReceived(data) {
+    const challengerId = data.challenger_id;
+    const challengerName = data.challenger_name || challengerId;
+    
+    // Store the challenge
+    pendingChallenges[challengerId] = data;
+    
+    confirmChallenge(challengerId, challengerName);
+}
+
+function confirmChallenge(challengerId, challengerName) {
+    console.log("Displaying challenge UI for:", challengerId);
+
+    const acceptBtn = document.getElementById("acceptChallengeBtn");
+    const declineBtn = document.getElementById("declineChallengeBtn");
+
+    // Show the buttons
+    acceptBtn.style.display = "block";
+    declineBtn.style.display = "block";
+
+    // Update text
+    acceptBtn.textContent = `Accept ${challengerName}'s Challenge`;
+    declineBtn.textContent = `Decline ${challengerName}'s Challenge`;
+
+    // Clear previous handlers
+    acceptBtn.replaceWith(acceptBtn.cloneNode(true));
+    declineBtn.replaceWith(declineBtn.cloneNode(true));
+
+    const newAccept = document.getElementById("acceptChallengeBtn");
+    const newDecline = document.getElementById("declineChallengeBtn");
+
+    // Attach new handlers
+    newAccept.onclick = () => {
+        hideChallengeButtons();
+        acceptChallenge(challengerId);
+    };
+
+    newDecline.onclick = () => {
+        hideChallengeButtons();
+        declineChallenge(challengerId);
+    };
+}
+
+function hideChallengeButtons() {
+    document.getElementById("acceptChallengeBtn").style.display = "none";
+    document.getElementById("declineChallengeBtn").style.display = "none";
+}
+
+
+function acceptChallenge(challengerId) {
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+        showStatus('Connection error. Please refresh.', true);
+        return;
+    }
+    
+    // Remove from queue if in it
+    if (inMatchmakingQueue) {
+        removeFromQueue();
+    }
+    
+    console.log('Accepting challenge from:', challengerId);
+    
+    const challenge = pendingChallenges[challengerId];
+    
+    const message = {
+        type: 'accept_challenge',
+        challenger_id: challengerId,
+        accepter_name: playerId,
+        deck: sampleDeck
+    };
+    
+    ws.send(JSON.stringify(message));
+    delete pendingChallenges[challengerId];
+    
+    showStatus('Accepting challenge...');
+}
+
+function declineChallenge(challengerId) {
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+        return;
+    }
+    
+    console.log('Declining challenge from:', challengerId);
+    
+    const message = {
+        type: 'decline_challenge',
+        challenger_id: challengerId
+    };
+    
+    ws.send(JSON.stringify(message));
+    delete pendingChallenges[challengerId];
 }
 
 // ============================================================================
@@ -210,8 +387,7 @@ document.getElementById('quickplay').addEventListener('click', () => {
 
 document.getElementById('directconnect').addEventListener('click', () => {
     console.log('Direct Connect clicked');
-    // TODO: Implement direct connect functionality
-    showStatus('Direct connect not yet implemented');
+    sendChallenge();
 });
 
 document.getElementById('tutorial').addEventListener('click', () => {

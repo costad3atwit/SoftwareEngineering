@@ -10,7 +10,7 @@ from datetime import datetime
 import uuid
 
 from backend.services.game_manager import GameManager
-from backend.enums import GameStatus
+from backend.enums import GameStatus, Color
 from backend.services.game_state import GameState
 
 # ============================================================================
@@ -60,6 +60,8 @@ if static_dir.exists():
 # Initialize game manager
 game_manager = GameManager()
 
+active_challenges: Dict[str, Dict] = {}
+
 # ============================================================================
 # CONNECTION MANAGER
 # ============================================================================
@@ -80,6 +82,17 @@ class ConnectionManager:
         removed = game_manager.remove_from_queue(client_id)
         if removed:
             logger.info(f"Removed {client_id} from matchmaking queue")
+        
+        # Clean up any challenges involving this player
+        challenges_to_remove = []
+        for key, challenge in active_challenges.items():
+            if challenge["challenger_id"] == client_id or challenge["target_id"] == client_id:
+                challenges_to_remove.append(key)
+        
+        for key in challenges_to_remove:
+            del active_challenges[key]
+            logger.info(f"Removed challenge: {key}")
+        
         logger.info(f"Client disconnected: {client_id} | Total connections: {len(self.active_connections)}")
     
     async def send_personal_message(self, message: dict, client_id: str):
@@ -202,7 +215,11 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
             if message_type == "join_queue":
                 # Player submits their deck and joins queue
                 player_name = message.get("name", client_id)
-                deck = message.get("deck", [])
+                deck = message.get("deck", ["mine", "eye_for_an_eye", "summon_peon", "pawn_scout",
+            "knight_headhunter", "bishop_warlock",
+            "mine", "eye_for_an_eye", "summon_peon", "pawn_scout",
+            "knight_headhunter", "bishop_warlock",
+            "mine", "eye_for_an_eye", "summon_peon", "pawn_scout"]) # REPLACE WITH ACTUAL DECK DATA
                 
                 logger.info(f"Join queue request: {client_id} ({player_name}) with {len(deck)} cards")
                 
@@ -257,6 +274,147 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                         "type": "error",
                         "message": msg
                     }, client_id)
+            elif message_type == "leave_queue":
+                # Player wants to leave the matchmaking queue
+                removed = game_manager.remove_from_queue(client_id)
+                if removed:
+                    logger.info(f"Player left queue: {client_id}")
+                    await manager.send_personal_message({
+                        "type": "queue_left",
+                        "message": "You have left the matchmaking queue"
+                    }, client_id)
+                
+            elif message_type == "send_challenge":
+                # Player wants to challenge another player directly
+                target_player_id = message.get("target_player_id")
+                challenger_name = message.get("challenger_name", client_id)
+                deck = message.get("deck", [])
+                
+                logger.info(f"Challenge request: {client_id} -> {target_player_id}")
+                
+                # Validate deck
+                if len(deck) != 16:
+                    await manager.send_personal_message({
+                        "type": "error",
+                        "message": f"Invalid deck size: {len(deck)}"
+                    }, client_id)
+                    continue
+                
+                # Check if target player exists and is connected
+                if target_player_id not in manager.active_connections:
+                    await manager.send_personal_message({
+                        "type": "error",
+                        "message": f"Player {target_player_id} is not online"
+                    }, client_id)
+                    continue
+                
+                # Check if target is already in a game
+                if game_manager.get_player_game(target_player_id):
+                    await manager.send_personal_message({
+                        "type": "error",
+                        "message": f"Player {target_player_id} is already in a game"
+                    }, client_id)
+                    continue
+                
+                # Store the challenge
+                challenge_key = f"{client_id}_{target_player_id}"
+                active_challenges[challenge_key] = {
+                    "challenger_id": client_id,
+                    "challenger_name": challenger_name,
+                    "challenger_deck": deck,
+                    "target_id": target_player_id
+                }
+                
+                # Send challenge notification to target player
+                await manager.send_personal_message({
+                    "type": "challenge_received",
+                    "challenger_id": client_id,
+                    "challenger_name": challenger_name
+                }, target_player_id)
+                
+                logger.info(f"Challenge sent: {client_id} -> {target_player_id}")
+                
+            elif message_type == "accept_challenge":
+                # Player accepts a challenge
+                challenger_id = message.get("challenger_id")
+                accepter_name = message.get("accepter_name", client_id)
+                deck = message.get("deck", [])
+                
+                logger.info(f"Challenge accepted: {challenger_id} <- {client_id}")
+                
+                # Validate deck
+                if len(deck) != 16:
+                    await manager.send_personal_message({
+                        "type": "error",
+                        "message": f"Invalid deck size: {len(deck)}"
+                    }, client_id)
+                    continue
+                
+                # Find the challenge
+                challenge_key = f"{challenger_id}_{client_id}"
+                challenge = active_challenges.get(challenge_key)
+                
+                if not challenge:
+                    await manager.send_personal_message({
+                        "type": "error",
+                        "message": "Challenge not found or expired"
+                    }, client_id)
+                    continue
+                
+                # Remove from matchmaking queue if present
+                game_manager.remove_from_queue(challenger_id)
+                game_manager.remove_from_queue(client_id)
+                
+                # Create the game
+                game = game_manager.start_game(
+                    player1_id=challenger_id,
+                    player1_name=challenge["challenger_name"],
+                    player1_deck_ids=challenge["challenger_deck"],
+                    player2_id=client_id,
+                    player2_name=accepter_name,
+                    player2_deck_ids=deck
+                )
+                
+                # Get both players
+                white_player = game.players[Color.WHITE]
+                black_player = game.players[Color.BLACK]
+                
+                logger.info(f"CHALLENGE GAME CREATED: {game.game_id}")
+                logger.info(f"  White: {white_player.name} ({white_player.id})")
+                logger.info(f"  Black: {black_player.name} ({black_player.id})")
+                
+                # Notify both players
+                await manager.send_personal_message({
+                    "type": "game_started",
+                    "game_id": game.game_id,
+                    "game_state": game.to_dict(white_player.id)
+                }, white_player.id)
+                
+                await manager.send_personal_message({
+                    "type": "game_started",
+                    "game_id": game.game_id,
+                    "game_state": game.to_dict(black_player.id)
+                }, black_player.id)
+                
+                # Clean up challenge
+                del active_challenges[challenge_key]
+                
+            elif message_type == "decline_challenge":
+                # Player declines a challenge
+                challenger_id = message.get("challenger_id")
+                
+                logger.info(f"Challenge declined: {challenger_id} <- {client_id}")
+                
+                # Find and remove the challenge
+                challenge_key = f"{challenger_id}_{client_id}"
+                if challenge_key in active_challenges:
+                    del active_challenges[challenge_key]
+                
+                # Notify challenger
+                await manager.send_personal_message({
+                    "type": "challenge_declined",
+                    "decliner_id": client_id
+                }, challenger_id)
             elif message_type == "make_move":
                 # Handle piece movement
                 game_id = message.get("game_id")
@@ -282,8 +440,6 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                 if success:
                     logger.info(f"Move successful: {from_square} -> {to_square} in {game_id}")
                     
-                    # Get both players correctly (don't use turn, which has already switched)
-                    from backend.enums import Color
                     white_player = updated_game.players[Color.WHITE]
                     black_player = updated_game.players[Color.BLACK]
                     
@@ -363,7 +519,6 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                     logger.info(f"Card played successfully: {card_id} in {game_id}")
                     
                     # Get both players correctly
-                    from backend.enums import Color
                     white_player = updated_game.players[Color.WHITE]
                     black_player = updated_game.players[Color.BLACK]
                     
