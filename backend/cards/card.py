@@ -676,6 +676,108 @@ class AllSeeing(Card):
 
         return True, f"All-Seeing Effigy placed at {effigy_coord.to_algebraic()}."
 
+class EyeOfRuin(Card):
+    """
+    Eye of Ruin – You look at the opponent's hand, choose one card to steal and immediately play it.
+    Then you must select one of your own cards, which the opponent immediately plays.
+
+    Notes:
+    - Stealing removes the card from enemy hand and moves it to player's hand.
+    - “Immediately play” means the card’s effect is executed right now.
+    - Uses the updated Hand class, which removes cards by Card instance, NOT id.
+    """
+
+    def __init__(self):
+        super().__init__(
+            id="eye_of_ruin",
+            name="Eye of Ruin",
+            description=(
+                "See your opponent's hand. Steal any one card from them and play it immediately. "
+                "Then choose one of your own cards, which the opponent must immediately play."
+            ),
+            big_img="static/cards/eye_ruin_big.png",
+            small_img="static/cards/eye_ruin_small.png"
+        )
+        self.target_type = TargetType.PIECE  # not strictly needed, but UI may use it
+
+    @property
+    def card_type(self) -> CardType:
+        return CardType.FORCED
+
+
+    def can_play(self, board: Board, player: Player) -> bool:
+        """Player must have at least one card, and opponent must have at least one card."""
+        opponent = board.game_state.get_opponent_player()
+        return len(player.hand) > 0 and len(opponent.hand) > 0
+
+
+    def apply_effect(
+        self,
+        board: Board,
+        player: Player,
+        target_data: Dict[str, Any]
+    ) -> tuple[bool, str]:
+
+        """
+        target_data must contain:
+            {
+                "steal": "<card_id>",   # id of opponent's card to steal/play
+                "sacrifice": "<card_id>" # id of player's card to force opponent to play
+            }
+        """
+
+        gs = board.game_state
+        opponent = gs.get_opponent_player()
+
+        # ---------------------
+        # 1. Validate target_data
+        # ---------------------
+        steal_id = target_data.get("steal")
+        sacrifice_id = target_data.get("sacrifice")
+
+        if not steal_id or not sacrifice_id:
+            return False, "You must choose a card to steal and a card to sacrifice."
+
+        # ---------------------
+        # 2. Get actual Card instances
+        # ---------------------
+        steal_card_obj = next((c for c in opponent.hand.cards if c.id == steal_id), None)
+        if not steal_card_obj:
+            return False, f"Opponent does not have card {steal_id}"
+
+        sacrifice_card_obj = next((c for c in player.hand.cards if c.id == sacrifice_id), None)
+        if not sacrifice_card_obj:
+            return False, f"You do not have card {sacrifice_id}"
+
+
+        # ---------------------
+        # 3. Steal card: remove from opponent, add to player, then DONT keep it — play immediately
+        # ---------------------
+        opponent.hand.remove(steal_card_obj)
+        player.hand.add(steal_card_obj)
+
+        success1, msg1 = steal_card_obj.apply_effect(board, player, {})
+        # after applied, move to player's discard pile
+        player.discard_pile.add(steal_card_obj)
+        player.hand.remove(steal_card_obj)
+
+
+        # ---------------------
+        # 4. Force opponent to play player's sacrificed card
+        # ---------------------
+        player.hand.remove(sacrifice_card_obj)
+        opponent.hand.add(sacrifice_card_obj)
+
+        success2, msg2 = sacrifice_card_obj.apply_effect(board, opponent, {})
+        # after applied, move to opponent discard pile
+        opponent.discard_pile.add(sacrifice_card_obj)
+        opponent.hand.remove(sacrifice_card_obj)
+
+
+        return True, (
+            f"You stole and played {steal_id}. "
+            f"Opponent was forced to play your {sacrifice_id}."
+        )
 
 class ForbiddenLands(Card):
     """
