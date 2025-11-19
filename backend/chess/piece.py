@@ -220,7 +220,7 @@ class King(Piece):
         """Frontend-friendly dictionary representation."""
         data = {
             "id": self.id,
-            "type": self.piece_type.name,  # "KING"
+            "type": self.type.name,  # "KING"
             "color": self.color.name,
             "position": {"file": at.file, "rank": at.rank},
         }
@@ -296,7 +296,7 @@ class Queen(Piece):
         """
         payload = {
             "id": self.id,
-            "type": self.piece_type.name,   # "QUEEN"
+            "type": self.type.name,   # "QUEEN"
             "color": self.color.name,       # "WHITE"/"BLACK"
             "position": {"file": at.file, "rank": at.rank},
         }
@@ -540,7 +540,7 @@ class Pawn(Piece):
         """Frontend-friendly dictionary representation."""
         data = {
             "id": self.id,
-            "type": self.piece_type.name,  # "PAWN"
+            "type": self.type.name,  # "PAWN"
             "color": self.color.name,
             "position": {"file": at.file, "rank": at.rank},
         }
