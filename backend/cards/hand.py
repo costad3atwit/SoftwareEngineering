@@ -17,15 +17,15 @@ class Hand:
         Remove a card by ID and return it.
         Returns None if card not found.
         """
-        for card in self.cards:
-            if card.id == card.id:
-                self.cards.remove(card)
-                return card
+        for c in self.cards:
+            if c.id == card.id:
+                self.cards.remove(c)
+                return c
         return None
 
     def has_card(self, card: Card) -> bool:
         """Check if a card is in the hand"""
-        return any(card.id == card.id for card in self.cards)
+        return any(c.id == card.id for c in self.cards)
 
     def size(self) -> int:
         """Return the number of cards in hand"""
