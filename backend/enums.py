@@ -15,6 +15,8 @@ class EffectType(Enum):
     PAWN_QUEEN = "pawn_queen"
     SHROUD = "shroud"
     BARRICADE = "barricade"
+    EXHAUSTION = "exhaustion"
+    OF_FLESH_AND_BLOOD = "of_flesh_and_blood"
     # Add more as needed
 
 class PieceType(Enum):

@@ -1407,14 +1407,13 @@ class PawnQueen(Card):
             "or revert to a Pawn."
         ) 
     
-    class Shroud(Card):
-        """
-        Hidden: Shroud (3-turn duration)
-        When played, switches the position and appearance of two random friendly pieces for 3 turns.
-        If the player has fewer than two pieces, summons a peon on a safe tile and then swaps.
-        Never swaps either king into check; if no safe swap exists, summons a peon instead.
-        """
-
+class Shroud(Card):
+    """
+    Hidden: Shroud (3-turn duration)
+    When played, switches the position and appearance of two random friendly pieces for 3 turns.
+    If the player has fewer than two pieces, summons a peon on a safe tile and then swaps.
+    Never swaps either king into check; if no safe swap exists, summons a peon instead.
+    """
     def __init__(self):
         super().__init__(
             id="shroud",
