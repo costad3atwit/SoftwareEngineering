@@ -2409,6 +2409,78 @@ class OfFleshAndBlood(Card):
             f"Of Flesh and Blood applied to piece {piece_id}. "
             "It will summon Peons on the next 2 squares it leaves."
         )
+class ForcedMove(Card):
+    """
+    Forced: Move
+    ------------
+    User is able to play another card this turn.
+    Opponent is forced to move on their next turn (cannot play a card first).
+
+    """
+
+    def __init__(self):
+        super().__init__(
+            id="forced_move",
+            name="Forced: Move",
+            description=(
+                "Play this card without ending your card phase. You may play another "
+                "card this turn, and on your opponent's next turn they must make a "
+                "board move before playing any cards."
+            ),
+            big_img="static/cards/forced_move_big.png",
+            small_img="static/cards/forced_move_small.png"
+        )
+        # No target required for this card
+        self.target_type = TargetType.NONE
+
+    @property
+    def card_type(self) -> CardType:
+        # Assumes you have CardType.FORCED defined.
+        # If not, you can change this to CardType.ACTIVE or the appropriate enum.
+        return CardType.FORCED
+
+    # ------------------------------------------------------------------
+    # Card can always be played (no board / piece precondition)
+    # ------------------------------------------------------------------
+    def can_play(self, board: Board, player: Player) -> bool:
+        # If you have per-turn card limits or phase checks, you can add them here.
+        return True
+
+    # ------------------------------------------------------------------
+    # APPLY EFFECT
+    # ------------------------------------------------------------------
+    def apply_effect(
+        self, board: Board, player: Player, target_data: Dict[str, Any]
+    ) -> tuple[bool, str]:
+
+        gs = board.game_state
+        color = player.color
+        opponent_color = Color.BLACK if color == Color.WHITE else Color.WHITE
+
+        # --------------------------------------------------------------
+        # 1) Give current player an extra card play this turn
+        # --------------------------------------------------------------
+        if not hasattr(gs, "extra_card_play"):
+            # maps Color -> int (remaining extra card plays this turn)
+            gs.extra_card_play = {}
+
+        gs.extra_card_play[color] = gs.extra_card_play.get(color, 0) + 1
+
+        # --------------------------------------------------------------
+        # 2) Mark that opponent is forced to move on their next turn
+        # --------------------------------------------------------------
+        if not hasattr(gs, "forced_move_next_turn"):
+            # maps Color -> bool (whether color must move before playing a card)
+            gs.forced_move_next_turn = {}
+
+        gs.forced_move_next_turn[opponent_color] = True
+
+        return (
+            True,
+            "You may immediately play another card. Your opponent will be forced to "
+            "make a move before playing any cards on their next turn."
+        )
+
 
 
 
@@ -2503,6 +2575,7 @@ CARD_REGISTRY = {
     "transmute": Transmute,
     "of_flesh_and_blood": OfFleshAndBlood,
     "exhaustion": Exhaustion,
+    "forced_move": ForcedMove,
 
 }
 
