@@ -352,6 +352,14 @@ class Board:
         
         return captured_piece
 
+    def is_exhausted(self, color: Color) -> bool:
+        """Return True if a global Exhaustion effect is active for the given color."""
+        if not self.game_state:
+            return False
+        tracker = self.game_state.effect_tracker
+        effects = tracker.get_effects_by_type(EffectType.EXHAUSTION)
+        return any(e.target == color.name for e in effects)
+
     def _find_piece_position(self, piece: Piece) -> Optional[Coordinate]:
         """Find the coordinate of a specific piece on the board."""
         for coord, board_piece in self.squares.items():
