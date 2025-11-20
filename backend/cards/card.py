@@ -2354,7 +2354,8 @@ CARD_REGISTRY = {
     "all_seeing": AllSeeing,
     "summon_barricade": SummonBarricade,
     "insurance": Insurance,
-    "transmute": Transmute
+    "transmute": Transmute,
+    "of_flesh_and_blood": OfFleshAndBlood,
 
 }
 
