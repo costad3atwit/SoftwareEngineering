@@ -28,6 +28,43 @@ class Piece(ABC):
         """Return a list of legal captures for this piece."""
         pass
     
+    def _filter_exhaustion(self, board: Board, at: Coordinate, moves: list[Move]) -> list[Move]:
+        """
+        If an EXHAUSTION effect is active targeting this piece's color, 
+        restrict all moves to Manhattan distance <= 4.
+        Otherwise, return moves unchanged.
+        """
+        # No game state / tracker → no exhaustion
+        if not board or not getattr(board, "game_state", None):
+            return moves
+
+        tracker = board.game_state.effect_tracker
+        from backend.enums import EffectType
+
+        # We assume EffectTracker exposes get_effects_by_type(effect_type)
+        effects = tracker.get_effects_by_type(EffectType.EXHAUSTION)
+        if not effects:
+            return moves
+
+        # This piece is affected if any EXHAUSTION effect targets its color
+        affected = False
+        for eff in effects:
+            # eff.target might be stored as Color or as string
+            if eff.target == self.color or getattr(eff, "target", None) == self.color.name:
+                affected = True
+                break
+
+        if not affected:
+            return moves
+
+        # Filter moves by Manhattan distance ≤ 4
+        limited: List[Move] = []
+        for m in moves:
+            d = abs(m.to_sq.file - at.file) + abs(m.to_sq.rank - at.rank)
+            if d <= 4:
+                limited.append(m)
+        return limited
+
     def algebraic_notation(self) -> str:
         """Return the algebraic notation for the piece."""
         return self.type.value
@@ -155,7 +192,7 @@ class King(Piece):
                 # Queen-side (toward file 0 rook): between squares are (at.file-1, y), (at.file-2, y), (at.file-3, y)
                 self._try_castle(board, at, kingside=False, out_moves=moves)
 
-        return moves
+        return self._filter_exhaustion(board, at, moves)
 
     def _try_castle(self, board: Board, at: Coordinate, kingside: bool, out_moves: List[Move]) -> None:
         """Attempt to add a castle move if all preconditions are satisfied."""
@@ -278,7 +315,7 @@ class Queen(Piece):
                     if target.color != self.color:
                         moves.append(Move(at, to_sq, self))  # capture
                     break  # stop ray on first blocker
-        return moves
+        return self._filter_exhaustion(board, at, moves)
 
     def get_legal_captures(self, board: Board, at: Coordinate) -> List[Move]:
         """Only capture moves for the queen."""
@@ -341,7 +378,7 @@ class Rook(Piece):
                 # Continue in the same direction
                 next_coord = next_coord.offset(df, dr)
 
-        return moves
+        return self._filter_exhaustion(board, at, moves)
 
     def get_legal_captures(self, board: Board, at:Coordinate) -> List[Move]:
         """Return only rook capture moves."""
@@ -403,7 +440,7 @@ class Bishop(Piece):
                 # Continue in the same direction
                 next_coord = next_coord.offset(df, dr)
 
-        return moves
+        return self._filter_exhaustion(board, at, moves)
 
     def get_legal_captures(self, board: Board, at:Coordinate) -> List[Move]:
         """Return only bishop capture moves."""
@@ -448,7 +485,7 @@ class Knight(Piece):
             # knights can move to any empty square or capture enemy pieces
             elif new and (board.is_empty(new) or board.is_enemy(new, self.color)):
                 moves.append(Move(at, new, self))
-        return moves
+        return self._filter_exhaustion(board, at, moves)
 
     def get_legal_captures(self, board: Board, at:Coordinate) -> List[Move]:
         """Return only knight capture moves."""
@@ -518,7 +555,7 @@ class Pawn(Piece):
                     move.promotion = "Queen"
                 moves.append(move)
 
-        return moves
+        return self._filter_exhaustion(board, at, moves)
 
     def get_legal_captures(self, board: Board, at: Coordinate) -> List[Move]:
         """Return only pawn capture moves."""
@@ -614,7 +651,7 @@ class Peon(Piece):
                 if board.is_in_bounds(back_target) and board.is_enemy(back_target, self.color):
                     moves.append(Move(at, back_target, self))
 
-        return moves
+        return self._filter_exhaustion(board, at, moves)
 
     def get_legal_captures(self, board: Board, at: Coordinate) -> List[Move]:
         """Return only capture moves for the Peon."""
@@ -706,7 +743,7 @@ class Scout(Piece):
                 # Friendly piece blocks further movement
                 break
 
-        return moves
+        return self._filter_exhaustion(board, at, moves)
 
     def get_legal_captures(self, board: 'Board', at: Coordinate) -> List[Move]:
         """Scouts do not perform normal captures."""
@@ -769,7 +806,7 @@ class HeadHunter(Piece):
                 continue
             if board.is_empty(new) or board.is_enemy(new, self.color):
                 moves.append(Move(at, new, self))
-        return moves
+        return self._filter_exhaustion(board, at, moves)
 
     def get_legal_captures(self, board: Board, at:Coordinate) -> List[Move]:
         # --- Forbidden Lands rule: cannot capture from inside Forbidden Lands ---
@@ -861,7 +898,7 @@ class Witch(Piece):
                 move.metadata['leaving_green_tile'] = True
                 move.metadata['green_tile_source'] = {'file': at.file, 'rank': at.rank}
         
-        return moves
+        return self._filter_exhaustion(board, at, moves)
 
     def get_legal_captures(self, board: Board, at: Coordinate) -> List[Move]:
         """Return only capture moves for the Witch."""
@@ -943,7 +980,7 @@ class Warlock(Piece):
             moves.extend(self._get_warlock_moves(board, at))
             moves.extend(self._get_backward_move(board, at))
         
-        return moves
+        return self._filter_exhaustion(board, at, moves)
 
     def _get_warlock_moves(self, board: Board, at: Coordinate) -> List[Move]:
         """
@@ -1173,7 +1210,7 @@ class Cleric(Piece):
         # 2 squares right
         moves.extend(self._try_orthogonal_move(board, at, 1, 0, max_dist=2))
         
-        return moves
+        return self._filter_exhaustion(board, at, moves)
     
     def _try_orthogonal_move(self, board: Board, at: Coordinate, 
                             df: int, dr: int, max_dist: int) -> List[Move]:
@@ -1337,7 +1374,7 @@ class DarkLord(Piece):
                     else:
                         break
                     next_coord = next_coord.offset(df, dr)
-        return moves
+        return self._filter_exhaustion(board, at, moves)
 
     def get_legal_captures(self, board: Board, at:Coordinate) -> List[Move]:
         # --- Forbidden Lands rule: cannot capture from inside Forbidden Lands ---
