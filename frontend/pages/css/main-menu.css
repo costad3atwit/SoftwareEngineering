@@ -33,6 +33,31 @@ body {
   margin-bottom: 6.5rem;
 }
 
+.options-backdrop{
+  position: fixed;
+  background: rgba(0, 0, 0, 0.3);
+  top: 0;
+  left: 0;
+  justify-content: center;
+  align-items: center;
+  display: none;
+  width: 100vw;
+  height: 100vh;
+  z-index: 1;
+}
+
+.options-menu {
+  display: flex;
+  flex-direction: column;
+  width: 50%;
+  height: auto;
+  background: rgb(201, 189, 143);
+  justify-content: center;
+  align-items: center;
+  padding: 2rem;
+  z-index: 2;
+}
+
 .button-grid {
   display: grid;
   grid-template-columns: repeat(2, 324px);
@@ -115,6 +140,16 @@ body {
 
 #tutorial {
   background-image: url('../assets/main_menu/btn-tutorial.png');
+}
+
+#back {
+  background: rgb(199, 103, 103);
+  margin: 10% 0;
+}
+
+#save {
+  background: rgb(119, 199, 103);
+  margin: 10% 0;
 }
 
 #acceptChallengeBtn,

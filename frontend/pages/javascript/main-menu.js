@@ -404,8 +404,7 @@ document.getElementById('credits').addEventListener('click', () => {
 
 document.getElementById('settings').addEventListener('click', () => {
     console.log('Settings clicked');
-    // TODO: Show settings
-    showStatus('Settings not yet implemented');
+    document.getElementById("options-backdrop").style.display = "flex";
 });
 
 document.getElementById('exit').addEventListener('click', () => {
@@ -416,6 +415,17 @@ document.getElementById('exit').addEventListener('click', () => {
     }
 });
 
+document.getElementById('save').addEventListener('click', () => {
+    //Add logic to check slider elements for their values
+
+    document.getElementById("options-backdrop").style.display = "none";
+    console.log('Options saved');
+});
+
+document.getElementById('back').addEventListener('click', () => {
+    document.getElementById("options-backdrop").style.display = "none";
+    console.log('Options closed');
+});
 // ============================================================================
 // INITIALIZATION
 // ============================================================================

@@ -34,6 +34,28 @@
   <div class="version">Version 1.1</div>
 
   <div class="player-id-display" id="playerIdDisplay" style="display: none;"></div>
+
+  <div class="options-backdrop" id="options-backdrop">
+    <div class="options-menu" id="options-menu">
+      <h2>Settings</h2>
+      <div>
+        <b>Master Volume</b>
+        <input id="master_volume" type="range" min="0" max="100" value="50">
+      </div>
+      <div>
+        <b>SFX Volume</b>
+        <input id="sfx_volume" type="range" min="0" max="100" value="50">
+      </div>
+      <div>
+        <b>Music Volume</b>
+        <input id="music_volume" type="range" min="0" max="100" value="50">
+      </div>
+      <div>
+        <button class="menu-btn" id="back">Back</button>
+        <button class="menu-btn" id="save">Save</button>
+      </div>
+    </div>
+  </div>
   <audio id="menuMusic" loop>
     <source src="../assets/music/menu-theme-temp.mp3" type="audio/mpeg">
   </audio>
