@@ -3,18 +3,24 @@
 // ============================================================================
 console.log('=== SCRIPT START: main-menu.js ===');
 
+let masterVol = 0.5;
+let musicVol = 0.5;
+let sfxVol = 0.5;
+
 const music = document.getElementById('menuMusic');
 const clickOn = document.getElementById('menuClickOn');
 const clickOff = document.getElementById('menuClickOff');
 
 console.log('Audio elements:', { music, clickOn, clickOff });
 
-// Start background music on first user interaction
+// Start background music and set default volumes on first user interaction
 function startMusic() {
   if (music.paused) {
-    music.volume = 0.3;
+    music.volume = musicVol*masterVol;
     music.play().catch(err => console.log('Autoplay prevented:', err));
   }
+  clickOn.volume = sfxVol *masterVol
+  clickOff.volume = sfxVol *masterVol
 }
 document.addEventListener('click', startMusic, { once: true });
 document.addEventListener('keydown', startMusic, { once: true });
@@ -418,14 +424,59 @@ document.getElementById('exit').addEventListener('click', () => {
 document.getElementById('save').addEventListener('click', () => {
     //Add logic to check slider elements for their values
 
+    masterVol = (master_vol_slider.value/100);
+    musicVol = (music_vol_slider.value/100);
+    sfxVol = (sfx_vol_slider.value/100);
+
+    music.volume = musicVol*masterVol;
+    clickOff.volume = sfxVol*masterVol;
+    clickOn.volume = sfxVol*masterVol;
+
     document.getElementById("options-backdrop").style.display = "none";
     console.log('Options saved');
 });
 
 document.getElementById('back').addEventListener('click', () => {
     document.getElementById("options-backdrop").style.display = "none";
+    music.volume = musicVol*masterVol
+    clickOff.volume = sfxVol*masterVol
+    clickOn.volume = sfxVol*masterVol
+    master_vol_slider.value = masterVol*100;
+    music_vol_slider.value = musicVol*100;
+    sfx_vol_slider.value = sfxVol*100;
     console.log('Options closed');
 });
+
+// ============================================================================
+// Slider Setup
+// ============================================================================
+const master_vol_slider = document.getElementById('master_volume');
+master_vol_slider.addEventListener('input', ()=>{
+    music.volume = (music_vol_slider.value/100)*(master_vol_slider.value/100)
+    clickOn.volume = (sfx_vol_slider.value / 100)*(master_vol_slider.value/100);
+    clickOff.volume = (sfx_vol_slider.value / 100)*(master_vol_slider.value/100);
+    console.log("Master Volume: " + master_vol_slider.value/100)
+});
+
+const music_vol_slider = document.getElementById('music_volume');
+music_vol_slider.addEventListener('input', ()=>{
+    music.volume = (music_vol_slider.value/100)*(master_vol_slider.value/100);
+    console.log("Music Volume: " + music_vol_slider.value/100)
+});
+
+const sfx_vol_slider = document.getElementById('sfx_volume');
+sfx_vol_slider.addEventListener('input', ()=>{
+    const volume = (sfx_vol_slider.value / 100)*(master_vol_slider.value/100);
+    console.log("SFX Volume: " + sfx_vol_slider.value/100)
+    clickOn.volume = volume;
+    clickOff.volume = volume;
+    
+    // Play a test sound so user can hear the change
+    clickOn.currentTime = 0; // Reset to start in case it's already playing
+    clickOn.play();
+});
+
+
 // ============================================================================
 // INITIALIZATION
 // ============================================================================
