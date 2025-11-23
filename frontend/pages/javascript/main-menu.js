@@ -144,7 +144,7 @@ function handleServerMessage(data) {
             inMatchmakingQueue = false;
             
             // Redirect to game page
-            window.location.href = `/game.html?game_id=${gameId}&player_id=${playerId}`;
+            window.location.href = `/frontend/pages/html/game.html?game_id=${gameId}&player_id=${playerId}`;
             break;
             
         case 'challenge_received':
