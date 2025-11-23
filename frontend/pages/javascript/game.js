@@ -1,7 +1,257 @@
+// ============================================================================
+// WEBSOCKET & NETWORKING SETUP
+// ============================================================================
 
-// gamestate json
+// Global networking variables
+let ws = null;
+let gameId = null;
+let playerId = null;
+let playerColor = null;
+
+// Get server URL
+const SERVER_URL = window.location.hostname === 'localhost' 
+    ? 'localhost:8000'
+    : window.location.host;
+
+// Parse URL parameters on page load
+function parseURLParams() {
+    const urlParams = new URLSearchParams(window.location.search);
+    gameId = urlParams.get('game_id');
+    playerId = urlParams.get('player_id');
+    
+    console.log('URL Parameters:', { gameId, playerId });
+    
+    if (!gameId || !playerId) {
+        console.error('Missing game_id or player_id in URL');
+        alert('Error: Missing game information. Please start a new game.');
+        window.location.href = '/frontend/pages/html/main_menu.html';
+        return false;
+    }
+    
+    return true;
+}
+
+// Connect to game via WebSocket
+function connectToGame() {
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${wsProtocol}//${SERVER_URL}/ws/${playerId}`;
+    
+    console.log('Connecting to game server:', wsUrl);
+    ws = new WebSocket(wsUrl);
+    
+    ws.onopen = () => {
+        console.log('✓ Connected to game server');
+        // Request the current game state
+        requestGameState();
+    };
+    
+    ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        handleGameMessage(data);
+    };
+    
+    ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
+    };
+    
+    ws.onclose = () => {
+        console.log('Disconnected from game server');
+        // Could add reconnection logic here
+    };
+}
+
+// Request current game state from server
+function requestGameState() {
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+        console.error('WebSocket not connected');
+        return;
+    }
+    
+    const message = {
+        type: 'get_game_state',
+        game_id: gameId
+    };
+    
+    ws.send(JSON.stringify(message));
+    console.log('Requested game state for:', gameId);
+}
+
+// Handle incoming WebSocket messages
+function handleGameMessage(data) {
+    const msgType = data.type;
+    console.log('Received message:', msgType, data);
+    
+    switch(msgType) {
+        case 'game_state':
+            // Initial game state received
+            console.log('Game state received:', data.game_state);
+            updateGameState(data.game_state);
+            break;
+            
+        case 'game_update':
+            // Game state changed (someone made a move)
+            console.log('Game updated:', data.action);
+            updateGameState(data.game_state);
+            break;
+            
+        case 'game_over':
+            console.log('Game over:', data.reason, 'Winner:', data.winner);
+            handleGameOver(data);
+            break;
+            
+        case 'error':
+            console.error('Server error:', data.message);
+            alert('Error: ' + data.message);
+            break;
+            
+        default:
+            console.log('Unknown message type:', msgType);
+    }
+}
+
+// Update local game state with server data
+function updateGameState(serverGameState) {
+    console.log('Updating game state:', serverGameState);
+    
+    // Update player color if we don't have it yet
+    if (!playerColor && serverGameState.your_color) {
+        playerColor = serverGameState.your_color;
+        console.log('Player color set to:', playerColor);
+    }
+    
+    // Convert server format to our local gameState format
+    // The server sends a player-specific view, we need to reconstruct the full state
+    gameState.game_id = gameId;
+    gameState.dmz = serverGameState.board?.dmz_active || false;
+    
+    // Update board pieces
+    if (serverGameState.board && serverGameState.board.pieces) {
+        gameState.board = serverGameState.board.pieces.map(piece => ({
+            id: piece.id,
+            type: piece.type,
+            color: piece.color,
+            position: piece.position_algebraic,
+            status: piece.status || 'active'
+        }));
+    }
+    
+    // Update player data (reconstruct both players from server view)
+    if (!gameState.players || gameState.players.length === 0) {
+        gameState.players = [
+            {
+                player_id: playerId,
+                name: 'You',
+                color: serverGameState.your_color,
+                hand: serverGameState.your_hand || [],
+                deck_size: serverGameState.your_deck_size || 0,
+                captured_pieces: []
+            },
+            {
+                player_id: 'opponent',
+                name: 'Opponent',
+                color: serverGameState.your_color === 'w' ? 'b' : 'w',
+                hand: [], // We don't see opponent's hand
+                hand_size: serverGameState.opponent_hand_size || 0,
+                deck_size: serverGameState.opponent_deck_size || 0,
+                captured_pieces: []
+            }
+        ];
+    } else {
+        // Update existing player data
+        gameState.players[0].hand = serverGameState.your_hand || [];
+        gameState.players[0].deck_size = serverGameState.your_deck_size || 0;
+        gameState.players[1].hand_size = serverGameState.opponent_hand_size || 0;
+        gameState.players[1].deck_size = serverGameState.opponent_deck_size || 0;
+    }
+    
+    // Update turn information
+    gameState.current_turn = serverGameState.current_turn;
+    gameState.your_turn = serverGameState.your_turn;
+    
+    // Update timers
+    gameState.white_time = serverGameState.white_time;
+    gameState.black_time = serverGameState.black_time;
+    
+    // Store special tiles if present
+    if (serverGameState.board) {
+        gameState.greenTiles = serverGameState.board.greenTiles || [];
+        gameState.forbiddenTiles = serverGameState.board.forbiddenTiles || [];
+        gameState.mines = serverGameState.board.mines || [];
+        gameState.glueTiles = serverGameState.board.glueTiles || [];
+    }
+    
+    console.log('Game state updated:', gameState);
+    
+    // Update columns/rows if DMZ changed
+    columns = gameState.dmz ? 9 : 8;
+    rows = columns;
+    
+    // Update the UI with new state
+    updateFullUI();
+}
+
+// Send a move to the server
+function sendMove(fromSquare, toSquare) {
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+        console.error('Cannot send move: not connected');
+        return;
+    }
+    
+    if (!gameState.your_turn) {
+        console.log('Not your turn!');
+        return;
+    }
+    
+    const message = {
+        type: 'make_move',
+        game_id: gameId,
+        from: fromSquare,
+        to: toSquare
+    };
+    
+    console.log('Sending move:', message);
+    ws.send(JSON.stringify(message));
+}
+
+// Send a card play to the server
+function sendPlayCard(cardId, targetData = {}) {
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+        console.error('Cannot play card: not connected');
+        return;
+    }
+    
+    if (!gameState.your_turn) {
+        console.log('Not your turn!');
+        return;
+    }
+    
+    const message = {
+        type: 'play_card',
+        game_id: gameId,
+        card_id: cardId,
+        target: targetData
+    };
+    
+    console.log('Playing card:', message);
+    ws.send(JSON.stringify(message));
+}
+
+// Handle game over
+function handleGameOver(data) {
+    alert(`Game Over!\nReason: ${data.reason}\nWinner: ${data.winner || 'Draw'}`);
+    // Could add a game over screen here
+}
+
+// ============================================================================
+// EXISTING GAME.JS CODE (with minor modifications)
+// ============================================================================
+
+// gamestate json - now populated by server
 const gameState = {
-  // pull gamestate from json
+    board: [],
+    players: [],
+    dmz: false,
+    logs: []
 };
 
 // ---------- config / assets ----------
@@ -10,8 +260,8 @@ const PIECES_PATH = "../assets/game/game_pieces/";
 const CARDS_PATH = "../assets/game/game_cards/";
 const BOARD_PNG = `${BOARD_PATH}chessboard.png`;
 const OVERLAYS = {
-  move: new Image(),
-  capture: new Image()
+    move: new Image(),
+    capture: new Image()
 };
 OVERLAYS.move.src = `${BOARD_PATH}av_move.png`;
 OVERLAYS.capture.src = `${BOARD_PATH}av_attk.png`;
@@ -44,80 +294,66 @@ boardImg.src = BOARD_PNG;
 
 // compute sizes after CSS layout
 function resizeCanvas(){
-  const rect = canvas.getBoundingClientRect();
-  canvasPixelSize = Math.min(rect.width, rect.height);
-  canvas.width = Math.round(rect.width * dpr);
-  canvas.height = Math.round(rect.height * dpr);
-  canvas.style.width = `${rect.width}px`;
-  canvas.style.height = `${rect.height}px`;
-  ctx.setTransform(dpr,0,0,dpr,0,0);
-  render();
+    const rect = canvas.getBoundingClientRect();
+    canvasPixelSize = Math.min(rect.width, rect.height);
+    canvas.width = Math.round(rect.width * dpr);
+    canvas.height = Math.round(rect.height * dpr);
+    canvas.style.width = `${rect.width}px`;
+    canvas.style.height = `${rect.height}px`;
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    render();
 }
 window.addEventListener('resize', debounce(resizeCanvas, 80));
 boardImg.onload = resizeCanvas;
 
 // helpers: algebraic -> indices
 function algebraicToIndex(pos){
-  if(!pos) return null;
-  const file = pos[0].toUpperCase();
-  const rank = parseInt(pos.slice(1), 10);
+    if(!pos) return null;
+    const file = pos[0].toUpperCase();
+    const rank = parseInt(pos.slice(1), 10);
   // determine mapping: files A.. based on columns (A..I)
-  const col = file.charCodeAt(0) - 'A'.charCodeAt(0);
+    const col = file.charCodeAt(0) - 'A'.charCodeAt(0);
   // algebraic rank 1 = bottom row. canvas row 0 = top, so row = rows - rank
-  const row = rows - rank;
-  return { row, col };
+    const row = rows - rank;
+    return { row, col };
 }
 function indexToAlgebraic(row, col){
-  const file = String.fromCharCode('A'.charCodeAt(0) + col);
-  const rank = (rows - row);
-  return `${file}${rank}`;
+    const file = String.fromCharCode('A'.charCodeAt(0) + col);
+    const rank = (rows - row);
+    return `${file}${rank}`;
 }
 
 // layout: inner board area with 1% border
 function computeLayout(){
-  const w = canvas.width / dpr;
-  const h = canvas.height / dpr;
+    const w = canvas.width / dpr;
+    const h = canvas.height / dpr;
   // board must fill canvas; but we maintain 1% border inside
-  const borderX = w * 0.01;
-  const borderY = h * 0.01;
-  const innerLeft = borderX;
-  const innerTop = borderY;
-  const innerW = w - borderX*2;
-  const innerH = h - borderY*2;
-  const cellSize = Math.min(innerW / columns, innerH / rows);
-  const totalGridW = cellSize * columns;
-  const totalGridH = cellSize * rows;
+    const borderX = w * 0.01;
+    const borderY = h * 0.01;
+    const innerLeft = borderX;
+    const innerTop = borderY;
+    const innerW = w - borderX*2;
+    const innerH = h - borderY*2;
+    const cellSize = Math.min(innerW / columns, innerH / rows);
+    const totalGridW = cellSize * columns;
+    const totalGridH = cellSize * rows;
   // center the grid inside inner area
-  const gridLeft = innerLeft + (innerW - totalGridW)/2;
-  const gridTop = innerTop + (innerH - totalGridH)/2;
-  return { w,h, borderX, borderY, innerLeft, innerTop, innerW, innerH, cellSize, totalGridW, totalGridH, gridLeft, gridTop };
+    const gridLeft = innerLeft + (innerW - totalGridW)/2;
+    const gridTop = innerTop + (innerH - totalGridH)/2;
+    return { w,h, borderX, borderY, innerLeft, innerTop, innerW, innerH, cellSize, totalGridW, totalGridH, gridLeft, gridTop };
 }
 
 // convenience to get piece at grid
 function getPieceAt(row, col){
-  const pos = indexToAlgebraic(row, col);
-  return gameState.board.find(p => p.position === pos && p.status === 'active' && p.type) || null;
+    const pos = indexToAlgebraic(row, col);
+    return gameState.board.find(p => p.position === pos && p.status === 'active' && p.type) || null;
 }
 
-// TODO: pull logic from json and get legal moves for each piece
+// TODO: This will eventually come from server - for now just basic logic
 function computeLegalMovesFor(piece){
-  const start = algebraicToIndex(piece.position);
-  if(!start) return { moves: [], captures: [] };
-    let dirs = [];
-    if(piece.type == 'wl'){
-      // TODO: add logic
-    }
-    const moves = [];
-    const captures = [];
-  for(const [dr,dc] of dirs){
-    const r = start.row + dr;
-    const c = start.col + dc;
-    if(r < 0 || r >= rows || c < 0 || c >= columns) continue;
-    const occupant = getPieceAt(r,c);
-    if(!occupant) moves.push({row:r,col:c});
-    else if(occupant.color !== piece.color) captures.push({row:r,col:c});
-  }
-  return { moves, captures };
+    // This is placeholder - the server will provide legal moves
+    // For now, just show empty arrays
+    return { moves: [], captures: [] };
 }
 
 let selectedPiece = null;
@@ -126,58 +362,58 @@ let legalCaptures = [];
 
 // drawing
 function render(){
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-  const L = computeLayout();
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    const L = computeLayout();
 
   // draw board image stretched to canvas area but preserving the computed inner board area
-  if(boardImg.complete){
+    if(boardImg.complete){
     // fill entire canvas (fitted)
-    ctx.drawImage(boardImg, 0, 0, L.w, L.h);
-  } else {
-    ctx.fillStyle = '#8a6b49';
-    ctx.fillRect(0,0,L.w,L.h);
-  }
+        ctx.drawImage(boardImg, 0, 0, L.w, L.h);
+    } else {
+        ctx.fillStyle = '#8a6b49';
+        ctx.fillRect(0,0,L.w,L.h);
+    }
 
   // draw DMZ outer ring if dmz true
   if(gameState.dmz){
   }
 
-  // draw legal moves overlays
-  ctx.save();
-  ctx.globalCompositeOperation = 'source-over';
-  for(const m of legalMoves){
-    const x = L.gridLeft + m.col*L.cellSize;
-    const y = L.gridTop + m.row*L.cellSize;
-    const img = OVERLAYS.move;
+    // draw legal moves overlays
+    ctx.save();
+    ctx.globalCompositeOperation = 'source-over';
+    for(const m of legalMoves){
+        const x = L.gridLeft + m.col*L.cellSize;
+        const y = L.gridTop + m.row*L.cellSize;
+        const img = OVERLAYS.move;
     ctx.drawImage(img, x, y, L.cellSize, L.cellSize);
-  }
-  for(const m of legalCaptures){
-    const x = L.gridLeft + m.col*L.cellSize;
-    const y = L.gridTop + m.row*L.cellSize;
-    const img = OVERLAYS.capture;
-    ctx.drawImage(img, x, y, L.cellSize, L.cellSize);
-  }
-  ctx.restore();
-
-  // draw pieces
-  for(const p of gameState.board){
-    if(!p.position || p.status !== 'active') continue;
-    const idx = algebraicToIndex(p.position);
-    if(!idx) continue;
-    const x = L.gridLeft + idx.col*L.cellSize;
-    const y = L.gridTop + idx.row*L.cellSize;
-    const pad = L.cellSize * 0.08;
-    const img = loadPieceSprite(p.color, p.type);
-    if(img.complete){
-      // draw centered with padding
-      ctx.drawImage(img, x+pad, y+pad, L.cellSize - pad*2, L.cellSize - pad*2);
-    } else {
-      // placeholder circle
-      ctx.fillStyle = p.color === 'w' ? '#fff' : '#000';
-      ctx.beginPath();
-      ctx.arc(x + L.cellSize/2, y + L.cellSize/2, L.cellSize*0.36, 0, Math.PI*2);
-      ctx.fill();
     }
+    for(const m of legalCaptures){
+        const x = L.gridLeft + m.col*L.cellSize;
+        const y = L.gridTop + m.row*L.cellSize;
+        const img = OVERLAYS.capture;
+    ctx.drawImage(img, x, y, L.cellSize, L.cellSize);
+    }
+    ctx.restore();
+
+    // draw pieces
+    for(const p of gameState.board){
+        if(!p.position || p.status !== 'active') continue;
+        const idx = algebraicToIndex(p.position);
+        if(!idx) continue;
+        const x = L.gridLeft + idx.col*L.cellSize;
+        const y = L.gridTop + idx.row*L.cellSize;
+        const pad = L.cellSize * 0.08;
+    const img = loadPieceSprite(p.color, p.type);
+        if(img.complete){
+      // draw centered with padding
+            ctx.drawImage(img, x+pad, y+pad, L.cellSize - pad*2, L.cellSize - pad*2);
+        } else {
+            // placeholder circle
+      ctx.fillStyle = p.color === 'w' ? '#fff' : '#000';
+            ctx.beginPath();
+      ctx.arc(x + L.cellSize/2, y + L.cellSize/2, L.cellSize*0.36, 0, Math.PI*2);
+            ctx.fill();
+        }
     // if selected, add highlight
     if(selectedPiece && selectedPiece.id === p.id){
       ctx.strokeStyle = 'rgba(200,160,255,0.9)';
@@ -189,8 +425,8 @@ function render(){
 
 // ---------- hit testing & input ----------
 function pointerPosToCell(clientX, clientY){
-  const rect = canvas.getBoundingClientRect();
-  const L = computeLayout();
+    const rect = canvas.getBoundingClientRect();
+    const L = computeLayout();
   const x = clientX - rect.left;
   const y = clientY - rect.top;
   // check inner grid
@@ -211,10 +447,10 @@ canvas.addEventListener('mousedown', (ev) => {
   if(piece && piece.color === 'w'){ // replace with player color
     selectedPiece = piece;
     const legal = computeLegalMovesFor(piece);
-    legalMoves = legal.moves;
-    legalCaptures = legal.captures;
-    render();
-  } else {
+            legalMoves = legal.moves;
+            legalCaptures = legal.captures;
+            render();
+    } else {
     // clicked on empty or enemy - if selected, maybe move
     if(selectedPiece){
       tryMoveTo(cell.row, cell.col);
@@ -223,7 +459,7 @@ canvas.addEventListener('mousedown', (ev) => {
 });
 
 canvas.addEventListener('mouseup', (ev) => {
-  playClickOff();
+            playClickOff();
 });
 
 function tryMoveTo(row,col){
@@ -246,20 +482,20 @@ function tryMoveTo(row,col){
     // update logs
     gameState.logs.push({ turn: gameState.logs.length+1, player_id: 'p1', action: 'move_piece', details: `${selectedPiece.id}:${selectedPiece.position}` });
     // clear selection
-    selectedPiece = null;
-    legalMoves = [];
-    legalCaptures = [];
+            selectedPiece = null;
+            legalMoves = [];
+            legalCaptures = [];
     // end turn after movement or card
     endTurn();
-    render();
-  } else {
+                render();
+            } else {
     // not legal: cancel
-    selectedPiece = null;
-    legalMoves = [];
-    legalCaptures = [];
-    render();
-  }
-}
+                selectedPiece = null;
+                legalMoves = [];
+                legalCaptures = [];
+                render();
+            }
+        }
 
 // ---------- card DOM handling ----------
 const playerHandEl = document.getElementById('playerHand');
@@ -269,56 +505,56 @@ const drawBtn = document.getElementById('drawCardBtn');
 
 // rendering hands
 function renderHands(){
-  const me = gameState.players[0];
-  const opp = gameState.players[1];
+    const me = gameState.players[0];
+    const opp = gameState.players[1];
 
-  playerHandEl.innerHTML = '';
+    playerHandEl.innerHTML = '';
   opp.hand.forEach(c => {
     // TODO: replace with back of card png
-    const cardEl = document.createElement('div');
-    cardEl.className = 'card';
+        const cardEl = document.createElement('div');
+        cardEl.className = 'card';
     cardEl.style.width = '72px'; cardEl.style.height='96px';
-    cardEl.innerHTML = `<div class="card-inner"><div class="front"></div><div class="back"></div></div>`;
-    opponentHandEl.appendChild(cardEl);
+        cardEl.innerHTML = `<div class="card-inner"><div class="front"></div><div class="back"></div></div>`;
+        opponentHandEl.appendChild(cardEl);
   });
 
-  me.hand.forEach((card, idx) => {
-    const el = document.createElement('div');
-    el.className = 'card';
-    el.dataset.id = card.id;
-    el.innerHTML = `
-      <div class="card-inner">
-        <div class="front">
-          <div class="title">${card.name}</div>
-        </div>
-        <div class="back">
-          <div class="title">${card.name}</div>
-          <div class="desc">${card.description}</div>
-        </div>
-      </div>`;
-    // hover enlarge
-    el.addEventListener('mouseenter', () => {
-      document.querySelectorAll('.card.hovered').forEach(c=>c.classList.remove('hovered'));
-      el.classList.add('hovered');
-    });
-    el.addEventListener('mouseleave', () => {
-      el.classList.remove('hovered');
-    });
-    // click = play card
+        me.hand.forEach((card, idx) => {
+            const el = document.createElement('div');
+            el.className = 'card';
+            el.dataset.id = card.id;
+            el.innerHTML = `
+                <div class="card-inner">
+                    <div class="front">
+                        <div class="title">${card.name}</div>
+                    </div>
+                    <div class="back">
+                        <div class="title">${card.name}</div>
+                        <div class="desc">${card.description}</div>
+                    </div>
+                </div>`;
+            // hover enlarge
+            el.addEventListener('mouseenter', () => {
+                document.querySelectorAll('.card.hovered').forEach(c=>c.classList.remove('hovered'));
+                el.classList.add('hovered');
+            });
+            el.addEventListener('mouseleave', () => {
+                el.classList.remove('hovered');
+            });
+            // click = play card
     el.addEventListener('mousedown', (ev) => { playClickOn(); });
     el.addEventListener('mouseup', (ev) => { playClickOff(); });
     el.addEventListener('click', (ev) => {
-      playCard(card, el);
-    });
-    playerHandEl.appendChild(el);
-  });
+                playCard(card, el);
+            });
+            playerHandEl.appendChild(el);
+        });
 }
 
 function playCard(card, el){
   // show overlay with card name
-  cardOverlay.textContent = `Played: ${card.name}`;
-  cardOverlay.style.opacity = '1';
-  cardOverlay.setAttribute('aria-hidden','false');
+    cardOverlay.textContent = `Played: ${card.name}`;
+    cardOverlay.style.opacity = '1';
+    cardOverlay.setAttribute('aria-hidden','false');
   setTimeout(()=>{ cardOverlay.style.opacity = '0'; cardOverlay.setAttribute('aria-hidden','true'); }, 1200);
 
   // need to add method to play cards to affect gamestate
@@ -371,7 +607,7 @@ drawBtn.addEventListener('click', () => {
   setTimeout(()=> {
     document.body.removeChild(temp);
     me.hand.push(newCard);
-    renderHands();
+        renderHands();
   }, 600);
 });
 
@@ -382,7 +618,7 @@ function endTurn(){
   console.log('Turn ended. State:', gameState);
   // place to call backend sync API:
   // fetch('/api/game/update', {method:'POST', body: JSON.stringify(gameState)});
-}
+    }
 
 // ---------- UI initialization ----------
 function initUI(){
@@ -393,15 +629,15 @@ function initUI(){
 
 // ---------- utility: debounce ----------
 function debounce(fn, t=100){
-  let id;
-  return (...a) => { clearTimeout(id); id = setTimeout(()=>fn(...a), t); };
+    let id;
+    return (...a) => { clearTimeout(id); id = setTimeout(()=>fn(...a), t); };
 }
 
 // initial sizing & render
 window.addEventListener('load', () => {
-  dpr = Math.max(1, window.devicePixelRatio || 1);
+    dpr = Math.max(1, window.devicePixelRatio || 1);
   columns = gameState.dmz ? 9 : 8;
   rows = columns;
-  initUI();
-  resizeCanvas();
+    initUI();
+    resizeCanvas();
 });
