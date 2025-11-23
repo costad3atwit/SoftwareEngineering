@@ -1407,14 +1407,13 @@ class PawnQueen(Card):
             "or revert to a Pawn."
         ) 
     
-    class Shroud(Card):
-        """
-        Hidden: Shroud (3-turn duration)
-        When played, switches the position and appearance of two random friendly pieces for 3 turns.
-        If the player has fewer than two pieces, summons a peon on a safe tile and then swaps.
-        Never swaps either king into check; if no safe swap exists, summons a peon instead.
-        """
-
+class Shroud(Card):
+    """
+    Hidden: Shroud (3-turn duration)
+    When played, switches the position and appearance of two random friendly pieces for 3 turns.
+    If the player has fewer than two pieces, summons a peon on a safe tile and then swaps.
+    Never swaps either king into check; if no safe swap exists, summons a peon instead.
+    """
     def __init__(self):
         super().__init__(
             id="shroud",
@@ -2188,7 +2187,154 @@ class Transmute(Card):
         board.squares[target_coord] = new_piece
 
         return True, f"{piece.type.name} at {target_square} transmuted into {transform_to.name}!"
-    
+
+class Exhaustion(Card):
+    """
+    CURSE: Exhaustion
+    -----------------
+    When activated:
+        • Summons an Effigy belonging to the caster.
+        • While the Effigy is alive, ALL enemy pieces are restricted to
+          Manhattan-distance ≤ 4 for ALL their moves.
+
+    • If the Effigy is captured/removed → Exhaustion immediately ends.
+    • Cannot stack per enemy color (only one Exhaustion affecting a player).
+    """
+
+    def __init__(self):
+        super().__init__(
+            id="exhaustion",
+            name="Exhaustion",
+            description=(
+                "Summons an Effigy. While it lives, all enemy pieces are limited "
+                "to moving within 4 tiles (Manhattan distance). Ends if the effigy dies."
+            ),
+            big_img="static/cards/exhaustion_big.png",
+            small_img="static/cards/exhaustion_small.png"
+        )
+
+    @property
+    def card_type(self) -> CardType:
+        return CardType.CURSE
+
+    # -------------------------------------------------------------
+    # Helper: find enemy king
+    # -------------------------------------------------------------
+    def _find_enemy_king(self, board: Board, enemy_color: Color) -> Optional[Coordinate]:
+        for coord, piece in board.squares.items():
+            if piece.type == PieceType.KING and piece.color == enemy_color:
+                return coord
+        return None
+
+    # -------------------------------------------------------------
+    # Helper: find farthest legal tile
+    # -------------------------------------------------------------
+    def _farthest_tile_from(self, board: Board, origin: Coordinate) -> Optional[Coordinate]:
+        farthest = None
+        far_dist = -1
+
+        for coord in board._all_board_coords():
+            if not board.is_empty(coord):
+                continue
+            if board.forbidden_active and board.is_forbidden(coord):
+                continue
+
+            dist = abs(coord.file - origin.file) + abs(coord.rank - origin.rank)
+            if dist > far_dist:
+                far_dist = dist
+                farthest = coord
+
+        return farthest
+
+    # -------------------------------------------------------------
+    # Helper: summon an exhaustion effigy
+    # -------------------------------------------------------------
+    def _summon_effigy(self, board: Board, coord: Coordinate, color: Color) -> Tuple[Effigy, str]:
+        effigy_id = f"effigy_exhaustion_{color.value}_{coord.file}{coord.rank}"
+        effigy = Effigy(effigy_id, color, EffectType.EXHAUSTION)
+        board.squares[coord] = effigy
+        return effigy, effigy_id
+
+    # -------------------------------------------------------------
+    # Prevent stacking for same enemy
+    # -------------------------------------------------------------
+    def can_play(self, board: Board, player: Player) -> bool:
+        if not board.game_state:
+            return True
+
+        enemy_color = Color.BLACK if player.color == Color.WHITE else Color.WHITE
+        tracker = board.game_state.effect_tracker
+
+        for eff in tracker.get_effects_by_type(EffectType.EXHAUSTION):
+            if eff.target == enemy_color or eff.target == enemy_color.name:
+                return False  # Already exhausting this opponent
+        return True
+
+    # -------------------------------------------------------------
+    # Main effect
+    # -------------------------------------------------------------
+    def apply_effect(
+        self,
+        board: Board,
+        player: Player,
+        target_data: Dict[str, Any]
+    ) -> Tuple[bool, str]:
+
+        gs = board.game_state
+        if not gs:
+            return False, "GameState unavailable."
+
+        tracker = gs.effect_tracker
+        caster = player.color
+        enemy_color = Color.BLACK if caster == Color.WHITE else Color.WHITE
+
+        # Prevent stacking (double check)
+        for eff in tracker.get_effects_by_type(EffectType.EXHAUSTION):
+            if eff.target == enemy_color or eff.target == enemy_color.name:
+                return False, "An Exhaustion curse already affects this player."
+
+        # 1. Find enemy king
+        enemy_king = self._find_enemy_king(board, enemy_color)
+        if enemy_king is None:
+            return False, "Enemy king not found — cannot cast Exhaustion."
+
+        # 2. Pick farthest legal tile
+        dest = self._farthest_tile_from(board, enemy_king)
+        if not dest:
+            return False, "No valid tile to place Exhaustion Effigy."
+
+        # 3. Summon Effigy
+        effigy, effigy_id = self._summon_effigy(board, dest, caster)
+
+        # 4. Register exhaustion effect
+        def _tick(effect, current_turn: int):
+            # If effigy dead → remove effect immediately
+            alive_ids = [p.id for p in board.squares.values()]
+            if effigy_id not in alive_ids:
+                tracker.remove_effect(effect.effect_id)
+                if effect.on_expire:
+                    effect.on_expire(effect)
+                return
+
+        def _expire(effect):
+            # Cleanup effigy if still present
+            for coord, piece in list(board.squares.items()):
+                if piece.id == effigy_id:
+                    del board.squares[coord]
+                    break
+
+        tracker.add_effect(
+            effect_type=EffectType.EXHAUSTION,
+            start_turn=gs.fullmove_number,
+            duration=9999,  # lasts until effigy is removed
+            target=enemy_color,
+            metadata={"effigy_id": effigy_id},
+            on_tick=_tick,
+            on_expire=_expire
+        )
+
+        return True, f"Exhaustion cast — Effigy placed at {dest.to_algebraic()}. Enemy pieces now have limited movement."
+
 class OfFleshAndBlood(Card):
     """
     Of Flesh and Blood – Select a piece.
@@ -2263,6 +2409,78 @@ class OfFleshAndBlood(Card):
             f"Of Flesh and Blood applied to piece {piece_id}. "
             "It will summon Peons on the next 2 squares it leaves."
         )
+class ForcedMove(Card):
+    """
+    Forced: Move
+    ------------
+    User is able to play another card this turn.
+    Opponent is forced to move on their next turn (cannot play a card first).
+
+    """
+
+    def __init__(self):
+        super().__init__(
+            id="forced_move",
+            name="Forced: Move",
+            description=(
+                "Play this card without ending your card phase. You may play another "
+                "card this turn, and on your opponent's next turn they must make a "
+                "board move before playing any cards."
+            ),
+            big_img="static/cards/forced_move_big.png",
+            small_img="static/cards/forced_move_small.png"
+        )
+        # No target required for this card
+        self.target_type = TargetType.NONE
+
+    @property
+    def card_type(self) -> CardType:
+        # Assumes you have CardType.FORCED defined.
+        # If not, you can change this to CardType.ACTIVE or the appropriate enum.
+        return CardType.FORCED
+
+    # ------------------------------------------------------------------
+    # Card can always be played (no board / piece precondition)
+    # ------------------------------------------------------------------
+    def can_play(self, board: Board, player: Player) -> bool:
+        # If you have per-turn card limits or phase checks, you can add them here.
+        return True
+
+    # ------------------------------------------------------------------
+    # APPLY EFFECT
+    # ------------------------------------------------------------------
+    def apply_effect(
+        self, board: Board, player: Player, target_data: Dict[str, Any]
+    ) -> tuple[bool, str]:
+
+        gs = board.game_state
+        color = player.color
+        opponent_color = Color.BLACK if color == Color.WHITE else Color.WHITE
+
+        # --------------------------------------------------------------
+        # 1) Give current player an extra card play this turn
+        # --------------------------------------------------------------
+        if not hasattr(gs, "extra_card_play"):
+            # maps Color -> int (remaining extra card plays this turn)
+            gs.extra_card_play = {}
+
+        gs.extra_card_play[color] = gs.extra_card_play.get(color, 0) + 1
+
+        # --------------------------------------------------------------
+        # 2) Mark that opponent is forced to move on their next turn
+        # --------------------------------------------------------------
+        if not hasattr(gs, "forced_move_next_turn"):
+            # maps Color -> bool (whether color must move before playing a card)
+            gs.forced_move_next_turn = {}
+
+        gs.forced_move_next_turn[opponent_color] = True
+
+        return (
+            True,
+            "You may immediately play another card. Your opponent will be forced to "
+            "make a move before playing any cards on their next turn."
+        )
+
 
 
 
@@ -2354,7 +2572,10 @@ CARD_REGISTRY = {
     "all_seeing": AllSeeing,
     "summon_barricade": SummonBarricade,
     "insurance": Insurance,
-    "transmute": Transmute
+    "transmute": Transmute,
+    "of_flesh_and_blood": OfFleshAndBlood,
+    "exhaustion": Exhaustion,
+    "forced_move": ForcedMove,
 
 }
 
