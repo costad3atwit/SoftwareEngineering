@@ -78,7 +78,7 @@ class Piece(ABC):
 
         payload = {
             "id": self.id,
-            "type": self.type.value,
+            "type": self.type.name,
             "color": self.color.name,
             "position": {"file": at.file, "rank": at.rank},
             "marked": self.marked,
@@ -111,7 +111,7 @@ class Effigy(Piece):
         """Frontend-friendly representation of Effigy."""
         return {
             "id": self.id,
-            "type": "EFFIGY",
+            "type": self.type.name,
             "color": self.color.name,
             "position": {"file": at.file, "rank": at.rank},
             "isEffigy": True,
@@ -135,8 +135,8 @@ class Barricade(Piece):
         """Frontend-friendly representation of Barricade."""
         return {
             "id": self.id,
-            "type": "BARRICADE",
-            "color": None,  # Neutral piece
+            "type": self.type.name,
+            "color": None,
             "position": {"file": at.file, "rank": at.rank},
             "isBarricade": True,
         }
@@ -257,7 +257,7 @@ class King(Piece):
         """Frontend-friendly dictionary representation."""
         data = {
             "id": self.id,
-            "type": self.type.name,  # "KING"
+            "type": self.type.name,
             "color": self.color.name,
             "position": {"file": at.file, "rank": at.rank},
         }
