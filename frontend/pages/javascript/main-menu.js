@@ -404,8 +404,8 @@ document.getElementById('tutorial').addEventListener('click', () => {
 
 document.getElementById('credits').addEventListener('click', () => {
     console.log('Credits clicked');
-    // TODO: Show credits page
-    showStatus('Credits not yet implemented');
+    
+    window.location.href = '/frontend/pages/html/credits.html';
 });
 
 document.getElementById('settings').addEventListener('click', () => {

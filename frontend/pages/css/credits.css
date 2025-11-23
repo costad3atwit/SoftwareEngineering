@@ -1,0 +1,105 @@
+body {
+  margin: 0;
+  height: 100vh;
+  overflow: hidden;
+  font-family: 'Luminari', sans-serif;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: #000;
+}
+
+.background {
+  position: fixed;
+  inset: 0;
+  background: url('../assets/main_menu/bg-mainmenu.png') center/cover no-repeat;
+  z-index: -1;
+  filter: blur(2px) brightness(0.9);
+}
+
+.parchment{
+  min-height: 100%;
+  background: radial-gradient(
+    circle at center,
+    rgb(215, 203, 160),       /* Lighter center */
+    rgb(185, 173, 130)        /* Darker edges */
+  );
+  padding: 50px;
+  box-shadow: 
+    0 4px 6px rgba(0, 0, 0, 0.3),      /* Outer shadow */
+    0 1px 3px rgba(0, 0, 0, 0.2);      /* Inner shadow */
+  border: 2px solid rgb(181, 169, 123);
+  border-radius: 8px;
+}
+
+.scroll-window{
+
+  width: 600px;
+  height: 80vh;
+  overflow-y: auto;
+
+}
+
+.scroll-content{
+  display:flex;
+  justify-content: center;
+  flex-direction: column;
+}
+
+h1 {
+  text-align: center;
+}
+
+ul li {
+  padding: 4px;
+}
+
+.back-btn{
+  position: fixed;
+  left:2vw;
+  top:2vh;
+  width: 324px;
+  height: 130px;
+  border: none;
+  background: rgb(199, 103, 103);
+  cursor: pointer;
+  filter: drop-shadow(0px 3px 6px rgba(0, 0, 0, 0.6));
+  transition: transform 0.15s ease, filter 0.25s ease, brightness 0.25s ease;
+  overflow: hidden;
+}
+
+/* Glow aura using pseudo-element */
+.back-btn::before {
+  content: "";
+  inset: 0;
+  border-radius: 12px;
+  box-shadow: 0 0 30px 10px rgba(150, 80, 255, 0.0);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+
+.back-btn:hover::before {
+  opacity: 1;
+  animation: auraPulse 2.5s infinite ease-in-out;
+}
+
+.back-btn:hover {
+  filter: brightness(1.15) drop-shadow(0px 5px 10px rgba(0,0,0,0.8));
+}
+
+.back-btn:active {
+  transform: scale(0.97);
+  filter: brightness(1.25) drop-shadow(0px 3px 6px rgba(0,0,0,0.9));
+}
+
+
+/* Aura animation on hovering */
+@keyframes auraPulse {
+  0%, 100% {
+    box-shadow: 0 0 25px 8px rgba(150, 80, 255, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 45px 18px rgba(200, 120, 255, 0.55);
+  }
+}
