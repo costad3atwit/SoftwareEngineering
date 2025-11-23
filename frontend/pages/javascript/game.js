@@ -112,7 +112,13 @@ function handleGameMessage(data) {
 // Update local game state with server data
 function updateGameState(serverGameState) {
     console.log('Updating game state:', serverGameState);
+    console.log('=== updateGameState called ===');
+    console.log('Server game state:', JSON.stringify(serverGameState, null, 2));
+    console.log('Your color:', serverGameState.your_color);
+    console.log('Your turn:', serverGameState.your_turn);
+    console.log('Board pieces count:', serverGameState.board?.pieces?.length || 0);
     
+    // ... rest of the function
     // Update player color if we don't have it yet
     if (!playerColor && serverGameState.your_color) {
         playerColor = serverGameState.your_color;
@@ -290,7 +296,37 @@ let rows = columns;
 let boardImg = new Image();
 boardImg.src = BOARD_PNG;
 
-// TODO: add rendering for pieces
+// ---------- Piece sprite loading and caching ----------
+const pieceImageCache = {}; // Cache loaded piece images
+
+function loadPieceSprite(color, type) {
+    // Create cache key
+    const key = `${color}_${type}`;
+    
+    // Return cached image if it exists
+    if (pieceImageCache[key]) {
+        return pieceImageCache[key];
+    }
+    
+    // Create new image using PIECE_SPRITE function
+    const img = new Image();
+    img.src = PIECE_SPRITE(color, type);
+    
+    // Cache it for future use
+    pieceImageCache[key] = img;
+    
+    // When image loads, re-render to show it
+    img.onload = () => {
+        render();
+    };
+    
+    return img;
+}
+
+// Render board - wrapper around render() for clarity
+function renderBoard() {
+    render();
+}
 
 // compute sizes after CSS layout
 function resizeCanvas(){
@@ -621,10 +657,99 @@ function endTurn(){
     }
 
 // ---------- UI initialization ----------
+
+
 function initUI(){
   document.getElementById('playerName').textContent = gameState.players[0].name;
   document.getElementById('opponentName').textContent = gameState.players[1].name;
   renderHands();
+}
+
+// Complete UI refresh based on current gameState
+function updateFullUI() {
+    console.log('=== updateFullUI called ===');
+    console.log('Current gameState:', JSON.stringify(gameState, null, 2));
+    
+    // Safety check - make sure we have player data
+    if (!gameState.players || gameState.players.length < 2) {
+        console.error('Cannot update UI: player data not ready');
+        console.log('gameState.players:', gameState.players);
+        return;
+    }
+    
+    console.log('Updating UI with valid game state');
+
+    // 1. Update player information displays
+    updatePlayerInfo();
+    
+    // 2. Render the chess board with all pieces
+    renderBoard();
+    
+    // 3. Render player hands
+    renderHands();
+    
+    // 4. Update turn indicator
+    updateTurnIndicator();
+    
+    // 5. Update timers if you have them
+    if (gameState.white_time !== undefined && gameState.black_time !== undefined) {
+        updateTimers();
+    }
+}
+
+
+
+// Update player names and deck information
+function updatePlayerInfo() {
+    // Player (you)
+    document.getElementById('playerName').textContent = gameState.players[0].name;
+    const playerDeckCount = document.getElementById('playerDeckCount');
+    if (playerDeckCount) {
+        playerDeckCount.textContent = `Deck: ${gameState.players[0].deck_size}`;
+    }
+    
+    // Opponent
+    document.getElementById('opponentName').textContent = gameState.players[1].name;
+    const opponentDeckCount = document.getElementById('opponentDeckCount');
+    if (opponentDeckCount) {
+        opponentDeckCount.textContent = `Deck: ${gameState.players[1].deck_size}`;
+    }
+}
+
+// Update turn indicator to show whose turn it is
+function updateTurnIndicator() {
+    const turnIndicator = document.getElementById('turnIndicator');
+    if (!turnIndicator) return;
+    
+    if (gameState.your_turn) {
+        turnIndicator.textContent = 'Your Turn';
+        turnIndicator.classList.add('your-turn');
+        turnIndicator.classList.remove('opponent-turn');
+    } else {
+        turnIndicator.textContent = "Opponent's Turn";
+        turnIndicator.classList.add('opponent-turn');
+        turnIndicator.classList.remove('your-turn');
+    }
+}
+
+// Update timer displays (if you have them)
+function updateTimers() {
+    const whiteTimer = document.getElementById('whiteTimer');
+    const blackTimer = document.getElementById('blackTimer');
+    
+    if (whiteTimer) {
+        whiteTimer.textContent = formatTime(gameState.white_time);
+    }
+    if (blackTimer) {
+        blackTimer.textContent = formatTime(gameState.black_time);
+    }
+}
+
+// Helper to format seconds into MM:SS
+function formatTime(seconds) {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
 
 // ---------- utility: debounce ----------
@@ -638,6 +763,25 @@ window.addEventListener('load', () => {
     dpr = Math.max(1, window.devicePixelRatio || 1);
   columns = gameState.dmz ? 9 : 8;
   rows = columns;
-    initUI();
     resizeCanvas();
+});
+
+console.log('=== Game.js loaded ===');
+
+// Initialize the game when page loads
+window.addEventListener('DOMContentLoaded', () => {
+    console.log('=== DOM loaded, initializing game ===');
+    
+    // Parse URL parameters
+    const paramsValid = parseURLParams();
+    if (!paramsValid) {
+        console.error('Failed to parse URL parameters');
+        return;
+    }
+    
+    console.log('✓ URL parameters parsed:', { gameId, playerId });
+    
+    // Connect to game server via WebSocket
+    console.log('Attempting to connect to game server...');
+    connectToGame();
 });
