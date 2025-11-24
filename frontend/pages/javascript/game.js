@@ -7,6 +7,8 @@ let ws = null;
 let gameId = null;
 let playerId = null;
 let playerColor = null;
+let timerInterval = null;
+let lastTimerUpdate = Date.now();
 
 // Get server URL
 const SERVER_URL = window.location.hostname === 'localhost' 
@@ -352,6 +354,12 @@ function resizeCanvas(){
     ctx.setTransform(dpr,0,0,dpr,0,0);
     render();
 }
+
+// Check if the board should be flipped (for black player's view)
+function shouldFlipBoard() {
+    return playerColor && playerColor.charAt(0).toUpperCase() === 'B';
+}
+
 window.addEventListener('resize', debounce(resizeCanvas, 80));
 boardImg.onload = resizeCanvas;
 
@@ -458,6 +466,13 @@ function render(){
     ctx.clearRect(0,0,canvas.width,canvas.height);
     const L = computeLayout();
 
+    // Flip board 180° for black player
+    if (shouldFlipBoard()) {
+        ctx.save();
+        ctx.translate(L.w / 2, L.h / 2);
+        ctx.rotate(Math.PI);
+        ctx.translate(-L.w / 2, -L.h / 2);
+    }
   // draw board image stretched to canvas area but preserving the computed inner board area
     if(boardImg.complete){
     // fill entire canvas (fitted)
@@ -504,46 +519,76 @@ function render(){
     ctx.restore();
 
     // draw pieces
-    for(const p of gameState.board){
-        if(!p.position || p.status !== 'active') continue;
-        const idx = algebraicToIndex(p.position);
-        if(!idx) continue;
-        const x = L.gridLeft + idx.col*L.cellSize;
-        const y = L.gridTop + idx.row*L.cellSize;
-        const pad = L.cellSize * 0.08;
+    // draw pieces
+for(const p of gameState.board){
+    if(!p.position || p.status !== 'active') continue;
+    const idx = algebraicToIndex(p.position);
+    if(!idx) continue;
+    const x = L.gridLeft + idx.col*L.cellSize;
+    const y = L.gridTop + idx.row*L.cellSize;
+    const pad = L.cellSize * 0.08;
     const img = loadPieceSprite(p.color, p.type);
-        if(img.complete && !img.broken){
-            ctx.drawImage(img, x+pad, y+pad, L.cellSize - pad*2, L.cellSize - pad*2);
-        } else if (!img.complete) {
-            // placeholder circle
-            ctx.fillStyle = p.color === 'w' ? '#fff' : '#000';
-            ctx.beginPath();
-            ctx.arc(x + L.cellSize/2, y + L.cellSize/2, L.cellSize*0.36, 0, Math.PI*2);
-            ctx.fill();
-        }
+    
+    // If board is flipped, counter-rotate each piece to keep it upright
+    if (shouldFlipBoard()) {
+        ctx.save();
+        const centerX = x + L.cellSize / 2;
+        const centerY = y + L.cellSize / 2;
+        ctx.translate(centerX, centerY);
+        ctx.rotate(Math.PI); // Counter-rotate 180°
+        ctx.translate(-centerX, -centerY);
+    }
+    
+    // Only draw if image is complete and not broken
+    if(img.complete && !img.broken){
+        ctx.drawImage(img, x+pad, y+pad, L.cellSize - pad*2, L.cellSize - pad*2);
+    } else if (!img.complete) {
+        // Placeholder circle while loading
+        ctx.fillStyle = p.color === 'WHITE' ? '#fff' : '#000';
+        ctx.beginPath();
+        ctx.arc(x + L.cellSize/2, y + L.cellSize/2, L.cellSize*0.36, 0, Math.PI*2);
+        ctx.fill();
+    }
+    
     // if selected, add highlight
     if(selectedPiece && selectedPiece.id === p.id){
-      ctx.strokeStyle = 'rgba(200,160,255,0.9)';
-      ctx.lineWidth = Math.max(2, L.cellSize*0.04);
-      ctx.strokeRect(x + L.cellSize*0.02, y + L.cellSize*0.02, L.cellSize*0.96, L.cellSize*0.96);
+        ctx.strokeStyle = 'rgba(200,160,255,0.9)';
+        ctx.lineWidth = Math.max(2, L.cellSize*0.04);
+        ctx.strokeRect(x + L.cellSize*0.02, y + L.cellSize*0.02, L.cellSize*0.96, L.cellSize*0.96);
     }
-  }
+    
+    // Restore transformation if we counter-rotated
+    if (shouldFlipBoard()) {
+        ctx.restore();
+    }
+}
+    // Restore transformation if board was flipped
+    if (shouldFlipBoard()) {
+        ctx.restore();
+    }
 }
 
 // ---------- hit testing & input ----------
 function pointerPosToCell(clientX, clientY){
     const rect = canvas.getBoundingClientRect();
     const L = computeLayout();
-  const x = clientX - rect.left;
-  const y = clientY - rect.top;
-  // check inner grid
-  const gx = x - L.gridLeft;
-  const gy = y - L.gridTop;
-  if(gx < 0 || gy < 0) return null;
-  const col = Math.floor(gx / L.cellSize);
-  const row = Math.floor(gy / L.cellSize);
-  if(col < 0 || col >= columns || row < 0 || row >= rows) return null;
-  return { row, col };
+    let x = clientX - rect.left;
+    let y = clientY - rect.top;
+    
+    // If board is flipped, we need to flip the mouse coordinates too
+    if (shouldFlipBoard()) {
+        x = L.w - x;
+        y = L.h - y;
+    }
+    
+    // check inner grid
+    const gx = x - L.gridLeft;
+    const gy = y - L.gridTop;
+    if(gx < 0 || gy < 0) return null;
+    const col = Math.floor(gx / L.cellSize);
+    const row = Math.floor(gy / L.cellSize);
+    if(col < 0 || col >= columns || row < 0 || row >= rows) return null;
+    return { row, col };
 }
 
 canvas.addEventListener('mousedown', (ev) => {
@@ -804,7 +849,10 @@ function updateFullUI() {
     
     // 5. Update timers if you have them
     if (gameState.white_time !== undefined && gameState.black_time !== undefined) {
-        updateTimers();
+        syncTimer(gameState.white_time, gameState.black_time);
+        if (!timerInterval) {
+            startTimer();
+        }
     }
 }
 
@@ -843,24 +891,90 @@ function updateTurnIndicator() {
     }
 }
 
-// Update timer displays (if you have them)
+// Update timer displays
 function updateTimers() {
-    const whiteTimer = document.getElementById('whiteTimer');
-    const blackTimer = document.getElementById('blackTimer');
+    const topTimer = document.getElementById('timerTop');
+    const bottomTimer = document.getElementById('playerTimer');
     
-    if (whiteTimer) {
-        whiteTimer.textContent = formatTime(gameState.white_time);
-    }
-    if (blackTimer) {
-        blackTimer.textContent = formatTime(gameState.black_time);
+    if (!topTimer || !bottomTimer) return;
+    if (gameState.white_time === undefined || gameState.black_time === undefined) return;
+    
+    // If you're white, your timer is at bottom, opponent (black) at top
+    // If you're black, your timer is at bottom, opponent (white) at top
+    if (playerColor && playerColor.charAt(0).toUpperCase() === 'W') {
+        // You are white
+        bottomTimer.textContent = formatTime(Math.ceil(gameState.white_time));
+        topTimer.textContent = formatTime(Math.ceil(gameState.black_time));
+    } else if (playerColor && playerColor.charAt(0).toUpperCase() === 'B') {
+        // You are black
+        bottomTimer.textContent = formatTime(Math.ceil(gameState.black_time));
+        topTimer.textContent = formatTime(Math.ceil(gameState.white_time));
     }
 }
 
-// Helper to format seconds into MM:SS
+// Helper to format seconds into MM:SS or HH:MM:SS
 function formatTime(seconds) {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
+    const hours = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
+    
+    if (hours > 0) {
+        return `${hours}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
     return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
+// Start the game timer
+function startTimer() {
+    // Clear any existing timer
+    if (timerInterval) {
+        clearInterval(timerInterval);
+    }
+    
+    lastTimerUpdate = Date.now();
+    
+    // Update timer every 100ms for smooth countdown
+    timerInterval = setInterval(() => {
+        const now = Date.now();
+        const deltaSeconds = (now - lastTimerUpdate) / 1000;
+        lastTimerUpdate = now;
+        
+        // Decrement the time for whichever player's turn it is
+        if (gameState.current_turn === 'W') {
+            gameState.white_time = Math.max(0, gameState.white_time - deltaSeconds);
+        } else {
+            gameState.black_time = Math.max(0, gameState.black_time - deltaSeconds);
+        }
+        
+        // Update display
+        updateTimers();
+        
+        // Check for time out
+        if (gameState.white_time <= 0 || gameState.black_time <= 0) {
+            clearInterval(timerInterval);
+            console.log('Time ran out!');
+        }
+    }, 100);
+    
+    console.log('✓ Timer started');
+}
+
+// Stop the timer
+function stopTimer() {
+    if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+        console.log('Timer stopped');
+    }
+}
+
+// Sync timer with server time
+function syncTimer(serverWhiteTime, serverBlackTime) {
+    gameState.white_time = serverWhiteTime;
+    gameState.black_time = serverBlackTime;
+    lastTimerUpdate = Date.now();
+    updateTimers();
+    console.log('Timer synced:', { white: serverWhiteTime, black: serverBlackTime });
 }
 
 // ---------- utility: debounce ----------
@@ -890,9 +1004,14 @@ window.addEventListener('DOMContentLoaded', () => {
         return;
     }
     
-    console.log('✓ URL parameters parsed:', { gameId, playerId });
+    console.log('URL parameters parsed:', { gameId, playerId });
     
     // Connect to game server via WebSocket
     console.log('Attempting to connect to game server...');
     connectToGame();
+});
+
+// Clean up timer when page unloads
+window.addEventListener('beforeunload', () => {
+    stopTimer();
 });
