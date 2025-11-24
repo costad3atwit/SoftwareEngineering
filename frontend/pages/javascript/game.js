@@ -10,6 +10,8 @@ let playerColor = null;
 let timerInterval = null;
 let lastTimerUpdate = Date.now();
 
+let lastMoveSentAt = null;
+
 // Get server URL
 const SERVER_URL = window.location.hostname === 'localhost' 
     ? 'localhost:8000'
@@ -73,8 +75,9 @@ function requestGameState() {
         type: 'get_game_state',
         game_id: gameId
     };
-    
+
     ws.send(JSON.stringify(message));
+
     console.log('Requested game state for:', gameId);
 }
 
@@ -94,6 +97,10 @@ function handleGameMessage(data) {
             // Game state changed (someone made a move)
             console.log('Game updated:', data.action);
             updateGameState(data.game_state);
+
+            // IBK added timing report
+            reportMoveTiming();
+            
             break;
             
         case 'game_over':
@@ -206,6 +213,9 @@ function sendMove(fromSquare, toSquare) {
         return;
     }
     
+    // RECORD TIME MOVE WAS SENT
+    lastMoveSentAt = performance.now();
+
     const message = {
         type: 'make_move',
         game_id: gameId,
@@ -455,6 +465,22 @@ function isSameColor(color1, color2) {
     const c1 = color1.charAt(0).toUpperCase();
     const c2 = color2.charAt(0).toUpperCase();
     return c1 === c2;
+}
+
+function reportMoveTiming() {
+    if (!lastMoveSentAt) return;
+
+    const afterUpdate = performance.now();
+
+    // Wait until browser finishes PAINTING the updated board
+    requestAnimationFrame(() => {
+        const afterPaint = performance.now();
+        const total = afterPaint - lastMoveSentAt;
+
+        console.log(`[METRIC] Move round-trip + render = ${total.toFixed(2)} ms`);
+
+        lastMoveSentAt = null; // reset
+    });
 }
 
 let selectedPiece = null;
