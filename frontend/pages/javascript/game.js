@@ -118,11 +118,10 @@ function updateGameState(serverGameState) {
     console.log('Your turn:', serverGameState.your_turn);
     console.log('Board pieces count:', serverGameState.board?.pieces?.length || 0);
     
-    // ... rest of the function
     // Update player color if we don't have it yet
     if (!playerColor && serverGameState.your_color) {
-        playerColor = serverGameState.your_color;
-        console.log('Player color set to:', playerColor);
+    playerColor = serverGameState.your_color;
+    console.log('Player color set to:', playerColor);
     }
     
     // Convert server format to our local gameState format
@@ -137,7 +136,8 @@ function updateGameState(serverGameState) {
             type: piece.type,
             color: piece.color,
             position: piece.position_algebraic,
-            status: piece.status || 'active'
+            status: piece.status || 'active',
+            moves: piece.moves || []
         }));
     }
     
@@ -187,10 +187,6 @@ function updateGameState(serverGameState) {
     }
     
     console.log('Game state updated:', gameState);
-    
-    // Update columns/rows if DMZ changed
-    columns = gameState.dmz ? 9 : 8;
-    rows = columns;
     
     // Update the UI with new state
     updateFullUI();
@@ -272,6 +268,18 @@ const OVERLAYS = {
 OVERLAYS.move.src = `${BOARD_PATH}av_move.png`;
 OVERLAYS.capture.src = `${BOARD_PATH}av_attk.png`;
 
+// Trigger re-render when overlays load
+OVERLAYS.move.onload = () => {
+    console.log('Move overlay loaded');
+    render();
+};
+OVERLAYS.capture.onload = () => {
+    console.log('Capture overlay loaded');
+    render();
+};
+OVERLAYS.move.onerror = () => console.error('Failed to load move overlay:', OVERLAYS.move.src);
+OVERLAYS.capture.onerror = () => console.error('Failed to load capture overlay:', OVERLAYS.capture.src);
+
 const PIECE_SPRITE = (color, type) => `${PIECES_PATH}${color.toLowerCase()}_${type.toLowerCase()}_temp.png`;
 
 // sounds
@@ -291,8 +299,8 @@ const ctx = canvas.getContext('2d', { alpha: true });
 
 let dpr = Math.max(1, window.devicePixelRatio || 1);
 let canvasPixelSize = 0;
-let columns = gameState.dmz ? 9 : 8;
-let rows = columns;
+let columns = 10;
+let rows = 10;
 let boardImg = new Image();
 boardImg.src = BOARD_PNG;
 
@@ -320,6 +328,11 @@ function loadPieceSprite(color, type) {
         render();
     };
     
+    img.onerror = () => {
+        console.error(`Failed to load piece image: ${img.src}`);
+        img.broken = true;
+    };
+
     return img;
 }
 
@@ -345,16 +358,14 @@ boardImg.onload = resizeCanvas;
 // helpers: algebraic -> indices
 function algebraicToIndex(pos){
     if(!pos) return null;
-    const file = pos[0].toUpperCase();
+    const file = pos[0].toLowerCase();  // Changed toUpperCase() to toLowerCase()
     const rank = parseInt(pos.slice(1), 10);
-  // determine mapping: files A.. based on columns (A..I)
-    const col = file.charCodeAt(0) - 'A'.charCodeAt(0);
-  // algebraic rank 1 = bottom row. canvas row 0 = top, so row = rows - rank
+    const col = file.charCodeAt(0) - 'a'.charCodeAt(0);  // Changed 'A' to 'a'
     const row = rows - rank;
     return { row, col };
 }
 function indexToAlgebraic(row, col){
-    const file = String.fromCharCode('A'.charCodeAt(0) + col);
+    const file = String.fromCharCode('a'.charCodeAt(0) + col);
     const rank = (rows - row);
     return `${file}${rank}`;
 }
@@ -385,11 +396,57 @@ function getPieceAt(row, col){
     return gameState.board.find(p => p.position === pos && p.status === 'active' && p.type) || null;
 }
 
-// TODO: This will eventually come from server - for now just basic logic
 function computeLegalMovesFor(piece){
-    // This is placeholder - the server will provide legal moves
-    // For now, just show empty arrays
-    return { moves: [], captures: [] };
+
+    console.log('=== Computing legal moves for:', piece.id, piece);
+    if (!piece.moves || piece.moves.length === 0) {
+        return { moves: [], captures: [] };
+    }
+
+    console.log('  Piece has', piece.moves.length, 'moves from server');
+
+    
+    const moves = [];
+    const captures = [];
+    
+    // Convert server move format to our row/col format
+    for (const move of piece.moves) {
+        const toSquare = move.to;
+        // Convert {file: X, rank: Y} to algebraic
+        const toAlgebraic = fileRankToAlgebraic(toSquare.file, toSquare.rank);
+        const idx = algebraicToIndex(toAlgebraic);
+        
+        if (!idx) continue;
+        
+        // Check if destination has an enemy piece (capture) or is empty (move)
+        const targetPiece = getPieceAt(idx.row, idx.col);
+        if (targetPiece && targetPiece.color !== piece.color) {
+            captures.push(idx);
+        } else if (!targetPiece) {
+            moves.push(idx);
+        }
+    }
+    console.log('  Computed:', moves.length, 'moves,', captures.length, 'captures');
+    console.log('  Move positions:', moves);
+    console.log('  Capture positions:', captures);
+
+    return { moves, captures };
+}
+
+// Helper function to convert file/rank to algebraic notation  
+function fileRankToAlgebraic(file, rank) {
+    // Server sends 0-indexed: file 0=A, 1=B, etc.
+    // rank 0=1, 1=2, 2=3, etc.
+    const fileChar = String.fromCharCode('A'.charCodeAt(0) + file);
+    const rankNum = rank + 1;
+    return `${fileChar.toLowerCase()}${rankNum}`;
+}
+
+// Helper to compare colors (handles "W"/"WHITE" and "B"/"BLACK")
+function isSameColor(color1, color2) {
+    const c1 = color1.charAt(0).toUpperCase();
+    const c2 = color2.charAt(0).toUpperCase();
+    return c1 === c2;
 }
 
 let selectedPiece = null;
@@ -415,19 +472,34 @@ function render(){
   }
 
     // draw legal moves overlays
+    console.log('Rendering overlays - legalMoves:', legalMoves.length, 'legalCaptures:', legalCaptures.length);
     ctx.save();
     ctx.globalCompositeOperation = 'source-over';
     for(const m of legalMoves){
+        console.log('Drawing move indicator at row:', m.row, 'col:', m.col);
         const x = L.gridLeft + m.col*L.cellSize;
         const y = L.gridTop + m.row*L.cellSize;
         const img = OVERLAYS.move;
-    ctx.drawImage(img, x, y, L.cellSize, L.cellSize);
+        console.log('Move image complete?', img.complete, 'src:', img.src);
+        if (img.complete) {
+            ctx.drawImage(img, x, y, L.cellSize, L.cellSize);
+            console.log('Drew move overlay at', x, y);
+        }
+        else {
+            console.log('Move overlay image not loaded yet');}
     }
     for(const m of legalCaptures){
+        console.log('Drawing capture indicator at row:', m.row, 'col:', m.col);
         const x = L.gridLeft + m.col*L.cellSize;
         const y = L.gridTop + m.row*L.cellSize;
         const img = OVERLAYS.capture;
-    ctx.drawImage(img, x, y, L.cellSize, L.cellSize);
+        console.log('Capture image complete?', img.complete, 'src:', img.src);
+        if (img.complete) {
+            ctx.drawImage(img, x, y, L.cellSize, L.cellSize);
+            console.log('Drew capture overlay at', x, y);
+        }
+        else {
+            console.log('Capture overlay image not loaded yet');}
     }
     ctx.restore();
 
@@ -440,14 +512,13 @@ function render(){
         const y = L.gridTop + idx.row*L.cellSize;
         const pad = L.cellSize * 0.08;
     const img = loadPieceSprite(p.color, p.type);
-        if(img.complete){
-      // draw centered with padding
+        if(img.complete && !img.broken){
             ctx.drawImage(img, x+pad, y+pad, L.cellSize - pad*2, L.cellSize - pad*2);
-        } else {
+        } else if (!img.complete) {
             // placeholder circle
-      ctx.fillStyle = p.color === 'w' ? '#fff' : '#000';
+            ctx.fillStyle = p.color === 'w' ? '#fff' : '#000';
             ctx.beginPath();
-      ctx.arc(x + L.cellSize/2, y + L.cellSize/2, L.cellSize*0.36, 0, Math.PI*2);
+            ctx.arc(x + L.cellSize/2, y + L.cellSize/2, L.cellSize*0.36, 0, Math.PI*2);
             ctx.fill();
         }
     // if selected, add highlight
@@ -476,22 +547,62 @@ function pointerPosToCell(clientX, clientY){
 }
 
 canvas.addEventListener('mousedown', (ev) => {
-  const cell = pointerPosToCell(ev.clientX, ev.clientY);
-  playClickOn();
-  if(!cell) return;
-  const piece = getPieceAt(cell.row, cell.col);
-  if(piece && piece.color === 'w'){ // replace with player color
-    selectedPiece = piece;
-    const legal = computeLegalMovesFor(piece);
-            legalMoves = legal.moves;
-            legalCaptures = legal.captures;
-            render();
-    } else {
-    // clicked on empty or enemy - if selected, maybe move
-    if(selectedPiece){
-      tryMoveTo(cell.row, cell.col);
+    const cell = pointerPosToCell(ev.clientX, ev.clientY);
+    playClickOn();
+    if (!cell) return;
+    
+    // Don't allow interaction if it's not our turn
+    if (!gameState.your_turn) {
+        console.log("Not your turn!");
+        return;
     }
-  }
+    
+    const clickedPiece = getPieceAt(cell.row, cell.col);
+    const clickedAlgebraic = indexToAlgebraic(cell.row, cell.col);
+    
+    // Case 1: Clicked on one of our pieces - select it and show moves
+    if (clickedPiece && isSameColor(clickedPiece.color, playerColor)) {
+        selectedPiece = clickedPiece;
+        const legal = computeLegalMovesFor(clickedPiece);
+        legalMoves = legal.moves;
+        legalCaptures = legal.captures;
+        console.log('Selected piece:', selectedPiece.id, 'Legal moves:', legalMoves.length);
+        render();
+        return;
+    }
+    
+    // Case 2: Have a piece selected - try to move it
+    if (selectedPiece) {
+        // Check if this is a legal move destination
+        const isLegalMove = legalMoves.some(m => m.row === cell.row && m.col === cell.col);
+        const isLegalCapture = legalCaptures.some(m => m.row === cell.row && m.col === cell.col);
+        
+        if (isLegalMove || isLegalCapture) {
+            // This is a valid move - send it to server
+            const fromAlgebraic = selectedPiece.position;
+            const toAlgebraic = clickedAlgebraic;
+            
+            console.log('Attempting move:', fromAlgebraic, '→', toAlgebraic);
+            sendMove(fromAlgebraic, toAlgebraic);
+            
+            // Clear selection (server will update game state)
+            selectedPiece = null;
+            legalMoves = [];
+            legalCaptures = [];
+            render();
+        } else {
+            // Not a legal move - deselect
+            console.log('Not a legal move, deselecting');
+            selectedPiece = null;
+            legalMoves = [];
+            legalCaptures = [];
+            render();
+        }
+        return;
+    }
+    
+    // Case 3: Clicked empty square with nothing selected - do nothing
+    console.log('Clicked empty square');
 });
 
 canvas.addEventListener('mouseup', (ev) => {
