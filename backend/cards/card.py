@@ -2576,6 +2576,7 @@ CARD_REGISTRY = {
     "of_flesh_and_blood": OfFleshAndBlood,
     "exhaustion": Exhaustion,
     "forced_move": ForcedMove,
+    "eye_of_ruin": EyeOfRuin
 
 }
 
