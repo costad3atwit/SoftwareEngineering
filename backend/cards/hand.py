@@ -12,20 +12,26 @@ class Hand:
             raise TypeError(f"Object {card} is not a Card or subclass of Card.")
         self.cards.append(card)
 
-    def remove(self, card: Card) -> Optional[Card]:
-        """
-        Remove a card by ID and return it.
-        Returns None if card not found.
-        """
-        for c in self.cards:
-            if c.id == card.id:
-                self.cards.remove(c)
-                return c
-        return None
+    def remove(self, card):
+        # Handle both string card_id and Card object
+        if isinstance(card, str):
+            card_id = card
+        else:
+            card_id = card.id
+        
+        for i, c in enumerate(self.cards):
+            if c.id == card_id:
+                return self.cards.pop(i)
+        return None 
 
-    def has_card(self, card: Card) -> bool:
-        """Check if a card is in the hand"""
-        return any(c.id == card.id for c in self.cards)
+    def has_card(self, card):
+        # Handle both string card_id and Card object
+        if isinstance(card, str):
+            card_id = card
+        else:
+            card_id = card.id
+        
+        return any(c.id == card_id for c in self.cards)
 
     def size(self) -> int:
         """Return the number of cards in hand"""

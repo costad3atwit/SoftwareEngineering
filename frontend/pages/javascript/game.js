@@ -98,6 +98,10 @@ function handleGameMessage(data) {
             console.log('Game updated:', data.action);
             updateGameState(data.game_state);
 
+            // If opponent played a card, show animation
+            if (data.action === 'play_card' && data.card_played && !data.game_state.your_turn) {
+                handleOpponentCardPlay(data.card_played);
+            }
             // IBK added timing report
             reportMoveTiming();
             
@@ -227,7 +231,6 @@ function sendMove(fromSquare, toSquare) {
     ws.send(JSON.stringify(message));
 }
 
-// Send a card play to the server
 function sendPlayCard(cardId, targetData = {}) {
     if (!ws || ws.readyState !== WebSocket.OPEN) {
         console.error('Cannot play card: not connected');
@@ -243,10 +246,14 @@ function sendPlayCard(cardId, targetData = {}) {
         type: 'play_card',
         game_id: gameId,
         card_id: cardId,
-        target: targetData
+        target: targetData  // Keep nested
     };
     
-    console.log('Playing card:', message);
+    console.log('=== Sending card play ===');
+    console.log('Card ID:', cardId);
+    console.log('Target data:', targetData);
+    console.log('Full message:', JSON.stringify(message, null, 2));
+    
     ws.send(JSON.stringify(message));
 }
 
@@ -293,6 +300,120 @@ OVERLAYS.move.onerror = () => console.error('Failed to load move overlay:', OVER
 OVERLAYS.capture.onerror = () => console.error('Failed to load capture overlay:', OVERLAYS.capture.src);
 
 const PIECE_SPRITE = (color, type) => `${PIECES_PATH}${color.toLowerCase()}_${type.toLowerCase()}_temp.png`;
+
+// Card database - maps card IDs to full card data
+// Card database - maps card IDs to full card data
+const CARD_DATABASE = {
+    // HIDDEN CARDS
+    'mine': {
+        id: 'mine',
+        name: 'Mine',
+        description: 'Places a hidden mine on a random empty square. Explodes when any piece steps on it, capturing all nearby pieces except kings. Dismantles after 4 turns if untouched.',
+        image: 'mine.png'
+    },
+    'glue': {
+        id: 'glue',
+        name: 'Glue Trap',
+        description: 'Place glue on a random tile. Any piece that lands on it becomes immobilized for 2 turns. Glue dries after 4 turns if unused.',
+        image: 'glue.png'
+    },
+    'forbidden_lands': {
+        id: 'forbidden_lands',
+        name: 'Forbidden Lands',
+        description: 'Creates a protective ring of tiles. Pieces inside cannot be captured; kings cannot enter; pieces leaving the zone cannot capture. Playing again while active summons a pawn in your back forbidden rank.',
+        image: 'forbidden_lands.png'
+    },
+    'pawn_bomb': {
+        id: 'pawn_bomb',
+        name: 'Pawn Bomb',
+        description: 'A random friendly pawn becomes a hidden bomb for up to 8 turns. If captured or its fuse runs out, it explodes in a 1-tile radius, capturing all nearby pieces. On its first move, the fuse shortens to 4 turns and it is revealed to you.',
+        image: 'pawn_bomb.png'
+    },
+    'shroud': {
+        id: 'shroud',
+        name: 'Shroud',
+        description: 'Swap two random friendly pieces\' position and appearance for 3 turns. If you have fewer than 2 pieces, summon a Peon safely first. Never swaps a king into check.',
+        image: 'shroud.png'
+    },
+    'insurance': {
+        id: 'insurance',
+        name: 'Insurance',
+        description: 'Select a piece to insure. When it is captured, summon glued Peons equal to half its value (rounded up). Peons cannot spawn in positions that would check the enemy king once unglued.',
+        image: 'insurance.png'
+    },
+    
+    // CURSE CARDS
+    'eye_for_an_eye': {
+        id: 'eye_for_an_eye',
+        name: 'Eye for an Eye',
+        description: 'Marks a friendly and opposing piece for 5 turns. Capturing a marked piece grants an extra turn immediately.',
+        image: 'eye_for_an_eye.png'
+    },
+    'all_seeing': {
+        id: 'all_seeing',
+        name: 'All-Seeing',
+        description: 'Summons an Effigy far from the enemy king. Every 3 turns it marks a random enemy piece for 1 turn.',
+        image: 'all_seeing.png'
+    },
+    
+    // TRANSFORM CARDS
+    'pawn_scout': {
+        id: 'pawn_scout',
+        name: 'Pawn: Scout',
+        description: 'Transform a pawn into a scout. Scouts move 5 squares in any direction and can mark enemy pieces. Capturing a marked piece grants an extra turn!',
+        image: 'pawn_scout.png'
+    },
+    'knight_headhunter': {
+        id: 'knight_headhunter',
+        name: 'Knight: Headhunter',
+        description: 'Transform a knight into a headhunter. Headhunters move like a king and project an attack 3 squares forward.',
+        image: 'knight_headhunter.png'
+    },
+    'bishop_warlock': {
+        id: 'bishop_warlock',
+        name: 'Bishop: Warlock',
+        description: 'Transform a bishop into a warlock. Warlocks blink to same-colored tiles (r=3), can step back 1, and gain Knight+Rook for 2 turns when an effigy dies.',
+        image: 'bishop_warlock.png'
+    },
+    'queen_darklord': {
+        id: 'queen_darklord',
+        name: 'Queen: Dark Lord',
+        description: 'Transform a Queen into a Dark Lord. The Dark Lord can enthrall nearby enemies (turning them into an ally) and suffers from daylight every 2 turns. Dies if enemy value ≤ 10.',
+        image: 'queen_darklord.png'
+    },
+    'pawn_queen': {
+        id: 'pawn_queen',
+        name: 'Pawn: Queen',
+        description: 'The pawn furthest from the enemy king transforms into a queen for 2 turns. After 2 turns, if on the last 3 ranks it becomes a peon; otherwise reverts to a pawn.',
+        image: 'pawn_queen.png'
+    },
+    
+    // SUMMON CARDS
+    'summon_peon': {
+        id: 'summon_peon',
+        name: 'Summon Peon',
+        description: 'Summons a friendly peon on a random square. Peons act like pawns but cannot promote.',
+        image: 'summon_peon.png'
+    },
+    'summon_barricade': {
+        id: 'summon_barricade',
+        name: 'Summon Barricade',
+        description: 'Place an uncapturable barricade on an empty square. Barricades block all movement and last for 5 turns.',
+        image: 'summon_barricade.png'
+    }
+
+    //ADD ANY NEW CARDS WE IMPLEMENT HERE
+};
+
+// Helper to get full card data from ID
+function getCardData(cardId) {
+    return CARD_DATABASE[cardId] || {
+        id: cardId,
+        name: cardId.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+        description: 'Card description not available',
+        image: 'card_back.png'
+    };
+}
 
 // sounds
 const clickOnAudio = document.getElementById('clickOn');
@@ -622,7 +743,27 @@ canvas.addEventListener('mousedown', (ev) => {
     playClickOn();
     if (!cell) return;
     
-    // Don't allow interaction if it's not our turn
+    // Handle tile targeting for cards
+    if (waitingForTileTarget) {
+        const { cardData, cardElement } = waitingForTileTarget;
+        const targetSquare = indexToAlgebraic(cell.row, cell.col);
+        
+        const targetData = { target: targetSquare };  // Change 'square' to 'target'
+        console.log('Playing card with tile target:', targetData);
+        sendPlayCard(cardData.id, targetData);
+        
+        animateCardToDiscard(cardElement, cardData, () => {
+            showCardOverlay(`Played: ${cardData.name} at ${targetSquare}`);
+        });
+        
+        const me = gameState.players[0];
+        me.hand = me.hand.filter(h => h !== cardData.id);
+        renderHands();
+        
+        waitingForTileTarget = null;
+        return;
+    }
+    
     if (!gameState.your_turn) {
         console.log("Not your turn!");
         return;
@@ -726,108 +867,249 @@ function renderHands(){
     const me = gameState.players[0];
     const opp = gameState.players[1];
 
+    // Clear existing cards
     playerHandEl.innerHTML = '';
-  opp.hand.forEach(c => {
-    // TODO: replace with back of card png
+    opponentHandEl.innerHTML = '';
+    
+    // Render opponent's hand (card backs) - HORIZONTAL layout
+    const oppHandSize = opp.hand_size || opp.hand.length;
+    opponentHandEl.innerHTML = '';
+    opponentHandEl.style.display = 'flex';
+    opponentHandEl.style.flexDirection = 'row';
+    opponentHandEl.style.gap = '8px';
+    opponentHandEl.style.justifyContent = 'center';
+
+    for (let i = 0; i < oppHandSize; i++) {
         const cardEl = document.createElement('div');
         cardEl.className = 'card';
-    cardEl.style.width = '72px'; cardEl.style.height='96px';
-        cardEl.innerHTML = `<div class="card-inner"><div class="front"></div><div class="back"></div></div>`;
+        cardEl.style.width = '72px';
+        cardEl.style.height = '96px';
+        cardEl.style.backgroundImage = `url('${CARDS_PATH}card-back.png')`;
+        cardEl.style.backgroundSize = 'cover';
         opponentHandEl.appendChild(cardEl);
-  });
+    }
 
-        me.hand.forEach((card, idx) => {
-            const el = document.createElement('div');
-            el.className = 'card';
-            el.dataset.id = card.id;
-            el.innerHTML = `
-                <div class="card-inner">
-                    <div class="front">
-                        <div class="title">${card.name}</div>
-                    </div>
-                    <div class="back">
-                        <div class="title">${card.name}</div>
-                        <div class="desc">${card.description}</div>
-                    </div>
-                </div>`;
-            // hover enlarge
-            el.addEventListener('mouseenter', () => {
-                document.querySelectorAll('.card.hovered').forEach(c=>c.classList.remove('hovered'));
-                el.classList.add('hovered');
-            });
-            el.addEventListener('mouseleave', () => {
-                el.classList.remove('hovered');
-            });
-            // click = play card
-    el.addEventListener('mousedown', (ev) => { playClickOn(); });
-    el.addEventListener('mouseup', (ev) => { playClickOff(); });
-    el.addEventListener('click', (ev) => {
-                playCard(card, el);
-            });
-            playerHandEl.appendChild(el);
+    // Render player's hand (full cards with details)
+    me.hand.forEach((cardId, idx) => {
+        const cardData = getCardData(cardId);
+        const el = document.createElement('div');
+        el.className = 'card';
+        el.dataset.id = cardData.id;
+        
+        // Build card with existing CSS classes
+        el.innerHTML = `
+            <div class="card-inner">
+                <div class="front">
+                    <div class="title">${cardData.name}</div>
+                    <div class="desc">${cardData.description}</div>
+                </div>
+            </div>`;
+        
+        // Hover enlarge
+        el.addEventListener('mouseenter', () => {
+            document.querySelectorAll('.card.hovered').forEach(c=>c.classList.remove('hovered'));
+            el.classList.add('hovered');
         });
+        el.addEventListener('mouseleave', () => {
+            el.classList.remove('hovered');
+        });
+        
+        // Click = play card
+        el.addEventListener('mousedown', (ev) => { playClickOn(); });
+        el.addEventListener('mouseup', (ev) => { playClickOff(); });
+        el.addEventListener('click', (ev) => {
+            playCard(cardData, el);
+        });
+        
+        playerHandEl.appendChild(el);
+    });
 }
 
-function playCard(card, el){
-  // show overlay with card name
-    cardOverlay.textContent = `Played: ${card.name}`;
+// Show card in discard pile
+function showCardInDiscard(cardData) {
+    const discardSlot = document.getElementById('discardCard');
+    if (!discardSlot) return;
+    
+    // Create card with same structure as hand cards
+    discardSlot.innerHTML = `
+        <div class="card">
+            <div class="card-inner" style="background-image: url('assets/game/cards/card-front-default.png'); background-size: cover;">
+                <div class="title">${cardData.name}</div>
+                <div class="desc">${cardData.description}</div>
+            </div>
+        </div>
+    `;
+    
+    console.log('Discard pile updated with:', cardData.name);
+}
+
+// Animate card flying to discard pile
+function animateCardToDiscard(sourceElement, cardData, onComplete) {
+    // Get positions
+    const sourceRect = sourceElement.getBoundingClientRect();
+    const discardSlot = document.getElementById('discardCard');
+    if (!discardSlot) {
+        if (onComplete) onComplete();
+        return;
+    }
+    
+    const targetRect = discardSlot.getBoundingClientRect();
+    
+    // Create flying card clone
+    const flyingCard = sourceElement.cloneNode(true);
+    flyingCard.classList.add('flying');
+    flyingCard.style.left = `${sourceRect.left}px`;
+    flyingCard.style.top = `${sourceRect.top}px`;
+    flyingCard.style.width = `${sourceRect.width}px`;
+    flyingCard.style.height = `${sourceRect.height}px`;
+    
+    // Calculate translation
+    const tx = targetRect.left - sourceRect.left + (targetRect.width - sourceRect.width) / 2;
+    const ty = targetRect.top - sourceRect.top + (targetRect.height - sourceRect.height) / 2;
+    
+    flyingCard.style.setProperty('--tx', `${tx}px`);
+    flyingCard.style.setProperty('--ty', `${ty}px`);
+    
+    document.body.appendChild(flyingCard);
+    
+    // Remove flying card and show in discard after animation
+    setTimeout(() => {
+        document.body.removeChild(flyingCard);
+        showCardInDiscard(cardData);
+        if (onComplete) onComplete();
+    }, 600);
+}
+
+// Handle opponent playing a card
+function handleOpponentCardPlay(cardId) {
+    const cardData = getCardData(cardId);
+    const opponentHandEl = document.getElementById('opponentHand');
+    
+    if (!opponentHandEl || opponentHandEl.children.length === 0) {
+        // No cards to animate from, just show in discard
+        showCardInDiscard(cardData);
+        return;
+    }
+    
+    // Animate the first card from opponent's hand
+    const firstCard = opponentHandEl.children[0];
+    animateCardToDiscard(firstCard, cardData);
+    
+    // Show overlay
+    const cardOverlay = document.getElementById('cardPlayOverlay');
+    cardOverlay.textContent = `Opponent played: ${cardData.name}`;
     cardOverlay.style.opacity = '1';
     cardOverlay.setAttribute('aria-hidden','false');
-  setTimeout(()=>{ cardOverlay.style.opacity = '0'; cardOverlay.setAttribute('aria-hidden','true'); }, 1200);
-
-  // need to add method to play cards to affect gamestate
-  if(card.name.toLowerCase().includes('dmz')){
-    gameState.dmz = true;
-    columns = gameState.dmz ? 9 : 8;
-    rows = columns;
-  }
-
-  // remove card from hand and add to discard
-  const me = gameState.players[0];
-  me.hand = me.hand.filter(h => h.id !== card.id);
-  me.discard_pile_top = card;
-  gameState.logs.push({ turn: gameState.logs.length+1, player_id: me.player_id, action: 'play_card', details: `Played ${card.name}` });
-
-  renderHands();
-  render();
-  endTurn();
+    setTimeout(()=>{ 
+        cardOverlay.style.opacity = '0'; 
+        cardOverlay.setAttribute('aria-hidden','true'); 
+    }, 1200);
 }
 
-// draw card animation
-drawBtn.addEventListener('click', () => {
-  const me = gameState.players[0];
-  // create method to pull random card from deck here
-  const newCard = { id: 'c'+(Date.now()%10000), name: 'Card_Name', description: 'Placeholder_Card_Description', type:'Action', target:'board' };
-  // animate from deckPreview to hand
-  const deckPreview = document.getElementById('deckPreview');
-  const rect = deckPreview.getBoundingClientRect();
-  const temp = document.createElement('div');
-  temp.className = 'card';
-  temp.style.position = 'fixed';
-  temp.style.left = `${rect.left + rect.width/2 - 60}px`;
-  temp.style.top = `${rect.top + rect.height/2 - 80}px`;
-  temp.style.transform = 'translateZ(0)';
-  temp.innerHTML = `<div class="card-inner"><div class="front"><div class="title">${newCard.name}</div></div><div class="back"></div></div>`;
-  document.body.appendChild(temp);
+function playCard(cardData, cardElement){
+    if (!gameState.your_turn) {
+        console.log('Not your turn!');
+        return;
+    }
+    
+    const needsTarget = cardNeedsTarget(cardData.id);
+    
+    if (needsTarget === 'piece') {
+        if (!selectedPiece) {
+            alert(`Please select a ${cardData.name === 'Pawn Scout' ? 'pawn' : 'piece'} first!`);
+            return;
+        }
+        
+        // Validate piece type if needed
+        if (cardData.id === 'pawn_scout' && selectedPiece.type !== 'PAWN') {
+            alert('This card can only be used on pawns!');
+            return;
+        }
+        
+        // Build target data based on card type
+        const targetData = buildTargetData(cardData.id, selectedPiece);
+        
+        console.log('Playing card with target:', targetData);
+        sendPlayCard(cardData.id, targetData);
+        
+        // Animate after sending
+        animateCardToDiscard(cardElement, cardData, () => {
+            showCardOverlay(`Played: ${cardData.name}`);
+        });
+        
+        // Clear selection
+        selectedPiece = null;
+        legalMoves = [];
+        legalCaptures = [];
+        render();
+        
+    } else if (needsTarget === 'tile') {
+        // Card needs a tile click (like placing a mine)
+        alert(`Click on a tile to place ${cardData.name}`);
+        // Set a flag to wait for tile click
+        waitingForTileTarget = { cardData, cardElement };
+        return;
+        
+    } else {
+        // No target needed - instant effect (like summon_peon)
+        console.log('Playing card with no target');
+        sendPlayCard(cardData.id, {});
+        
+        // Animate after sending
+        animateCardToDiscard(cardElement, cardData, () => {
+            showCardOverlay(`Played: ${cardData.name}`);
+        });
+    }
+    
+    // Remove from hand locally
+    const me = gameState.players[0];
+    me.hand = me.hand.filter(h => h !== cardData.id);
+    renderHands();
+}
 
-  // compute target spot (end of player hand)
-  const handRect = playerHandEl.getBoundingClientRect();
-  const targetX = handRect.left + (handRect.width/2);
-  const targetY = handRect.top + (handRect.height/2);
+// Helper to build the right target format for each card
+function buildTargetData(cardId, selectedPiece) {
+    // Most transformation cards use "target"
+    const transformCards = ['pawn_scout', 'knight_headhunter', 'bishop_warlock', 
+                           'queen_darklord', 'transmute'];
+    
+    if (transformCards.includes(cardId)) {
+        return { target: selectedPiece.position };
+    }
+    
+    // Special cases for other cards
+    if (cardId === 'of_flesh_and_blood') {
+        return { piece_id: selectedPiece.id };
+    }
+    
+    // Default format (safest)
+    return { target: selectedPiece.position };
+}
 
-  // animate with simple JS
-  // TODO: replace with actual animation
-  temp.animate([
-    { transform: `translate(0px,0px) scale(1)` },
-    { transform: `translate(${targetX - rect.left}px, ${targetY - rect.top}px) scale(0.9)` }
-  ], { duration: 550, easing: 'cubic-bezier(.2,.9,.2,1)' });
+// Helper to determine if card needs targeting
+function cardNeedsTarget(cardId) {
+    const pieceCards = ['pawn_scout', 'knight_promotion', 'cleric_blessing'];
+    const tileCards = ['mine', 'barricade'];
+    
+    if (pieceCards.includes(cardId)) return 'piece';
+    if (tileCards.includes(cardId)) return 'tile';
+    return 'none';
+}
 
-  setTimeout(()=> {
-    document.body.removeChild(temp);
-    me.hand.push(newCard);
-        renderHands();
-  }, 600);
-});
+// Helper for card overlay
+function showCardOverlay(text) {
+    const cardOverlay = document.getElementById('cardPlayOverlay');
+    cardOverlay.textContent = text;
+    cardOverlay.style.opacity = '1';
+    cardOverlay.setAttribute('aria-hidden','false');
+    setTimeout(()=>{ 
+        cardOverlay.style.opacity = '0'; 
+        cardOverlay.setAttribute('aria-hidden','true'); 
+    }, 1200);
+}
+
+// Add this at the top with other globals
+let waitingForTileTarget = null;
 
 // ---------- turn / sync ----------
 // TODO: add this
