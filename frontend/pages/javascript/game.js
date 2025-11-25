@@ -9,7 +9,7 @@ let playerId = null;
 let playerColor = null;
 let timerInterval = null;
 let lastTimerUpdate = Date.now();
-
+let pendingCardPlay = null;
 let lastMoveSentAt = null;
 
 // Get server URL
@@ -91,6 +91,29 @@ function handleGameMessage(data) {
             // Initial game state received
             console.log('Game state received:', data.game_state);
             updateGameState(data.game_state);
+            
+            // Check if card play succeeded
+            if (pendingCardPlay) {
+                const me = gameState.players.find(p => p.color === playerColor);
+                const cardStillInHand = me && me.hand.includes(pendingCardPlay.cardId);
+                
+                if (!cardStillInHand) {
+                    // Card was played successfully! Update UI
+                    const { cardData, cardElement } = pendingCardPlay;
+                    
+                    if (cardElement) {
+                        animateCardToDiscard(cardElement, cardData, () => {
+                            showCardOverlay(`Played: ${cardData.name}`);
+                        });
+                    }
+                    
+                    // Re-render hands to reflect server state
+                    renderHands();
+                    
+                    // Clear pending
+                    pendingCardPlay = null;
+                }
+            }
             break;
             
         case 'game_update':
@@ -105,6 +128,28 @@ function handleGameMessage(data) {
             // IBK added timing report
             reportMoveTiming();
             
+            // Check if our card play succeeded
+            if (pendingCardPlay) {
+                const me = gameState.players.find(p => p.color === playerColor);
+                const cardStillInHand = me && me.hand.includes(pendingCardPlay.cardId);
+                
+                if (!cardStillInHand) {
+                    // Card was played successfully! Update UI
+                    const { cardData, cardElement } = pendingCardPlay;
+                    
+                    if (cardElement) {
+                        animateCardToDiscard(cardElement, cardData, () => {
+                            showCardOverlay(`Played: ${cardData.name}`);
+                        });
+                    }
+                    
+                    // Re-render hands to reflect server state
+                    renderHands();
+                    
+                    // Clear pending
+                    pendingCardPlay = null;
+                }
+            }
             break;
             
         case 'game_over':
@@ -115,6 +160,12 @@ function handleGameMessage(data) {
         case 'error':
             console.error('Server error:', data.message);
             alert('Error: ' + data.message);
+            
+            // Card play failed clear pending but DON'T update UI
+            if (pendingCardPlay) {
+                console.log('Card play failed, keeping card in hand');
+                pendingCardPlay = null;
+            }
             break;
             
         default:
@@ -231,7 +282,7 @@ function sendMove(fromSquare, toSquare) {
     ws.send(JSON.stringify(message));
 }
 
-function sendPlayCard(cardId, targetData = {}) {
+function sendPlayCard(cardId, targetData = {}, cardElement = null, cardData = null) {
     if (!ws || ws.readyState !== WebSocket.OPEN) {
         console.error('Cannot play card: not connected');
         return;
@@ -242,11 +293,24 @@ function sendPlayCard(cardId, targetData = {}) {
         return;
     }
     
+    // Get card data if not provided
+    if (!cardData) {
+        cardData = getCardData(cardId);
+    }
+    
+    // Store pending card info for when we get server response
+    pendingCardPlay = {
+        cardId: cardId,
+        cardData: cardData,
+        cardElement: cardElement,
+        targetData: targetData
+    };
+    
     const message = {
         type: 'play_card',
         game_id: gameId,
         card_id: cardId,
-        target: targetData  // Keep nested
+        target: targetData
     };
     
     console.log('=== Sending card play ===');
@@ -256,18 +320,14 @@ function sendPlayCard(cardId, targetData = {}) {
     
     ws.send(JSON.stringify(message));
 }
-
 // Handle game over
 function handleGameOver(data) {
     alert(`Game Over!\nReason: ${data.reason}\nWinner: ${data.winner || 'Draw'}`);
     // Could add a game over screen here
 }
 
-// ============================================================================
-// EXISTING GAME.JS CODE (with minor modifications)
-// ============================================================================
 
-// gamestate json - now populated by server
+// gamestate json populated by server
 const gameState = {
     board: [],
     players: [],
@@ -1030,12 +1090,9 @@ function playCard(cardData, cardElement){
         const targetData = buildTargetData(cardData.id, selectedPiece);
         
         console.log('Playing card with target:', targetData);
-        sendPlayCard(cardData.id, targetData);
         
-        // Animate after sending
-        animateCardToDiscard(cardElement, cardData, () => {
-            showCardOverlay(`Played: ${cardData.name}`);
-        });
+        // ONLY send to server - don't update UI yet
+        sendPlayCard(cardData.id, targetData, cardElement, cardData);
         
         // Clear selection
         selectedPiece = null;
@@ -1051,48 +1108,73 @@ function playCard(cardData, cardElement){
         return;
         
     } else {
-        // No target needed - instant effect (like summon_peon)
+        // No target needed - just send to server
         console.log('Playing card with no target');
-        sendPlayCard(cardData.id, {});
-        
-        // Animate after sending
-        animateCardToDiscard(cardElement, cardData, () => {
-            showCardOverlay(`Played: ${cardData.name}`);
-        });
+        sendPlayCard(cardData.id, {}, cardElement, cardData);
     }
-    
-    // Remove from hand locally
-    const me = gameState.players[0];
-    me.hand = me.hand.filter(h => h !== cardData.id);
-    renderHands();
+
+    //wait for server confirmation to update hand
 }
 
 // Helper to build the right target format for each card
 function buildTargetData(cardId, selectedPiece) {
-    // Most transformation cards use "target"
-    const transformCards = ['pawn_scout', 'knight_headhunter', 'bishop_warlock', 
-                           'queen_darklord', 'transmute'];
+    // Most transformation and piece-targeting cards use "target"
+    const targetCards = [
+        'pawn_scout',
+        'knight_headhunter',
+        'bishop_warlock', 
+        'queen_darklord',
+        'transmute',
+        'insurance',
+        'exhaustion'
+    ];
     
-    if (transformCards.includes(cardId)) {
+    if (targetCards.includes(cardId)) {
         return { target: selectedPiece.position };
     }
     
-    // Special cases for other cards
+    // Special case for of_flesh_and_blood
     if (cardId === 'of_flesh_and_blood') {
         return { piece_id: selectedPiece.id };
     }
     
-    // Default format (safest)
+    // Default format
     return { target: selectedPiece.position };
 }
 
 // Helper to determine if card needs targeting
+// Helper to determine if card needs targeting
 function cardNeedsTarget(cardId) {
-    const pieceCards = ['pawn_scout', 'knight_promotion', 'cleric_blessing'];
-    const tileCards = ['mine', 'barricade'];
+    // Cards that target a single piece
+    const pieceCards = [
+        'pawn_scout',
+        'knight_headhunter',
+        'bishop_warlock',
+        'queen_darklord',
+        'transmute',
+        'of_flesh_and_blood',
+        'insurance',
+        'exhaustion'
+    ];
+    
+    // Cards that target an empty square/tile
+    const tileCards = [
+        'summon_barricade'
+    ];
+    
+    // Cards with special/complex targeting (need custom UI)
+    const specialCards = [
+        'eye_for_an_eye',  // Needs 2 pieces (friendly + enemy)
+        'eye_of_ruin'       // Needs hand interaction
+    ];
     
     if (pieceCards.includes(cardId)) return 'piece';
     if (tileCards.includes(cardId)) return 'tile';
+    if (specialCards.includes(cardId)) return 'special';  // Handle these separately
+    
+    // Cards with no targeting needed:
+    // mine, forced_move, forbidden_lands, summon_peon, shroud, all_seeing,
+    // pawn_queen, pawn_bomb, glue
     return 'none';
 }
 
