@@ -265,10 +265,12 @@ const CARDS_PATH = "../assets/game/game_cards/";
 const BOARD_PNG = `${BOARD_PATH}chessboard.png`;
 const OVERLAYS = {
     move: new Image(),
-    capture: new Image()
+    capture: new Image(),
+    fog: new Image()
 };
 OVERLAYS.move.src = `${BOARD_PATH}av_move.png`;
 OVERLAYS.capture.src = `${BOARD_PATH}av_attk.png`;
+OVERLAYS.fog.src = `${BOARD_PATH}fog_overlay.png`;
 
 // Trigger re-render when overlays load
 OVERLAYS.move.onload = () => {
@@ -382,20 +384,30 @@ function indexToAlgebraic(row, col){
 function computeLayout(){
     const w = canvas.width / dpr;
     const h = canvas.height / dpr;
-  // board must fill canvas; but we maintain 1% border inside
-    const borderX = w * 0.01;
-    const borderY = h * 0.01;
+    
+    const BOARD_IMAGE_SIZE = 1016;
+    const BOARD_BORDER_PX = 8;
+    
+    const scale = Math.min(w, h) / BOARD_IMAGE_SIZE;
+    
+    // Scale the border proportionally
+    const borderX = BOARD_BORDER_PX * scale;
+    const borderY = BOARD_BORDER_PX * scale;
+    
     const innerLeft = borderX;
     const innerTop = borderY;
-    const innerW = w - borderX*2;
-    const innerH = h - borderY*2;
+    const innerW = w - borderX * 2;
+    const innerH = h - borderY * 2;
     const cellSize = Math.min(innerW / columns, innerH / rows);
     const totalGridW = cellSize * columns;
     const totalGridH = cellSize * rows;
-  // center the grid inside inner area
-    const gridLeft = innerLeft + (innerW - totalGridW)/2;
-    const gridTop = innerTop + (innerH - totalGridH)/2;
-    return { w,h, borderX, borderY, innerLeft, innerTop, innerW, innerH, cellSize, totalGridW, totalGridH, gridLeft, gridTop };
+    
+    // Center the grid
+    const gridLeft = innerLeft + (innerW - totalGridW) / 2;
+    const gridTop = innerTop + (innerH - totalGridH) / 2;
+    
+    return { w, h, borderX, borderY, innerLeft, innerTop, innerW, innerH, 
+             cellSize, totalGridW, totalGridH, gridLeft, gridTop };
 }
 
 // convenience to get piece at grid
@@ -481,10 +493,40 @@ function render(){
         ctx.fillStyle = '#8a6b49';
         ctx.fillRect(0,0,L.w,L.h);
     }
-
-  // draw DMZ outer ring if dmz true
-  if(gameState.dmz){
-  }
+    // Draw fog overlay on DMZ tiles (when DMZ is not active)
+    if (!gameState.dmz && OVERLAYS.fog.complete) {
+        ctx.save();
+        
+        // Top row (rank 10)
+        for (let col = 0; col < columns; col++) {
+            const x = L.gridLeft + col * L.cellSize;
+            const y = L.gridTop;
+            ctx.drawImage(OVERLAYS.fog, x, y, L.cellSize, L.cellSize);
+        }
+        
+        // Bottom row (rank 1)
+        for (let col = 0; col < columns; col++) {
+            const x = L.gridLeft + col * L.cellSize;
+            const y = L.gridTop + 9 * L.cellSize;
+            ctx.drawImage(OVERLAYS.fog, x, y, L.cellSize, L.cellSize);
+        }
+        
+        // Left column (file a) - skip corners already drawn
+        for (let row = 1; row < 9; row++) {
+            const x = L.gridLeft;
+            const y = L.gridTop + row * L.cellSize;
+            ctx.drawImage(OVERLAYS.fog, x, y, L.cellSize, L.cellSize);
+        }
+        
+        // Right column (file j) - skip corners already drawn
+        for (let row = 1; row < 9; row++) {
+            const x = L.gridLeft + 9 * L.cellSize;
+            const y = L.gridTop + row * L.cellSize;
+            ctx.drawImage(OVERLAYS.fog, x, y, L.cellSize, L.cellSize);
+        }
+        
+        ctx.restore();
+    }
 
     // draw legal moves overlays
     console.log('Rendering overlays - legalMoves:', legalMoves.length, 'legalCaptures:', legalCaptures.length);
@@ -986,8 +1028,7 @@ function debounce(fn, t=100){
 // initial sizing & render
 window.addEventListener('load', () => {
     dpr = Math.max(1, window.devicePixelRatio || 1);
-  columns = gameState.dmz ? 9 : 8;
-  rows = columns;
+    // columns and rows are always 10 for the board
     resizeCanvas();
 });
 

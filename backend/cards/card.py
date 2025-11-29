@@ -2252,7 +2252,6 @@ class ForcedMove(Card):
     # Card can always be played (no board / piece precondition)
     # ------------------------------------------------------------------
     def can_play(self, board: Board, player: Player) -> bool:
-        # If you have per-turn card limits or phase checks, you can add them here.
         return True
 
     # ------------------------------------------------------------------
