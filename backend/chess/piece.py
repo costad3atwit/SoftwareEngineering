@@ -615,7 +615,7 @@ class Peon(Piece):
         """
         moves: List[Move] = []
         direction = 1 if self.color == Color.WHITE else -1
-        furthest_rank = 7 if self.color == Color.WHITE else 0
+        furthest_rank = 8 if self.color == Color.WHITE else 1
 
         # --- Forward 1 square ---
         one_step = Coordinate(at.file, at.rank + direction)
