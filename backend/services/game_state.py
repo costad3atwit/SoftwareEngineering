@@ -416,12 +416,30 @@ class GameState:
             opponent_color = Color.BLACK if player_color == Color.WHITE else Color.WHITE
             opponent = self.players[opponent_color]
             
-            if player:
-                base_dict["your_color"] = player_color.value
-                base_dict["your_turn"] = self.is_players_turn(perspective_player_id)
-                base_dict["your_hand"] = player.get_hand()
-                base_dict["your_deck_size"] = player.deck_size()
-                base_dict["opponent_hand_size"] = opponent.hand_size()
-                base_dict["opponent_deck_size"] = opponent.deck_size()
+        if player:
+            base_dict["your_color"] = player_color.value
+            base_dict["your_turn"] = self.is_players_turn(perspective_player_id)
+            base_dict["your_hand"] = player.get_hand()
+            base_dict["your_deck_size"] = player.deck_size()
+            base_dict["opponent_hand_size"] = opponent.hand_size()
+            base_dict["opponent_deck_size"] = opponent.deck_size()
+            
+            # Add discard pile info - SHOW BOTH (discard piles are public information)
+            if player.discard_pile.size() > 0:
+                top_card = player.discard_pile.top()
+                if top_card:
+                    base_dict["your_discard_top"] = top_card.to_dict()
+            else:
+                base_dict["your_discard_top"] = None
+            
+            # Also send opponent's discard top (public information)
+            if opponent.discard_pile.size() > 0:
+                opp_top_card = opponent.discard_pile.top()
+                if opp_top_card:
+                    base_dict["opponent_discard_top"] = opp_top_card.to_dict()
+            else:
+                base_dict["opponent_discard_top"] = None
+            
+            base_dict["opponent_discard_size"] = opponent.discard_pile.size()
         
         return base_dict

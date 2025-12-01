@@ -193,6 +193,29 @@ function updateGameState(serverGameState) {
     gameState.game_id = gameId;
     gameState.dmz = serverGameState.board?.dmzActive || false;
     
+    updateDiscardPile(serverGameState);
+
+    let lastPlayedCard = null;
+    
+    // Check if opponent played more recently (has a card and it's now your turn)
+    if (serverGameState.opponent_discard_top && serverGameState.your_turn) {
+        lastPlayedCard = serverGameState.opponent_discard_top;
+    }
+    // Otherwise show your last played card
+    else if (serverGameState.your_discard_top) {
+        lastPlayedCard = serverGameState.your_discard_top;
+    }
+    
+    if (lastPlayedCard) {
+        const cardData = getCardData(lastPlayedCard.id);
+        showCardInDiscard(cardData);
+    } else {
+        // Clear discard pile if empty
+        const discardSlot = document.getElementById('discardCard');
+        if (discardSlot) {
+            discardSlot.innerHTML = '<div class="empty-discard">No cards played yet</div>';
+        }
+    }
     // Update board pieces
     if (serverGameState.board && serverGameState.board.pieces) {
         gameState.board = serverGameState.board.pieces.map(piece => ({
@@ -254,6 +277,46 @@ function updateGameState(serverGameState) {
     
     // Update the UI with new state
     updateFullUI();
+}
+
+function updateDiscardPile(serverGameState) {
+    const discardSlot = document.getElementById('discardCard');
+    if (!discardSlot) {
+        console.error('Discard card slot not found');
+        return;
+    }
+    
+    // Determine which card to show (most recently played)
+    let cardToShow = null;
+    
+    // If opponent just played (it's now your turn and opponent has a discard)
+    if (serverGameState.your_turn && serverGameState.opponent_discard_top) {
+        cardToShow = serverGameState.opponent_discard_top;
+        console.log('Showing opponent discard:', cardToShow);
+    }
+    // Otherwise show your most recent discard
+    else if (serverGameState.your_discard_top) {
+        cardToShow = serverGameState.your_discard_top;
+        console.log('Showing your discard:', cardToShow);
+    }
+    
+    if (cardToShow) {
+        // Get full card data from the database
+        const cardData = getCardData(cardToShow.id);
+        
+        // Display the card
+        discardSlot.innerHTML = `
+            <div class="card">
+                <div class="card-inner" style="background: linear-gradient(180deg, #fff, #efe6dc); padding: 8px; border-radius: 8px;">
+                    <div class="title" style="font-weight: bold; font-size: 14px; margin-bottom: 4px;">${cardData.name}</div>
+                    <div class="desc" style="font-size: 11px; color: #333;">${cardData.description.substring(0, 100)}${cardData.description.length > 100 ? '...' : ''}</div>
+                </div>
+            </div>
+        `;
+    } else {
+        // No cards played yet
+        discardSlot.innerHTML = '<div style="color: rgba(255,255,255,0.5); font-size: 12px; text-align: center; padding: 20px;">No cards played</div>';
+    }
 }
 
 // Send a move to the server
@@ -1105,30 +1168,68 @@ function animateCardToDiscard(sourceElement, cardData, onComplete) {
     }, 600);
 }
 
-// Handle opponent playing a card
-function handleOpponentCardPlay(cardId) {
-    const cardData = getCardData(cardId);
-    const opponentHandEl = document.getElementById('opponentHand');
+function handleOpponentCardPlay(cardPlayed) {
+    console.log('Opponent played a card:', cardPlayed);
     
-    if (!opponentHandEl || opponentHandEl.children.length === 0) {
-        // No cards to animate from, just show in discard
+    // Get card data for the card that was played
+    const cardData = getCardData(cardPlayed.id);
+    
+    // Show animation of card flying to discard (face up, showing what they played)
+    const opponentHandEl = document.getElementById('opponentHand');
+    if (!opponentHandEl || !opponentHandEl.firstChild) {
+        // If we can't animate, just show it in the discard pile
         showCardInDiscard(cardData);
         return;
     }
     
-    // Animate the first card from opponent's hand
-    const firstCard = opponentHandEl.children[0];
-    animateCardToDiscard(firstCard, cardData);
+    // Get a card back from opponent's hand to animate
+    const cardBack = opponentHandEl.firstChild;
+    const discardSlot = document.getElementById('discardCard');
     
-    // Show overlay
-    const cardOverlay = document.getElementById('cardPlayOverlay');
-    cardOverlay.textContent = `Opponent played: ${cardData.name}`;
-    cardOverlay.style.opacity = '1';
-    cardOverlay.setAttribute('aria-hidden','false');
-    setTimeout(()=>{ 
-        cardOverlay.style.opacity = '0'; 
-        cardOverlay.setAttribute('aria-hidden','true'); 
-    }, 1200);
+    if (!cardBack || !discardSlot) {
+        showCardInDiscard(cardData);
+        return;
+    }
+    
+    // Get positions
+    const sourceRect = cardBack.getBoundingClientRect();
+    const targetRect = discardSlot.getBoundingClientRect();
+    
+    // Create flying card clone showing the ACTUAL card (not card back)
+    const flyingCard = document.createElement('div');
+    flyingCard.className = 'card flying';
+    flyingCard.innerHTML = `
+        <div class="card-inner">
+            <div class="front">
+                <div class="title">${cardData.name}</div>
+                <div class="desc">${cardData.description}</div>
+            </div>
+        </div>
+    `;
+    flyingCard.style.position = 'fixed';
+    flyingCard.style.left = `${sourceRect.left}px`;
+    flyingCard.style.top = `${sourceRect.top}px`;
+    flyingCard.style.width = `${sourceRect.width}px`;
+    flyingCard.style.height = `${sourceRect.height}px`;
+    flyingCard.style.zIndex = '1000';
+    flyingCard.style.pointerEvents = 'none';
+    flyingCard.style.transition = 'all 0.5s ease';
+    
+    document.body.appendChild(flyingCard);
+    
+    // Animate to discard pile
+    setTimeout(() => {
+        flyingCard.style.left = `${targetRect.left}px`;
+        flyingCard.style.top = `${targetRect.top}px`;
+        flyingCard.style.width = `${targetRect.width}px`;
+        flyingCard.style.height = `${targetRect.height}px`;
+    }, 50);
+    
+    // Remove flying card and show in discard pile after animation
+    setTimeout(() => {
+        document.body.removeChild(flyingCard);
+        showCardInDiscard(cardData);
+    }, 600);
 }
 
 function playCard(cardData, cardElement){

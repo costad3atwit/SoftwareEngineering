@@ -84,6 +84,13 @@ class Player:
         """
         Returns a dictionary snapshot of the player's current state.
         """
+        # Get the top card of discard pile if it exists
+        discard_top = None
+        if self.discard_pile.size() > 0:
+            top_card = self.discard_pile.top()
+            if top_card:
+                discard_top = top_card.to_dict()
+        
         return {
             "id": self.id,
             "name": self.name,
@@ -91,5 +98,6 @@ class Player:
             "hand": [card.id for card in self.hand.cards],
             "deck_size": self.deck.size(),
             "discard_size": self.discard_pile.size(),
+            "discard_pile_top": discard_top,  # ← ADD THIS LINE
             "captured": [piece.id for piece in self.captured]
-        }
+            }
