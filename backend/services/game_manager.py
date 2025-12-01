@@ -21,7 +21,8 @@ from backend.chess.move import Move
 
 class GameManager:
     """Manages all active games and matchmaking"""
-    
+    MAX_CONCURRENT_GAMES = 20
+
     def __init__(self):
         self.games: Dict[str, GameState] = {}
         self.matchmaking_queue: List[Dict] = []  # Queue of players waiting to be matched
@@ -68,12 +69,20 @@ class GameManager:
     def try_match_players(self) -> Optional[GameState]:
         """
         Try to match two players from the queue and start a game.
+        Only creates a match if there are fewer than MAX_CONCURRENT_GAMES active.
         Returns the created GameState if successful, None otherwise.
         """
+        # Check if we have enough players
         if len(self.matchmaking_queue) < 2:
             return None
         
-        # Get first two players in queue
+        # Check concurrent game limit
+        active_games = self.get_all_active_games()
+        if len(active_games) >= 20:
+            # Don't create match - players stay in queue
+            return None
+        
+        # Get first two players in queue and create game
         player1_data = self.matchmaking_queue.pop(0)
         player2_data = self.matchmaking_queue.pop(0)
         

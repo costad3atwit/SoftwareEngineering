@@ -139,7 +139,13 @@ function handleServerMessage(data) {
         case 'queue_joined':
             console.log('Joined matchmaking queue:', data.message);
             inMatchmakingQueue = true;
-            showStatus('Searching for opponent...');
+            
+            // Check if waiting for slot due to server capacity
+            if (data.waiting_for_slot) {
+                showStatus(`In queue (${data.queue_size} waiting). Server at capacity (${data.active_games}/${data.max_games} games). You'll be matched when a slot opens.`);
+            } else {
+                showStatus('Searching for opponent...');
+            }
             break;
             
         case 'game_started':

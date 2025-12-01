@@ -126,6 +126,38 @@ async def notify_game_timeout(game: GameState):
         "winner": game.winner.value if game.winner else None,
         "message": game.win_reason
     }, game)
+    # Try to match waiting players since a game slot opened up
+    await try_match_waiting_players()
+
+async def try_match_waiting_players():
+    """
+    Helper function to attempt matchmaking after a game slot opens up.
+    Called after games end to match any waiting players.
+    """
+    game = game_manager.try_match_players()
+    
+    if game:
+        # Get both players
+        white_player = game.players[game.turn]
+        black_player = game.get_opponent_player()
+        
+        logger.info(f"MATCH CREATED (slot opened): {game.game_id}")
+        logger.info(f"  White: {white_player.name} ({white_player.id})")
+        logger.info(f"  Black: {black_player.name} ({black_player.id})")
+        
+        # Notify both players with their perspective of game state
+        await manager.send_personal_message({
+            "type": "game_started",
+            "game_id": game.game_id,
+            "game_state": game.to_dict(white_player.id)
+        }, white_player.id)
+        
+        await manager.send_personal_message({
+            "type": "game_started",
+            "game_id": game.game_id,
+            "game_state": game.to_dict(black_player.id)
+        }, black_player.id)
+
 
 # ============================================================================
 # HTTP ENDPOINTS
@@ -239,10 +271,16 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                 
                 if success:
                     logger.info(f"Added to queue: {client_id} | {msg}")
+                    active_count = len(game_manager.get_all_active_games())
+                    waiting_for_slot = active_count >= 20
+                    
                     await manager.send_personal_message({
                         "type": "queue_joined",
                         "message": msg,
-                        "queue_size": len(game_manager.matchmaking_queue)
+                        "queue_size": len(game_manager.matchmaking_queue),
+                        "active_games": active_count,
+                        "max_games": 20,
+                        "waiting_for_slot": waiting_for_slot
                     }, client_id)
                     
                     # Try to match players
@@ -316,6 +354,22 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                         "message": f"Player {target_player_id} is already in a game"
                     }, client_id)
                     continue
+                # Check if server is at capacity (20 concurrent games)
+                active_count = len(game_manager.get_all_active_games())
+                if active_count >= 20:
+                    await manager.send_personal_message({
+                        "type": "error",
+                        "message": f"Server at capacity ({active_count}/20 games). Please wait for a slot to open."
+                    }, client_id)
+                    continue
+                
+                # Check if challenger is already in a game
+                if game_manager.get_player_game(client_id):
+                    await manager.send_personal_message({
+                        "type": "error",
+                        "message": "You are already in a game"
+                    }, client_id)
+                    continue
                 
                 # Store the challenge
                 challenge_key = f"{client_id}_{target_player_id}"
@@ -361,7 +415,19 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                         "message": "Challenge not found or expired"
                     }, client_id)
                     continue
-                
+                # Check if server is at capacity (20 concurrent games)
+                active_count = len(game_manager.get_all_active_games())
+                if active_count >= 20:
+                    await manager.send_personal_message({
+                        "type": "error",
+                        "message": f"Server at capacity ({active_count}/20 games). Challenge cannot be accepted right now."
+                    }, client_id)
+                    # Notify the challenger too
+                    await manager.send_personal_message({
+                        "type": "error",
+                        "message": f"Challenge to {client_id} failed: server at capacity"
+                    }, challenger_id)
+                    continue
                 # Remove from matchmaking queue if present
                 game_manager.remove_from_queue(challenger_id)
                 game_manager.remove_from_queue(client_id)
@@ -488,6 +554,8 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                             "winner": updated_game.winner.value if updated_game.winner else None,
                             "message": updated_game.win_reason
                         }, updated_game)
+                        # Try to match waiting players since a game slot opened up
+                        await try_match_waiting_players()
                 else:
                     logger.warning(f"Move failed: {msg}")
                     await manager.send_personal_message({
@@ -549,6 +617,8 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                             "winner": updated_game.winner.value if updated_game.winner else None,
                             "message": updated_game.win_reason
                         }, updated_game)
+                        # Try to match waiting players since a game slot opened up
+                        await try_match_waiting_players()
                 else:
                     logger.warning(f"Card play failed: {msg}")
                     await manager.send_personal_message({
