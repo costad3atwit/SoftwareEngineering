@@ -3,8 +3,6 @@ class Coordinate:
     rank: int # 0-9 row 
 
     def __init__(self, file: int, rank: int):
-        if not (0 <= file <= 9 and 0 <= rank <= 9):
-            raise ValueError(f"Invalid coordinate — must be within 0–9 range.")
         self.file = file
         self.rank = rank
 

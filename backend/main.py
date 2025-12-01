@@ -215,11 +215,12 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
             if message_type == "join_queue":
                 # Player submits their deck and joins queue
                 player_name = message.get("name", client_id)
-                deck = message.get("deck", ["mine", "eye_for_an_eye", "summon_peon", "pawn_scout",
+                deck = message.get("deck", ["forbidden_lands", "eye_for_an_eye", "summon_peon", "pawn_scout",
             "knight_headhunter", "bishop_warlock",
             "mine", "eye_for_an_eye", "summon_peon", "pawn_scout",
             "knight_headhunter", "bishop_warlock",
-            "mine", "eye_for_an_eye", "summon_peon", "pawn_scout"]) # REPLACE WITH ACTUAL DECK DATA
+            "forbidden_lands", "eye_for_an_eye", "summon_peon", "pawn_scout"]) 
+                # ^^^ REPLACE WITH ACTUAL DECK DATA, THIS IS USED AS A FALLBACK INCASE FRONTEND DOESN"T SEND A DECK IN MAIN_MENU.js
                 
                 logger.info(f"Join queue request: {client_id} ({player_name}) with {len(deck)} cards")
                 

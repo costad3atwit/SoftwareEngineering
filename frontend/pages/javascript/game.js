@@ -191,7 +191,7 @@ function updateGameState(serverGameState) {
     // Convert server format to our local gameState format
     // The server sends a player-specific view, we need to reconstruct the full state
     gameState.game_id = gameId;
-    gameState.dmz = serverGameState.board?.dmz_active || false;
+    gameState.dmz = serverGameState.board?.dmzActive || false;
     
     // Update board pieces
     if (serverGameState.board && serverGameState.board.pieces) {
@@ -364,7 +364,6 @@ OVERLAYS.capture.onerror = () => console.error('Failed to load capture overlay:'
 const PIECE_SPRITE = (color, type) => `${PIECES_PATH}${color.toLowerCase()}_${type.toLowerCase()}_temp.png`;
 
 // Card database - maps card IDs to full card data
-// Card database - maps card IDs to full card data
 const CARD_DATABASE = {
     // HIDDEN CARDS
     'mine': {
@@ -502,9 +501,33 @@ boardImg.src = BOARD_PNG;
 // ---------- Piece sprite loading and caching ----------
 const pieceImageCache = {}; // Cache loaded piece images
 
+// Map backend piece type codes to sprite filenames
+function pieceTypeToSpriteName(typeCode) {
+    const typeMap = {
+        'p': 'pawn',
+        'r': 'rook',
+        'n': 'knight',
+        'b': 'bishop',
+        'q': 'queen',
+        'k': 'king',
+        's': 'scout',
+        'h': 'headhunter',
+        'w': 'warlock',
+        't': 'witch',
+        'c': 'cleric',
+        'd': 'darklord',
+        'e': 'peon',
+        'f': 'effigy',
+        'x': 'barricade'
+    };
+    
+    return typeMap[typeCode.toLowerCase()] || typeCode.toLowerCase();
+}
+
 function loadPieceSprite(color, type) {
-    // Create cache key
-    const key = `${color}_${type}`;
+    // Map type code to full sprite name
+    const spriteName = pieceTypeToSpriteName(type);
+    const key = `${color}_${spriteName}`;
     
     // Return cached image if it exists
     if (pieceImageCache[key]) {
@@ -513,7 +536,7 @@ function loadPieceSprite(color, type) {
     
     // Create new image using PIECE_SPRITE function
     const img = new Image();
-    img.src = PIECE_SPRITE(color, type);
+    img.src = PIECE_SPRITE(color, spriteName);  // Use spriteName instead of type
     
     // Cache it for future use
     pieceImageCache[key] = img;

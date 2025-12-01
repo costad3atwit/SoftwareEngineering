@@ -152,11 +152,11 @@ class GameManager:
         """
         sample_deck = [
             #Need to implement more cards for an actual deck, for now just repeating the same cards
-            "mine", "eye_for_an_eye", "summon_peon", "pawn_scout",
+            "forbidden_lands", "eye_for_an_eye", "summon_peon", "pawn_scout",
             "knight_headhunter", "bishop_warlock",
             "mine", "eye_for_an_eye", "summon_peon", "pawn_scout",
             "knight_headhunter", "bishop_warlock",
-            "mine", "eye_for_an_eye", "summon_peon", "pawn_scout"
+            "forbidden_lands", "eye_for_an_eye", "summon_peon", "pawn_scout"
         ]
         
         return self.start_game(

@@ -38,11 +38,11 @@ let pendingChallenges = {}; // Store incoming challenges
 
 // Sample deck
 const sampleDeck = [
-    "mine", "eye_for_an_eye", "summon_peon", "pawn_scout",
+    "forbidden_lands", "eye_for_an_eye", "summon_peon", "pawn_scout",
     "knight_headhunter", "bishop_warlock",
     "mine", "eye_for_an_eye", "summon_peon", "pawn_scout",
     "knight_headhunter", "bishop_warlock",
-    "mine", "eye_for_an_eye", "summon_peon", "pawn_scout"
+    "forbidden_lands", "eye_for_an_eye", "summon_peon", "pawn_scout"
 ];
 
 // Get the server URL (adjust this based on your deployment)

@@ -1605,7 +1605,7 @@ if __name__ == "__main__":
                 for f in range(self.size):
                     piece = self.grid[f][r]
                     if piece:
-                        row.append(piece.type.value)
+                        row.append(piece.type.name)
                     else:
                         row.append(".")
                 print(" ".join(row))
