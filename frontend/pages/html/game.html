@@ -9,6 +9,7 @@
 <body>
   <div class="background"></div>
   <div class="page">
+    <!-- LEFT COLUMN: Board -->
     <div class="left-column">
       <div class="top-buttons">
         <button class="top-btn" href="http://localhost:8000/main_menu.html">Main Menu</button>
@@ -23,6 +24,39 @@
       </div>
     </div>
 
+    <!-- MIDDLE COLUMN: Timers + Captures -->
+    <div class="middle-column">
+      <div class="game-status-area">
+        <!-- Opponent Status -->
+        <div class="status-section opponent-status">
+          <div class="status-label">Opponent</div>
+          <div class="timer" id="timerTop">15:00</div>
+          <div class="captured-pieces-container">
+            <h3>Captures</h3>
+            <div id="opponentCaptured" class="captured-pieces-grid"></div>
+          </div>
+        </div>
+
+        <!-- Discard Pile in Middle -->
+        <div class="discard-pile-center" id="discardPile">
+          <div class="discard-label">Last Played</div>
+          <div id="discardCard" class="discard-card-slot">
+          </div>
+        </div>
+
+        <!-- Player Status -->
+        <div class="status-section player-status">
+          <div class="status-label">You</div>
+          <div class="timer" id="playerTimer">15:00</div>
+          <div class="captured-pieces-container">
+            <h3>Captures</h3>
+            <div id="yourCaptured" class="captured-pieces-grid"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT COLUMN: Cards & Decks -->
     <div class="right-column">
       <div class="opponent-area">
         <div class="player-name" id="opponentName">Opponent</div>
@@ -33,40 +67,18 @@
         </div>
       </div>
 
-      <div class="discard-pile-wrapper">
-        <div class="discard-pile-center" id="discardPile">
-          <div class="discard-label">Last Played</div>
-          <div id="discardCard" class="discard-card-slot">
-          </div>
-        </div>
-      </div>
-
-      <div class="center-info">
-        <div class="timer" id="timerTop">00:00</div>
-        <div class="captured-list" id="opponentCaptured">Captured</div>
-      </div>
-
-      <div class="center-info">
-        <div class="timer" id="timerTop">00:00</div>
-        <div class="captured-list" id="opponentCaptured">Captured</div>
-      </div>
-
       <div class="card-area">
         <div class="deck-area">
-          <button id="drawCardBtn">Draw Card</button>
           <div class="deck-preview" id="deckPreview">Deck</div>
         </div>
 
         <div class="player-hand" id="playerHand"></div>
         <div class="player-bottom">
           <div class="player-name" id="playerName">You</div>
-          <div class="timer" id="playerTimer">00:00</div>
-          <div class="captured-list" id="playerCaptured">Captured</div>
         </div>
       </div>
     </div>
   </div>
-
   <!-- overlay for card-play text -->
   <div id="cardPlayOverlay" class="card-play-overlay" aria-hidden="true"></div>
 

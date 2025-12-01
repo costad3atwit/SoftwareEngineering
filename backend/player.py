@@ -100,4 +100,4 @@ class Player:
             "discard_size": self.discard_pile.size(),
             "discard_pile_top": discard_top,  # ← ADD THIS LINE
             "captured": [piece.id for piece in self.captured]
-            }
+        }

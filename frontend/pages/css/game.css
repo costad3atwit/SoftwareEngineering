@@ -92,12 +92,7 @@ html,body { height:100%; margin:0; font-family: "Segoe UI", system-ui, -apple-sy
   border-radius: 10px;
   min-height: 140px;
 }
-.center-info {
-  display:flex;
-  gap:8px;
-  justify-content: space-between;
-  align-items: center;
-}
+
 .card-area {
   margin-top: auto;
   background: color(white);
@@ -111,6 +106,23 @@ html,body { height:100%; margin:0; font-family: "Segoe UI", system-ui, -apple-sy
   gap: 8px;
   justify-content: center;
   margin-top: 10px;
+}
+
+.game-status-area {
+  background: var(--ui-panel);
+  padding: 16px;
+  border-radius: 10px;
+  backdrop-filter: blur(10px);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.status-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
 }
 
 /* card style (DOM) */
@@ -301,4 +313,150 @@ html,body { height:100%; margin:0; font-family: "Segoe UI", system-ui, -apple-sy
   .left-column { width:100%; order:1; padding-bottom:12px; justify-content:flex-start; }
   .right-column { width:100%; order:2; }
   .board-wrapper { width: min(90vw, 640px); }
+}
+
+/* Captured Pieces Display */
+.captured-pieces-container {
+  background: rgba(139, 107, 73, 0.3);
+  border: 2px solid #8b6b49;
+  border-radius: 8px;
+  padding: 8px 12px;
+  flex: 1; 
+  min-width: 0;
+}
+
+.captured-pieces-container h3 {
+  margin: 0 0 6px 0;
+  font-family: 'MedievalSharp', serif;
+  color: #d4af37;
+  font-size: 14px;
+  text-align: center;
+}
+
+.captured-pieces-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-height: 35px;
+  justify-content: center;
+  align-items: center;
+}
+
+.captured-piece {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+  padding: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.captured-piece img {
+  width: 25px;
+  height: 25px;
+  object-fit: contain;
+  filter: brightness(0.9);
+}
+
+.captured-count {
+  width: 100%;
+  text-align: center;
+  margin-top: 4px;
+  font-family: 'MedievalSharp', serif;
+  color: #d4af37;
+  font-size: 11px;
+  font-weight: bold;
+}
+
+.captured-pieces-grid:empty::before {
+  content: "No pieces captured yet";
+  color: rgba(212, 175, 55, 0.6);
+  font-size: 11px;
+  font-style: italic;
+}
+
+.timer {
+  background: linear-gradient(135deg, rgba(36, 51, 106, 0.9), rgba(20, 30, 60, 0.95));
+  border: 2px solid rgba(212, 175, 55, 0.6);
+  border-radius: 12px;
+  padding: 12px 20px;
+  font-family: 'Courier New', 'Consolas', monospace;
+  font-size: 24px;
+  font-weight: 700;
+  color: #d4af37;
+  text-align: center;
+  min-width: 120px;
+  box-shadow: 
+    0 6px 20px rgba(0, 0, 0, 0.5),
+    inset 0 2px 4px rgba(255, 255, 255, 0.1),
+    inset 0 -2px 4px rgba(0, 0, 0, 0.3);
+  position: relative;
+  letter-spacing: 2px;
+  transition: all 0.3s ease;
+  flex-shrink: 0;
+}
+
+.timer::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, 
+    rgba(212, 175, 55, 0.2), 
+    rgba(255, 215, 0, 0.1));
+  z-index: -1;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.timer:hover::before {
+  opacity: 1;
+}
+
+/* Active player indicator */
+.timer.active {
+  border-color: #d4af37;
+  animation: timerPulse 2s ease-in-out infinite;
+  box-shadow: 
+    0 8px 24px rgba(212, 175, 55, 0.4),
+    inset 0 2px 4px rgba(255, 255, 255, 0.15),
+    inset 0 -2px 4px rgba(0, 0, 0, 0.3);
+}
+
+@keyframes timerPulse {
+  0%, 100% {
+    box-shadow: 
+      0 8px 24px rgba(212, 175, 55, 0.4),
+      inset 0 2px 4px rgba(255, 255, 255, 0.15);
+  }
+  50% {
+    box-shadow: 
+      0 8px 28px rgba(212, 175, 55, 0.6),
+      inset 0 2px 6px rgba(255, 255, 255, 0.2);
+  }
+}
+
+/* Low time warning */
+.timer.low-time {
+  border-color: #ff6b6b;
+  color: #ff6b6b;
+  animation: timerWarning 1s ease-in-out infinite;
+}
+
+@keyframes timerWarning {
+  0%, 100% {
+    box-shadow: 0 8px 24px rgba(255, 107, 107, 0.4);
+  }
+  50% {
+    box-shadow: 0 8px 32px rgba(255, 107, 107, 0.7);
+  }
+}
+
+.timer-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: rgba(212, 175, 55, 0.7);
+  margin-bottom: 6px;
+  font-weight: 600;
 }

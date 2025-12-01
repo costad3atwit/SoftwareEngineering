@@ -237,24 +237,26 @@ function updateGameState(serverGameState) {
                 color: serverGameState.your_color,
                 hand: serverGameState.your_hand || [],
                 deck_size: serverGameState.your_deck_size || 0,
-                captured_pieces: []
+                captured_pieces: serverGameState.your_captured || []
             },
             {
                 player_id: 'opponent',
                 name: 'Opponent',
                 color: serverGameState.your_color === 'w' ? 'b' : 'w',
-                hand: [], // We don't see opponent's hand
+                hand: [],
                 hand_size: serverGameState.opponent_hand_size || 0,
                 deck_size: serverGameState.opponent_deck_size || 0,
-                captured_pieces: []
+                captured_pieces: serverGameState.opponent_captured || []
             }
         ];
     } else {
         // Update existing player data
         gameState.players[0].hand = serverGameState.your_hand || [];
         gameState.players[0].deck_size = serverGameState.your_deck_size || 0;
+        gameState.players[0].captured_pieces = serverGameState.your_captured || [];
         gameState.players[1].hand_size = serverGameState.opponent_hand_size || 0;
         gameState.players[1].deck_size = serverGameState.opponent_deck_size || 0;
+        gameState.players[1].captured_pieces = serverGameState.opponent_captured || [];
     }
     
     // Update turn information
@@ -620,6 +622,75 @@ function loadPieceSprite(color, type) {
 // Render board - wrapper around render() for clarity
 function renderBoard() {
     render();
+}
+
+// Render captured pieces for both players
+function renderCapturedPieces() {
+    const yourCapturedEl = document.getElementById('yourCaptured');
+    const opponentCapturedEl = document.getElementById('opponentCaptured');
+    
+    if (!yourCapturedEl || !opponentCapturedEl) {
+        console.warn('Captured pieces elements not found in DOM');
+        return;
+    }
+    
+    // Clear existing content
+    yourCapturedEl.innerHTML = '';
+    opponentCapturedEl.innerHTML = '';
+    
+    // Render your captured pieces (pieces you have captured from opponent)
+    if (gameState.players[0] && gameState.players[0].captured_pieces) {
+        const yourCaptured = gameState.players[0].captured_pieces;
+        yourCaptured.forEach(piece => {
+            const pieceEl = document.createElement('div');
+            pieceEl.className = 'captured-piece';
+            
+            const img = loadPieceSprite(piece.color, piece.type);
+            const imgEl = document.createElement('img');
+            imgEl.src = img.src;
+            imgEl.alt = `${piece.color} ${piece.type}`;
+            imgEl.style.width = '30px';
+            imgEl.style.height = '30px';
+            
+            pieceEl.appendChild(imgEl);
+            yourCapturedEl.appendChild(pieceEl);
+        });
+        
+        // Add count indicator
+        if (yourCaptured.length > 0) {
+            const countEl = document.createElement('div');
+            countEl.className = 'captured-count';
+            countEl.textContent = `Captured: ${yourCaptured.length}`;
+            yourCapturedEl.appendChild(countEl);
+        }
+    }
+    
+    // Render opponent's captured pieces (pieces opponent captured from you)
+    if (gameState.players[1] && gameState.players[1].captured_pieces) {
+        const opponentCaptured = gameState.players[1].captured_pieces;
+        opponentCaptured.forEach(piece => {
+            const pieceEl = document.createElement('div');
+            pieceEl.className = 'captured-piece';
+            
+            const img = loadPieceSprite(piece.color, piece.type);
+            const imgEl = document.createElement('img');
+            imgEl.src = img.src;
+            imgEl.alt = `${piece.color} ${piece.type}`;
+            imgEl.style.width = '30px';
+            imgEl.style.height = '30px';
+            
+            pieceEl.appendChild(imgEl);
+            opponentCapturedEl.appendChild(pieceEl);
+        });
+        
+        // Add count indicator
+        if (opponentCaptured.length > 0) {
+            const countEl = document.createElement('div');
+            countEl.className = 'captured-count';
+            countEl.textContent = `Captured: ${opponentCaptured.length}`;
+            opponentCapturedEl.appendChild(countEl);
+        }
+    }
 }
 
 // compute sizes after CSS layout
@@ -1399,11 +1470,14 @@ function updateFullUI() {
     
     // 3. Render player hands
     renderHands();
+
+    // 4. Render captured pieces
+    renderCapturedPieces();
     
-    // 4. Update turn indicator
+    // 5. Update turn indicator
     updateTurnIndicator();
     
-    // 5. Update timers if you have them
+    // 6. Update timers
     if (gameState.white_time !== undefined && gameState.black_time !== undefined) {
         syncTimer(gameState.white_time, gameState.black_time);
         if (!timerInterval) {
@@ -1416,7 +1490,7 @@ function updateFullUI() {
 
 // Update player names and deck information
 function updatePlayerInfo() {
-    // Player (you)
+    // Player
     document.getElementById('playerName').textContent = gameState.players[0].name;
     const playerDeckCount = document.getElementById('playerDeckCount');
     if (playerDeckCount) {
@@ -1434,20 +1508,21 @@ function updatePlayerInfo() {
 // Update turn indicator to show whose turn it is
 function updateTurnIndicator() {
     const turnIndicator = document.getElementById('turnIndicator');
-    if (!turnIndicator) return;
-    
-    if (gameState.your_turn) {
-        turnIndicator.textContent = 'Your Turn';
-        turnIndicator.classList.add('your-turn');
-        turnIndicator.classList.remove('opponent-turn');
-    } else {
-        turnIndicator.textContent = "Opponent's Turn";
-        turnIndicator.classList.add('opponent-turn');
-        turnIndicator.classList.remove('your-turn');
+    if (turnIndicator) {
+        if (gameState.your_turn) {
+            turnIndicator.textContent = 'Your Turn';
+            turnIndicator.classList.add('your-turn');
+            turnIndicator.classList.remove('opponent-turn');
+        } else {
+            turnIndicator.textContent = "Opponent's Turn";
+            turnIndicator.classList.add('opponent-turn');
+            turnIndicator.classList.remove('your-turn');
+        }
     }
+
 }
 
-// Update timer displays
+// Update timer displays with enhanced styling
 function updateTimers() {
     const topTimer = document.getElementById('timerTop');
     const bottomTimer = document.getElementById('playerTimer');
@@ -1455,18 +1530,57 @@ function updateTimers() {
     if (!topTimer || !bottomTimer) return;
     if (gameState.white_time === undefined || gameState.black_time === undefined) return;
     
-    // If you're white, your timer is at bottom, opponent (black) at top
-    // If you're black, your timer is at bottom, opponent (white) at top
+    // Determine whose time to show where
+    let yourTime, opponentTime;
+    let yourTurn = gameState.your_turn;
+    
     if (playerColor && playerColor.charAt(0).toUpperCase() === 'W') {
         // You are white
-        bottomTimer.textContent = formatTime(Math.ceil(gameState.white_time));
-        topTimer.textContent = formatTime(Math.ceil(gameState.black_time));
+        yourTime = gameState.white_time;
+        opponentTime = gameState.black_time;
     } else if (playerColor && playerColor.charAt(0).toUpperCase() === 'B') {
         // You are black
-        bottomTimer.textContent = formatTime(Math.ceil(gameState.black_time));
-        topTimer.textContent = formatTime(Math.ceil(gameState.white_time));
+        yourTime = gameState.black_time;
+        opponentTime = gameState.white_time;
+    } else {
+        return; // No player color set yet
+    }
+    
+    // Update timer displays
+    updateTimerDisplay(bottomTimer, yourTime, yourTurn);
+    updateTimerDisplay(topTimer, opponentTime, !yourTurn);
+}
+
+// Helper function to update a single timer element
+function updateTimerDisplay(timerElement, seconds, isActive) {
+    if (!timerElement) return;
+    
+    // Format time
+    const timeString = formatTime(Math.ceil(seconds));
+    
+    // Update display (check if using icon structure)
+    const valueEl = timerElement.querySelector('.timer-value');
+    if (valueEl) {
+        valueEl.textContent = timeString;
+    } else {
+        timerElement.textContent = timeString;
+    }
+    
+    // Add/remove active state
+    if (isActive) {
+        timerElement.classList.add('active');
+    } else {
+        timerElement.classList.remove('active');
+    }
+    
+    // Add low-time warning class when under 60 seconds
+    if (seconds < 60) {
+        timerElement.classList.add('low-time');
+    } else {
+        timerElement.classList.remove('low-time');
     }
 }
+
 
 // Helper to format seconds into MM:SS or HH:MM:SS
 function formatTime(seconds) {

@@ -256,6 +256,10 @@ class GameState:
         # Execute the move on the board
         captured = self.board.move_piece(m)
         
+        if captured:
+            current_player = self.players[self.turn]
+            current_player.capture_piece(captured)
+            print(f"DEBUG: {current_player.name} captured {captured.type.name} (ID: {captured.id})")
         # Check if this was a pawn promotion move
         piece = self.board.piece_at_coord(m.to_sq)
         if piece and piece.type == PieceType.PAWN:
@@ -423,11 +427,28 @@ class GameState:
             base_dict["your_deck_size"] = player.deck_size()
             base_dict["opponent_hand_size"] = opponent.hand_size()
             base_dict["opponent_deck_size"] = opponent.deck_size()
-            
+            base_dict["your_captured"] = [
+                {
+                    "id": piece.id,
+                    "type": piece.type.name,
+                    "color": piece.color.name,
+                    "value": piece.value
+                }
+                for piece in player.captured
+            ]
+            base_dict["opponent_captured"] = [
+                {
+                    "id": piece.id,
+                    "type": piece.type.name,
+                    "color": piece.color.name,
+                    "value": piece.value
+                }
+                for piece in opponent.captured
+            ]
             # Add discard pile info - SHOW BOTH (discard piles are public information)
             if player.discard_pile.size() > 0:
                 top_card = player.discard_pile.top()
-                if top_card:
+                if top_card:    
                     base_dict["your_discard_top"] = top_card.to_dict()
             else:
                 base_dict["your_discard_top"] = None
