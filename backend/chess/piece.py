@@ -18,6 +18,32 @@ class Piece(ABC):
         self.has_moved = False
         self.marked = False
 
+    def _filter_leaving_forbidden(self, board: Board, at: Coordinate, moves: List[Move]) -> List[Move]:
+        """
+        Filter out capture moves when leaving Forbidden Lands.
+        Rule: Cannot capture while moving from forbidden to non-forbidden territory.
+        """
+        if not getattr(board, "forbidden_active", False):
+            return moves
+        
+        if not board.is_forbidden(at):
+            return moves  # Not in forbidden, so no restriction
+        
+        # Piece is in Forbidden Lands - filter out captures to non-forbidden squares
+        filtered = []
+        for move in moves:
+            dest = move.to_sq
+            is_capture = not board.is_empty(dest)
+            dest_forbidden = board.is_forbidden(dest)
+            
+            # Allow move if:
+            # 1. It's not a capture, OR
+            # 2. Destination is also in Forbidden Lands
+            if not is_capture or dest_forbidden:
+                filtered.append(move)
+        
+        return filtered
+    
     @abstractmethod
     def get_legal_moves(self, board: Board, at: Coordinate) -> List[Move]:
         """Return a list of legal moves for this piece."""
@@ -104,6 +130,8 @@ class Effigy(Piece):
         return []  # Effigies cannot move
 
     def get_legal_captures(self, board: 'Board', at: Coordinate) -> List[Move]:
+        if getattr(board, "forbidden_active", False) and board.is_forbidden(at):
+            return []
         return []  # Effigies cannot attack
 
     def to_dict(self, at: Coordinate, include_moves: bool = False,
@@ -128,6 +156,8 @@ class Barricade(Piece):
         return []  # Barricades cannot move
 
     def get_legal_captures(self, board: 'Board', at: Coordinate) -> List[Move]:
+        if getattr(board, "forbidden_active", False) and board.is_forbidden(at):
+            return []
         return []  # Barricades cannot attack
 
     def to_dict(self, at: Coordinate, include_moves: bool = False,
@@ -191,7 +221,8 @@ class King(Piece):
                 self._try_castle(board, at, kingside=True, out_moves=moves)
                 # Queen-side (toward file 0 rook): between squares are (at.file-1, y), (at.file-2, y), (at.file-3, y)
                 self._try_castle(board, at, kingside=False, out_moves=moves)
-
+        # Filter forbidden land exit captures
+        moves = self._filter_leaving_forbidden(board, at, moves)
         return self._filter_exhaustion(board, at, moves)
 
     def _try_castle(self, board: Board, at: Coordinate, kingside: bool, out_moves: List[Move]) -> None:
@@ -315,6 +346,8 @@ class Queen(Piece):
                     if target.color != self.color:
                         moves.append(Move(at, to_sq, self))  # capture
                     break  # stop ray on first blocker
+        # Filter forbidden land exit captures
+        moves = self._filter_leaving_forbidden(board, at, moves)
         return self._filter_exhaustion(board, at, moves)
 
     def get_legal_captures(self, board: Board, at: Coordinate) -> List[Move]:
@@ -378,6 +411,8 @@ class Rook(Piece):
                 # Continue in the same direction
                 next_coord = next_coord.offset(df, dr)
 
+        # Filter forbidden land exit captures
+        moves = self._filter_leaving_forbidden(board, at, moves)
         return self._filter_exhaustion(board, at, moves)
 
     def get_legal_captures(self, board: Board, at:Coordinate) -> List[Move]:
@@ -440,6 +475,8 @@ class Bishop(Piece):
                 # Continue in the same direction
                 next_coord = next_coord.offset(df, dr)
 
+        # Filter forbidden land exit captures
+        moves = self._filter_leaving_forbidden(board, at, moves)
         return self._filter_exhaustion(board, at, moves)
 
     def get_legal_captures(self, board: Board, at:Coordinate) -> List[Move]:
@@ -485,6 +522,9 @@ class Knight(Piece):
             # knights can move to any empty square or capture enemy pieces
             elif new and (board.is_empty(new) or board.is_enemy(new, self.color)):
                 moves.append(Move(at, new, self))
+
+        # Filter forbidden land exit captures
+        moves = self._filter_leaving_forbidden(board, at, moves)
         return self._filter_exhaustion(board, at, moves)
 
     def get_legal_captures(self, board: Board, at:Coordinate) -> List[Move]:
@@ -555,6 +595,8 @@ class Pawn(Piece):
                     move.promotion = "Queen"
                 moves.append(move)
 
+        # Filter forbidden land exit captures
+        moves = self._filter_leaving_forbidden(board, at, moves)
         return self._filter_exhaustion(board, at, moves)
 
     def get_legal_captures(self, board: Board, at: Coordinate) -> List[Move]:
@@ -651,6 +693,8 @@ class Peon(Piece):
                 if board.is_in_bounds(back_target) and board.is_enemy(back_target, self.color):
                     moves.append(Move(at, back_target, self))
 
+        # Filter forbidden land exit captures
+        moves = self._filter_leaving_forbidden(board, at, moves)
         return self._filter_exhaustion(board, at, moves)
 
     def get_legal_captures(self, board: Board, at: Coordinate) -> List[Move]:
@@ -743,6 +787,8 @@ class Scout(Piece):
                 # Friendly piece blocks further movement
                 break
 
+        # Filter forbidden land exit captures
+        moves = self._filter_leaving_forbidden(board, at, moves)
         return self._filter_exhaustion(board, at, moves)
 
     def get_legal_captures(self, board: 'Board', at: Coordinate) -> List[Move]:
@@ -806,6 +852,9 @@ class HeadHunter(Piece):
                 continue
             if board.is_empty(new) or board.is_enemy(new, self.color):
                 moves.append(Move(at, new, self))
+
+        # Filter forbidden land exit captures
+        moves = self._filter_leaving_forbidden(board, at, moves)
         return self._filter_exhaustion(board, at, moves)
 
     def get_legal_captures(self, board: Board, at:Coordinate) -> List[Move]:
@@ -898,6 +947,8 @@ class Witch(Piece):
                 move.metadata['leaving_green_tile'] = True
                 move.metadata['green_tile_source'] = {'file': at.file, 'rank': at.rank}
         
+        # Filter forbidden land exit captures
+        moves = self._filter_leaving_forbidden(board, at, moves)
         return self._filter_exhaustion(board, at, moves)
 
     def get_legal_captures(self, board: Board, at: Coordinate) -> List[Move]:
@@ -980,6 +1031,8 @@ class Warlock(Piece):
             moves.extend(self._get_warlock_moves(board, at))
             moves.extend(self._get_backward_move(board, at))
         
+        # Filter forbidden land exit captures
+        moves = self._filter_leaving_forbidden(board, at, moves)
         return self._filter_exhaustion(board, at, moves)
 
     def _get_warlock_moves(self, board: Board, at: Coordinate) -> List[Move]:
@@ -1209,7 +1262,9 @@ class Cleric(Piece):
         
         # 2 squares right
         moves.extend(self._try_orthogonal_move(board, at, 1, 0, max_dist=2))
-        
+
+        # Filter forbidden land exit captures
+        moves = self._filter_leaving_forbidden(board, at, moves)
         return self._filter_exhaustion(board, at, moves)
     
     def _try_orthogonal_move(self, board: Board, at: Coordinate, 
@@ -1374,12 +1429,15 @@ class DarkLord(Piece):
                     else:
                         break
                     next_coord = next_coord.offset(df, dr)
+                    
+        # Filter forbidden land exit captures
+        moves = self._filter_leaving_forbidden(board, at, moves)
         return self._filter_exhaustion(board, at, moves)
 
     def get_legal_captures(self, board: Board, at:Coordinate) -> List[Move]:
         # --- Forbidden Lands rule: cannot capture from inside Forbidden Lands ---
         if getattr(board, "forbidden_active", False) and board.is_forbidden(at):
-            return [] # Don't remove this check, as it is important for the game rules.
+            return [] 
         
         # captures same as moves that land on enemy pieces
         captures = []
