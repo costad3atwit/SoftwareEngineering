@@ -174,7 +174,6 @@ class Barricade(Piece):
 class King(Piece):
     def __init__(self, id: str, color: Color):
         super().__init__(id, color, PieceType.KING, value=0)
-        self._has_moved = False  # used for castling checks
 
     def get_legal_moves(self, board: Board, at: Coordinate) -> List[Move]:
         """All pseudo-legal king moves (no check filtering except for castling)."""
@@ -208,7 +207,7 @@ class King(Piece):
                 moves.append(Move(at, dest, self))
 
  
-        if not self._has_moved:
+        if not self.has_moved:
             y = at.rank
             # Guard: only try castling if current square isn't attacked (when API exists)
             safe_to_try = True
@@ -237,7 +236,7 @@ class King(Piece):
             return
 
         # Rook must not have moved (expects rook._has_moved like King; skip if attribute absent)
-        if getattr(rook, "_has_moved", False):
+        if getattr(rook, "has_moved", False):
             return
 
         # Squares between king and rook must be empty
@@ -281,7 +280,7 @@ class King(Piece):
 
     def mark_moved(self):
         """Mark king as having moved (affects castling eligibility)."""
-        self._has_moved = True
+        self.has_moved = True
 
     def to_dict(self, at: Coordinate, include_moves: bool = False,
                 board: 'Board' = None, captures_only: bool = False) -> dict:
@@ -439,7 +438,7 @@ class Rook(Piece):
 
     def mark_moved(self):
         """Mark king as having moved (affects castling eligibility)."""
-        self._has_moved = True
+        self.has_moved = True
 
 
 class Bishop(Piece):
@@ -552,7 +551,6 @@ class Knight(Piece):
 class Pawn(Piece):
     def __init__(self, id: str, color: Color):
         super().__init__(id, color, PieceType.PAWN, value=1)
-        self._has_moved = False  # internal flag for 2-square move logic
 
     def get_legal_moves(self, board: 'Board', at: Coordinate) -> List[Move]:
         """
@@ -577,7 +575,7 @@ class Pawn(Piece):
 
             # --- Forward move (2 squares on first move) ---
             two_step = Coordinate(at.file, at.rank + 2 * direction)
-            if not self._has_moved and board.is_empty(two_step):
+            if not self.has_moved and board.is_empty(two_step):
                 moves.append(Move(at, two_step, self))
 
         # --- Captures (diagonals) ---
@@ -612,7 +610,7 @@ class Pawn(Piece):
 
     def mark_moved(self):
         """Set flag that pawn has moved (for two-step logic)."""
-        self._has_moved = True
+        self.has_moved = True
 
     def to_dict(self, at: Coordinate, include_moves: bool = False,
                 board: 'Board' = None, captures_only: bool = False) -> dict:
@@ -640,12 +638,11 @@ class Pawn(Piece):
 class Peon(Piece):
     def __init__(self, id: str, color: Color):
         super().__init__(id, color, PieceType.PEON, value=1)
-        self._has_moved = False
         self._backwards_unlocked = False  # Becomes True after reaching the furthest rank
 
     def mark_moved(self):
         """Mark that this Peon has moved at least once."""
-        self._has_moved = True
+        self.has_moved = True
 
     def get_legal_moves(self, board: 'Board', at: Coordinate) -> List[Move]:
         """
@@ -665,7 +662,7 @@ class Peon(Piece):
             moves.append(Move(at, one_step, self))
 
             # --- Forward 2 squares (only if not moved yet and both empty) ---
-            if not self._has_moved:
+            if not self.has_moved:
                 two_step = Coordinate(at.file, at.rank + 2 * direction)
                 if board.is_in_bounds(two_step) and board.is_empty(two_step):
                     moves.append(Move(at, two_step, self))
