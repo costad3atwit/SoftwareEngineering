@@ -44,6 +44,23 @@ class Piece(ABC):
         
         return filtered
     
+    def _filter_target_forbidden(self, board: Board, moves: List[Move]) -> List[Move]:
+        """
+        Remove any capture move whose destination is inside Forbidden Lands.
+        Attacker location does not matter for this rule.
+        """
+        if not getattr(board, "forbidden_active", False):
+            return moves
+        
+        filtered = []
+        for move in moves:
+            dest = move.to_sq
+            # If square contains an enemy AND that square is forbidden → disallowed
+            if board.is_forbidden(dest) and board.piece_at_coord(dest) is not None:
+                continue
+            filtered.append(move)
+        return filtered
+
     @abstractmethod
     def get_legal_moves(self, board: Board, at: Coordinate) -> List[Move]:
         """Return a list of legal moves for this piece."""
@@ -222,6 +239,7 @@ class King(Piece):
                 self._try_castle(board, at, kingside=False, out_moves=moves)
         # Filter forbidden land exit captures
         moves = self._filter_leaving_forbidden(board, at, moves)
+        moves = self._filter_target_forbidden(board, moves)
         return self._filter_exhaustion(board, at, moves)
 
     def _try_castle(self, board: Board, at: Coordinate, kingside: bool, out_moves: List[Move]) -> None:
@@ -276,6 +294,7 @@ class King(Piece):
                 continue
             if board.piece_at_coord(Coordinate(m.to_sq.file, m.to_sq.rank)) is not None:
                 captures.append(m)
+        captures = self._filter_target_forbidden(board, captures)
         return captures
 
     def mark_moved(self):
@@ -347,6 +366,7 @@ class Queen(Piece):
                     break  # stop ray on first blocker
         # Filter forbidden land exit captures
         moves = self._filter_leaving_forbidden(board, at, moves)
+        moves = self._filter_target_forbidden(board, moves)
         return self._filter_exhaustion(board, at, moves)
 
     def get_legal_captures(self, board: Board, at: Coordinate) -> List[Move]:
@@ -355,8 +375,10 @@ class Queen(Piece):
         if getattr(board, "forbidden_active", False) and board.is_forbidden(at):
             return []
         
-        return [m for m in self.get_legal_moves(board, at)
+        captures = [m for m in self.get_legal_moves(board, at)
                 if board.piece_at_coord(Coordinate(m.to_sq.file, m.to_sq.rank)) is not None]
+        captures = self._filter_target_forbidden(board, captures)
+        return captures
 
     def to_dict(self, at: Coordinate, include_moves: bool = False,
                 board: 'Board' = None, captures_only: bool = False) -> dict:
@@ -434,6 +456,8 @@ class Rook(Piece):
                 elif not board.is_empty(next_coord):
                     break  # friendly piece blocks path
                 next_coord = next_coord.offset(df, dr)
+
+        captures = self._filter_target_forbidden(board, captures)
         return captures
 
     def mark_moved(self):
@@ -498,6 +522,8 @@ class Bishop(Piece):
                 elif not board.is_empty(next_coord):
                     break  # blocked by friendly piece
                 next_coord = next_coord.offset(df, dr)
+
+        captures = self._filter_target_forbidden(board, captures)
         return captures
 
 
@@ -545,6 +571,7 @@ class Knight(Piece):
                 continue
             if new and board.is_enemy(new, self.color):
                 captures.append(Move(at, new, self))
+        captures = self._filter_target_forbidden(board, captures)
         return captures
 
 
@@ -595,6 +622,7 @@ class Pawn(Piece):
 
         # Filter forbidden land exit captures
         moves = self._filter_leaving_forbidden(board, at, moves)
+        moves = self._filter_target_forbidden(board, moves)
         return self._filter_exhaustion(board, at, moves)
 
     def get_legal_captures(self, board: Board, at: Coordinate) -> List[Move]:
@@ -603,10 +631,12 @@ class Pawn(Piece):
         if getattr(board, "forbidden_active", False) and board.is_forbidden(at):
             return []
 
-        return [
+        captures = [
             m for m in self.get_legal_moves(board, at)
             if board.piece_at_coord(Coordinate(m.to_sq.file, m.to_sq.rank)) is not None
         ]
+        captures = self._filter_target_forbidden(board, captures)
+        return captures
 
     def mark_moved(self):
         """Set flag that pawn has moved (for two-step logic)."""
@@ -692,6 +722,7 @@ class Peon(Piece):
 
         # Filter forbidden land exit captures
         moves = self._filter_leaving_forbidden(board, at, moves)
+        moves = self._filter_target_forbidden(board, moves)
         return self._filter_exhaustion(board, at, moves)
 
     def get_legal_captures(self, board: Board, at: Coordinate) -> List[Move]:
@@ -720,7 +751,7 @@ class Peon(Piece):
                 back_target = Coordinate(at.file + file_offset, at.rank - direction)
                 if board.is_in_bounds(back_target) and board.is_enemy(back_target, self.color):
                     captures.append(Move(at, back_target, self))
-
+        captures = self._filter_target_forbidden(board, captures)
         return captures
 
     def to_dict(self, at: Coordinate, include_moves: bool = False,
@@ -878,7 +909,7 @@ class HeadHunter(Piece):
         if board.is_in_bounds(target):
             if board.is_enemy(target, self.color):
                 captures.append(Move(at, target, self))
-
+        captures = self._filter_target_forbidden(board, captures)
         return captures
 
 
@@ -974,6 +1005,7 @@ class Witch(Piece):
             if board.is_in_bounds(dest) and board.is_enemy(dest, self.color):
                 captures.append(Move(at, dest, self))
         
+        captures = self._filter_target_forbidden(board, captures)
         return captures
     
     def to_dict(self, at: Coordinate, include_moves: bool = False,
@@ -1180,8 +1212,10 @@ class Warlock(Piece):
         if getattr(board, "forbidden_active", False) and board.is_forbidden(at):
             return []
         
-        return [m for m in self.get_legal_moves(board, at)
+        captures = [m for m in self.get_legal_moves(board, at)
                 if board.piece_at_coord(m.to_sq) is not None]
+        captures = self._filter_target_forbidden(board, captures)
+        return captures
 
     def activate_empowerment(self, game_state):
         """Activate empowered mode for 2 turns (called when effigy is destroyed)."""
@@ -1442,6 +1476,8 @@ class DarkLord(Piece):
             target_piece = board.piece_at_coord(m.to_sq)
             if target_piece and target_piece.color != self.color:
                 captures.append(m)
+        
+        captures = self._filter_target_forbidden(board, captures)
         return captures
     
     # --- Enthralling Mechanic ---
