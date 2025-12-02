@@ -416,13 +416,6 @@ document.getElementById('settings').addEventListener('click', () => {
     document.getElementById("options-backdrop").style.display = "flex";
 });
 
-document.getElementById('exit').addEventListener('click', () => {
-    console.log('Exit clicked');
-    // Closes the window
-    if (confirm('Are you sure you want to exit?')) {
-        window.close();
-    }
-});
 
 document.getElementById('save').addEventListener('click', () => {
     //Add logic to check slider elements for their values
