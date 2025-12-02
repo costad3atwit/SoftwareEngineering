@@ -504,6 +504,7 @@ class GameState:
             base_dict["your_deck_size"] = player.deck_size()
             base_dict["opponent_hand_size"] = opponent.hand_size()
             base_dict["opponent_deck_size"] = opponent.deck_size()
+            base_dict["opponent_id"] = opponent.id
             base_dict["your_captured"] = [
                 {
                     "id": piece.id,

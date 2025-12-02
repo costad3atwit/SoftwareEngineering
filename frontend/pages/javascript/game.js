@@ -11,6 +11,11 @@ let timerInterval = null;
 let lastTimerUpdate = Date.now();
 let pendingCardPlay = null;
 let lastMoveSentAt = null;
+let rematchRequests = {
+    [playerId]: false,
+    opponent: false
+};
+let opponentPlayerId = null;
 
 // Get server URL
 const SERVER_URL = window.location.hostname === 'localhost' 
@@ -156,6 +161,66 @@ function handleGameMessage(data) {
             console.log('Game over:', data.reason, 'Winner:', data.winner);
             handleGameOver(data);
             break;
+
+        case 'queue_joined':
+            console.log('Joined matchmaking queue:', data.message);
+            
+            // Update UI if we're on the game over screen
+            const gameOverResult = document.getElementById('gameOverResult');
+            const gameOverMessage = document.getElementById('gameOverMessage');
+            
+            if (gameOverResult && gameOverMessage) {
+                if (data.waiting_for_slot) {
+                    gameOverResult.textContent = 'Waiting for game slot...';
+                    gameOverMessage.textContent = `Server at capacity (${data.active_games}/${data.max_games} games). You'll be matched when a slot opens.`;
+                } else {
+                    gameOverResult.textContent = 'Searching for opponent...';
+                    gameOverMessage.textContent = 'You will be redirected when a match is found.';
+                }
+            }
+            break;
+        case 'game_started':
+            // New game started (from matchmaking after previous game ended)
+            console.log('New game started:', data.game_id);
+            
+            // Update our game info
+            gameId = data.game_id;
+            playerColor = data.game_state.your_color;
+            
+            console.log(`Redirecting to new game: ${gameId}, Color: ${playerColor}`);
+            
+            // Redirect to the new game (with current playerId)
+            window.location.href = `/frontend/pages/html/game.html?game_id=${gameId}&player_id=${playerId}`;
+            break;
+        case 'rematch_requested':
+            // Opponent requested a rematch
+            console.log('Opponent requested rematch');
+            rematchRequests.opponent = true;
+            updateRematchStatus();
+            
+            // Update UI to show opponent wants rematch
+            gameOverMessage = document.getElementById('gameOverMessage');
+            if (gameOverMessage) {
+                gameOverMessage.textContent = 'Your opponent wants a rematch!';
+            }
+            break;
+
+        case 'rematch_accepted':
+            // Both players agreed, game is starting
+            console.log('Rematch accepted! Starting new game...');
+            
+            const rematchResult = document.getElementById('gameOverResult');
+            const rematchMessage = document.getElementById('gameOverMessage');
+            
+            if (rematchResult) {
+                rematchResult.textContent = 'Rematch Starting!';
+            }
+            if (rematchMessage) {
+                rematchMessage.textContent = 'Loading new game...';
+            }
+            
+            // The game_started message will handle the redirect
+            break;
             
         case 'error':
             console.error('Server error:', data.message);
@@ -240,7 +305,7 @@ function updateGameState(serverGameState) {
                 captured_pieces: serverGameState.your_captured || []
             },
             {
-                player_id: 'opponent',
+                player_id: serverGameState.opponent_id || 'opponent',
                 name: 'Opponent',
                 color: serverGameState.your_color === 'w' ? 'b' : 'w',
                 hand: [],
@@ -387,8 +452,245 @@ function sendPlayCard(cardId, targetData = {}, cardElement = null, cardData = nu
 }
 // Handle game over
 function handleGameOver(data) {
-    alert(`Game Over!\nReason: ${data.reason}\nWinner: ${data.winner || 'Draw'}`);
-    // Could add a game over screen here
+    console.log('Game over:', data);
+    
+    // Disable all game interactions
+    disableGameControls();
+    
+    // Show game over overlay
+    showGameOverScreen(data);
+}
+
+function disableGameControls() {
+    // Disable piece selection
+    selectedPiece = null;
+    legalMoves = [];
+    legalCaptures = [];
+    
+    // Disable card targeting
+    waitingForTileTarget = null;
+    
+    // Clear any pending actions
+    pendingCardPlay = null;
+}
+
+function updateRematchStatus() {
+    const rematchCount = document.getElementById('rematchCount');
+    if (!rematchCount) return;
+    
+    const count = (rematchRequests[playerId] ? 1 : 0) + (rematchRequests.opponent ? 1 : 0);
+    rematchCount.textContent = `${count}/2`;
+    
+    // Add visual feedback when both players ready
+    if (count === 2) {
+        rematchCount.classList.add('ready');
+    } else {
+        rematchCount.classList.remove('ready');
+    }
+}
+
+function showGameOverScreen(data) {
+    const overlay = document.getElementById('gameOverOverlay');
+    const title = document.getElementById('gameOverTitle');
+    const result = document.getElementById('gameOverResult');
+    const message = document.getElementById('gameOverMessage');
+    
+    // Store opponent player ID for rematch
+    // The opponent is whoever is NOT us in the game
+    if (gameState.players && gameState.players.length >= 2) {
+        // Find the opponent (the player that isn't us)
+        const opponent = gameState.players.find(p => {
+            // Check all possible ID fields
+            const pId = p.player_id || p.id;
+            return pId !== playerId;
+        });
+        
+        if (opponent) {
+            opponentPlayerId = opponent.player_id || opponent.id;
+            console.log('Stored opponent ID for rematch:', opponentPlayerId);
+        } else {
+            console.error('Could not find opponent in game state');
+        }
+    }
+    
+    // Reset rematch status
+    rematchRequests = {
+        [playerId]: false,
+        opponent: false
+    };
+    updateRematchStatus();
+    
+    // Determine result
+    let titleText = '';
+    let titleClass = '';
+    let resultText = '';
+    
+    if (data.winner) {
+        const didIWin = data.winner === playerColor;
+        titleText = didIWin ? 'VICTORY!' : 'DEFEAT';
+        titleClass = didIWin ? 'victory' : 'defeat';
+        
+        if (data.reason === 'checkmate') {
+            resultText = didIWin 
+                ? 'Checkmate! You have conquered your opponent!' 
+                : 'Checkmate! Your king has fallen.';
+        } else if (data.reason === 'timeout') {
+            resultText = didIWin
+                ? 'Victory by timeout! Your opponent ran out of time.'
+                : 'Defeat by timeout! Time has run out.';
+        } else if (data.reason === 'resignation') {
+            resultText = didIWin
+                ? 'Your opponent has resigned!'
+                : 'You have resigned.';
+        } else {
+            resultText = `${data.winner === 'W' ? 'White' : 'Black'} wins by ${data.reason}!`;
+        }
+    } else {
+        titleText = 'DRAW';
+        titleClass = 'draw';
+        
+        if (data.reason === 'stalemate') {
+            resultText = 'Stalemate! No legal moves remain.';
+        } else if (data.reason === 'insufficient_material') {
+            resultText = 'Draw by insufficient material!';
+        } else {
+            resultText = `Draw by ${data.reason}!`;
+        }
+    }
+    
+    title.textContent = titleText;
+    title.className = `game-over-title ${titleClass}`;
+    result.textContent = resultText;
+    message.textContent = data.message || '';
+    
+    // Show overlay
+    overlay.style.display = 'flex';
+}
+
+// Button handlers
+document.addEventListener('DOMContentLoaded', () => {
+    // Rematch same player
+    document.getElementById('rematchSameBtn').addEventListener('click', () => {
+        console.log('Rematch same player clicked');
+        console.log('Current playerId:', playerId);
+        console.log('Stored opponentPlayerId:', opponentPlayerId);
+        console.log('GameState players:', gameState.players);
+
+        if (!ws || ws.readyState !== WebSocket.OPEN) {
+            alert('Connection error. Please return to main menu and try again.');
+            returnToMainMenu();
+            return;
+        }
+        
+        if (!opponentPlayerId) {
+            alert('Could not identify opponent. Please use "Find New Opponent" instead.');
+            return;
+        }
+        
+        // Mark that we want a rematch
+        rematchRequests[playerId] = true;
+        updateRematchStatus();
+        
+        // Send rematch request to server
+        const message = {
+            type: 'request_rematch',
+            game_id: gameId,
+            opponent_id: opponentPlayerId,
+            deck: getDeck()
+        };
+        
+        console.log('Sending rematch request:', message);
+        ws.send(JSON.stringify(message));
+        
+        // Disable the rematch button once clicked
+        document.getElementById('rematchSameBtn').disabled = true;
+        document.getElementById('rematchSameBtn').textContent = 'Rematch Requested';
+        
+        console.log('Rematch request sent');
+    });
+    
+    // Rematch any player (join matchmaking queue)
+    document.getElementById('rematchAnyBtn').addEventListener('click', () => {
+        console.log('Find New Opponent clicked from game over screen');
+        
+        if (!ws || ws.readyState !== WebSocket.OPEN) {
+            alert('Connection error. Please return to main menu and try again.');
+            returnToMainMenu();
+            return;
+        }
+        
+        // Join matchmaking queue
+        const message = { 
+            type: 'join_queue',
+            name: playerId,
+            deck: getDeck()
+        };
+        
+        console.log('Sending join_queue message:', message);
+        ws.send(JSON.stringify(message));
+        
+        // Update the game over screen to show we're searching
+        const gameOverResult = document.getElementById('gameOverResult');
+        const gameOverMessage = document.getElementById('gameOverMessage');
+        
+        if (gameOverResult) {
+            gameOverResult.textContent = 'Searching for new opponent...';
+        }
+        if (gameOverMessage) {
+            gameOverMessage.textContent = 'You will be redirected when a match is found.';
+        }
+        
+        // Disable buttons while searching
+        document.getElementById('rematchSameBtn').disabled = true;
+        document.getElementById('rematchAnyBtn').disabled = true;
+        document.getElementById('returnMenuBtn').disabled = true;
+        
+        console.log('✓ Joined matchmaking queue from game over screen');
+    });
+    
+    // Return to main menu
+    document.getElementById('returnMenuBtn').addEventListener('click', () => {
+        returnToMainMenu();
+    });
+});
+
+
+function returnToMainMenu() {
+    // Only send leave_game if game is still in progress
+    if (ws && ws.readyState === WebSocket.OPEN && gameId) {
+        // Check if game is still active (not already ended)
+        const gameActive = gameState.status === 'IN_PROGRESS' || gameState.status === 'CHECK';
+        
+        if (gameActive) {
+            // Game is still active - forfeit it
+            ws.send(JSON.stringify({
+                type: 'leave_game',
+                game_id: gameId
+            }));
+        } else {
+            // Game already ended - just notify server we're acknowledging
+            ws.send(JSON.stringify({
+                type: 'acknowledge_game_end',
+                game_id: gameId
+            }));
+        }
+    }
+    
+    // Clean up game-specific state
+    gameId = null;
+    selectedPiece = null;
+    legalMoves = [];
+    legalCaptures = [];
+    pendingCardPlay = null;
+    
+    // Stop the game timer
+    if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+    }
+    
+    // Navigate back to main menu (WebSocket stays connected)
+    window.location.href = '/frontend/pages/html/main_menu.html';
 }
 
 

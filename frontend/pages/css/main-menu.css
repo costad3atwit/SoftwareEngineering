@@ -152,13 +152,14 @@ body {
   margin: 10% 0;
 }
 
-#acceptChallengeBtn,
+#acceptChallengeBtn {
+  display: none;
+  background-image: url('../assets/main_menu/accept.png');
+}
+
 #declineChallengeBtn {
-    display: none;          /* start hidden */
-    background-image: url('../assets/main_menu/btn-directconnect.png'); /* temporary art */
-    color: white;
-    font-size: 20px;
-    text-shadow: 2px 2px 4px black;
+    display: none;
+    background-image: url('../assets/main_menu/decline.png');
 }
 
 /* Version label */

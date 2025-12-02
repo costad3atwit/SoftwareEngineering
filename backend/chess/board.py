@@ -490,6 +490,7 @@ class Board:
         """Return a deep copy of the board."""
         new_board = Board()
         new_board.squares = {coord: copy.deepcopy(piece) for coord, piece in self.squares.items()}
+        print("Cloning board")
         return new_board
 
     def to_dict(self, game_state=None) -> dict:
