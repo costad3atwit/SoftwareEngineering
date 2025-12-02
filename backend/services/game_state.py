@@ -54,6 +54,72 @@ class GameState:
 
         # Pending promotion (if any)
         self.pending_promotion: Optional[Dict[str, Any]] = None
+
+    def leaves_king_in_check(self, move: Move) -> bool:
+        """
+        Check if making this move would leave the moving player's king in check.
+        
+        Args:
+            move: The move to test
+        
+        Returns:
+            True if the move leaves the player's king in check (illegal move)
+            False if the move is safe
+        """
+        # Get the piece being moved
+        piece = self.board.piece_at_coord(move.from_sq)
+        if not piece:
+            return True  # No piece to move = invalid
+        
+        moving_color = piece.color
+        
+        # Clone the board to simulate the move
+        test_board = self.board.clone()
+        
+        # Make the move on the cloned board
+        try:
+            test_board.move_piece(move)
+        except Exception as e:
+            # If move fails on clone, it's invalid
+            print(f"Error simulating move: {e}")
+            return True
+        
+        # Check if the moving player's king is now in check
+        return test_board.in_check_for(moving_color)
+
+
+    def is_in_check(self, color: Color) -> bool:
+        """
+        Check if the specified color's king is currently in check.
+        
+        Args:
+            color: The color to check
+            
+        Returns:
+            True if king is in check, False otherwise
+        """
+        return self.board.in_check_for(color)
+
+    def has_legal_moves(self, color: Color) -> bool:
+        """
+        Check if the specified color has any legal moves available.
+        Used for checkmate and stalemate detection.
+        
+        Args:
+            color: The color to check
+            
+        Returns:
+            True if at least one legal move exists, False otherwise
+        """
+        # Check all pieces of this color
+        for coord, piece in self.board.squares.items():
+            if piece.color == color:
+                legal_moves = self.legal_moves_for(coord)
+                if len(legal_moves) > 0:
+                    return True
+        
+        return False
+
     # --- Helper Methods ---
     def get_current_player(self) -> Player:
         """Get the player whose turn it is"""
@@ -124,6 +190,12 @@ class GameState:
     def switch_turn(self) -> None:
         """Switch to the other player's turn"""
         self.update_timer()
+        
+        # Reset CHECK status back to IN_PROGRESS when switching turns
+        # (will be re-evaluated after next move if needed)
+        if self.status == GameStatus.CHECK:
+            self.status = GameStatus.IN_PROGRESS
+        
         self.turn = Color.BLACK if self.turn == Color.WHITE else Color.WHITE
         self.last_move_time = datetime.now()
         
@@ -133,7 +205,7 @@ class GameState:
 
         # Process all effects at end of turn
         expired_effects = self.effect_tracker.process_turn(self.fullmove_number)
-    
+
         # Log expired effects for debugging
         for effect in expired_effects:
             print(f"Effect expired: {effect.effect_type.value} on {effect.target}")
@@ -173,7 +245,6 @@ class GameState:
         return None
 
 
-    # --- Move Methods ---
     def legal_moves_for(self, coord: Coordinate) -> List[Move]:
         """Get all legal moves for the piece at the given coordinate"""
         piece = self.board.piece_at_coord(coord)
@@ -183,10 +254,20 @@ class GameState:
         # Get pseudo-legal moves from the piece
         moves = piece.get_legal_moves(self.board, coord)
         
-        # TODO: Filter out moves that leave king in check
-        # legal_moves = [m for m in moves if not self.leaves_king_in_check(m)]
+        # Filter out moves that leave king in check
+        legal_moves = [m for m in moves if not self.leaves_king_in_check(m)]
         
-        return moves
+        # Additionally, prevent capturing the enemy king directly
+        from backend.enums import PieceType
+        filtered_moves = []
+        for m in legal_moves:
+            target = self.board.piece_at_coord(m.to_sq)
+            # Disallow capturing a king
+            if target and target.type == PieceType.KING:
+                continue
+            filtered_moves.append(m)
+        
+        return filtered_moves  # RETURNS FILTERED MOVES
 
     def is_legal(self, m: Move) -> bool:
         """Check if a move is legal in the current position"""
@@ -241,25 +322,13 @@ class GameState:
         if not piece or piece.color != self.turn:
             return False, "Invalid piece selection"
         
-        # Get legal moves for debugging
-        legal_moves = self.legal_moves_for(m.from_sq)
-        print(f"DEBUG: Piece at {m.from_sq.to_algebraic()}: {piece}")
-        print(f"DEBUG: Legal moves count: {len(legal_moves)}")
-        for move in legal_moves:
-            print(f"  - {move.from_sq.to_algebraic()} -> {move.to_sq.to_algebraic()}")
-        print(f"DEBUG: Attempting move: {m.from_sq.to_algebraic()} -> {m.to_sq.to_algebraic()}")
-        
-        # Verify move is legal
+        # Verify move is legal (this now includes check filtering)
         if not self.is_legal(m):
             return False, "Illegal move"
         
         # Execute the move on the board
         captured = self.board.move_piece(m)
         
-        if captured:
-            current_player = self.players[self.turn]
-            current_player.capture_piece(captured)
-            print(f"DEBUG: {current_player.name} captured {captured.type.name} (ID: {captured.id})")
         # Check if this was a pawn promotion move
         piece = self.board.piece_at_coord(m.to_sq)
         if piece and piece.type == PieceType.PAWN:
@@ -284,15 +353,22 @@ class GameState:
         self.move_history.append(m)
         self.last_update = datetime.now()
         
-        # Check for game-ending conditions
+        # Check for game-ending conditions BEFORE checking for check
+        # (This will update to CHECKMATE if appropriate)
         self.check_end_conditions()
         
-        # Switch turns if game is still in progress
+        # If still in progress, check if opponent is now in check
         if self.status == GameStatus.IN_PROGRESS:
+            opponent_color = Color.BLACK if self.turn == Color.WHITE else Color.WHITE
+            if self.is_in_check(opponent_color):
+                self.status = GameStatus.CHECK
+                print(f"CHECK! {opponent_color.name} king is in check")
+        
+        # Switch turns if game is still in progress or check (but not checkmate)
+        if self.status in [GameStatus.IN_PROGRESS, GameStatus.CHECK]:
             self.switch_turn()
         
         return True, "Move successful"
-
     # --- Card Methods ---
     def play_card(self, player_id: str, card_id: str, target) -> tuple[bool, str]:
         """
@@ -366,27 +442,28 @@ class GameState:
         Updates self.status, self.winner, and self.win_reason.
         Returns the current game status.
         """
-        # TODO: Implement using Board class
+        # Determine whose turn it will be next (opponent just moved)
+        current_turn_color = Color.BLACK if self.turn == Color.WHITE else Color.WHITE
         
-        # Check for checkmate
-        # if self.board.is_checkmate(self.turn):
-        #     self.status = GameStatus.CHECKMATE
-        #     self.winner = Color.BLACK if self.turn == Color.WHITE else Color.WHITE
-        #     self.win_reason = "Checkmate"
-        #     return self.status
+        # Check if current player has any legal moves
+        if not self.has_legal_moves(current_turn_color):
+            # No legal moves - either checkmate or stalemate
+            if self.is_in_check(current_turn_color):
+                # In check with no legal moves = Checkmate
+                self.status = GameStatus.CHECKMATE
+                self.winner = Color.BLACK if current_turn_color == Color.WHITE else Color.WHITE
+                self.win_reason = "Checkmate"
+                print(f"CHECKMATE! {self.winner.name} wins")
+            else:
+                # Not in check with no legal moves = Stalemate
+                self.status = GameStatus.STALEMATE
+                self.win_reason = "Stalemate"
+                print("STALEMATE! Game is a draw")
         
-        # Check for stalemate
-        # if self.board.is_stalemate(self.turn):
-        #     self.status = GameStatus.STALEMATE
-        #     self.win_reason = "Stalemate"
-        #     return self.status
-
-
-        # Check for insufficient material
+        # Check for insufficient material (optional - implement later)
         # if self.board.insufficient_material():
         #     self.status = GameStatus.DRAW
         #     self.win_reason = "Insufficient material"
-        #     return self.status
         
         return self.status
 
@@ -409,7 +486,7 @@ class GameState:
             "created_at": self.created_at.isoformat(),
             "last_update": self.last_update.isoformat(),
             "active_effects": self.effect_tracker.to_dict(self.fullmove_number),
-            "board": self.board.to_dict(),
+            "board": self.board.to_dict(game_state=self),  # ← ONLY CHANGE: Add game_state=self
             "move_history": [m.to_dict() for m in self.move_history[-10:]]  # Last 10 moves
         }
         

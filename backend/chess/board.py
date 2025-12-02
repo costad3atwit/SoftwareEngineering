@@ -241,6 +241,9 @@ class Board:
             return False  # cannot capture pieces inside Forbidden Lands
         piece = self.squares.get(coord)
 
+        if piece is None:
+            return False
+        
         #Barricades cannot be captured
         if piece.type == PieceType.BARRICADE:
             return False
@@ -489,10 +492,13 @@ class Board:
         new_board.squares = {coord: copy.deepcopy(piece) for coord, piece in self.squares.items()}
         return new_board
 
-    def to_dict(self) -> dict:
+    def to_dict(self, game_state=None) -> dict:
         """
         Convert the current board state into a JSON-serializable dictionary.
         Includes all piece data and board settings for frontend rendering.
+        
+        Args:
+            game_state: Optional GameState to use for filtering legal moves with check validation
         """
         board_data = {
             "dmzActive": self.dmzActive,
@@ -503,11 +509,37 @@ class Board:
         for coord, piece in self.squares.items():
             try:
                 print(f"DEBUG: Serializing {piece.type.name} at {coord.to_algebraic()}")
-                piece_dict = piece.to_dict(
-                    at=coord,
-                    include_moves=True,  # Turn back on
-                    board=self   
-                )
+                
+                # NEW: Get filtered moves from GameState if available
+                if game_state:
+                    # Use GameState.legal_moves_for() which includes check filtering
+                    legal_moves = game_state.legal_moves_for(coord)
+                    # Convert moves to dict format
+                    moves_data = [
+                        {
+                            "from": {"file": m.from_sq.file, "rank": m.from_sq.rank},
+                            "to": {"file": m.to_sq.file, "rank": m.to_sq.rank},
+                            "promotion": m.promotion,
+                            "castle": m.metadata.get("castle") if hasattr(m, "metadata") else None
+                        }
+                        for m in legal_moves
+                    ]
+                    
+                    # Get piece dict without moves, then add filtered moves
+                    piece_dict = piece.to_dict(
+                        at=coord,
+                        include_moves=False,  # Don't generate moves in piece
+                        board=self
+                    )
+                    piece_dict["moves"] = moves_data  # Add pre-filtered moves
+                else:
+                    # Original behavior: let piece generate its own moves
+                    piece_dict = piece.to_dict(
+                        at=coord,
+                        include_moves=True,
+                        board=self   
+                    )
+                
                 # merge an algebraic string (useful for frontend rendering)
                 piece_dict["position_algebraic"] = coord.to_algebraic()
                 board_data["pieces"].append(piece_dict)
@@ -537,7 +569,7 @@ class Board:
             ]
         else:
             board_data["forbiddenTiles"] = []
-    
+
         # Include green tiles for frontend rendering
         board_data["greenTiles"] = [
             {
