@@ -239,6 +239,7 @@ class King(Piece):
                 self._try_castle(board, at, kingside=False, out_moves=moves)
         # Filter forbidden land exit captures
         moves = self._filter_leaving_forbidden(board, at, moves)
+        moves = self._filter_target_forbidden(board, moves)
         return self._filter_exhaustion(board, at, moves)
 
     def _try_castle(self, board: Board, at: Coordinate, kingside: bool, out_moves: List[Move]) -> None:
@@ -365,6 +366,7 @@ class Queen(Piece):
                     break  # stop ray on first blocker
         # Filter forbidden land exit captures
         moves = self._filter_leaving_forbidden(board, at, moves)
+        moves = self._filter_target_forbidden(board, moves)
         return self._filter_exhaustion(board, at, moves)
 
     def get_legal_captures(self, board: Board, at: Coordinate) -> List[Move]:
@@ -620,6 +622,7 @@ class Pawn(Piece):
 
         # Filter forbidden land exit captures
         moves = self._filter_leaving_forbidden(board, at, moves)
+        moves = self._filter_target_forbidden(board, moves)
         return self._filter_exhaustion(board, at, moves)
 
     def get_legal_captures(self, board: Board, at: Coordinate) -> List[Move]:
