@@ -722,6 +722,7 @@ class Peon(Piece):
 
         # Filter forbidden land exit captures
         moves = self._filter_leaving_forbidden(board, at, moves)
+        moves = self._filter_target_forbidden(board, moves)
         return self._filter_exhaustion(board, at, moves)
 
     def get_legal_captures(self, board: Board, at: Coordinate) -> List[Move]:
