@@ -86,8 +86,12 @@ function loadDeck() {
     }
     
     // Return default deck if no valid deck stored
+    
     console.log('Using default deck');
-    return [...DEFAULT_DECK]; // Return copy to avoid mutation
+    console.warn("Invalid deck found → resetting to default deck.");
+    saveDeck(DEFAULT_DECK);
+    return [...DEFAULT_DECK];
+    //return [...DEFAULT_DECK]; // Return copy to avoid mutation
 }
 
 /**
