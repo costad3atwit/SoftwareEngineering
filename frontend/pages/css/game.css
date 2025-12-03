@@ -186,12 +186,14 @@ html,body { height:100%; margin:0; font-family: "Segoe UI", system-ui, -apple-sy
 .card-inner {
     width: 100%;
     height: 100%;
-    padding: 6px;
+    padding: 0;              
     box-sizing: border-box;
 
     display: flex;
-    flex-direction: column;   /* stack title over description */
+    flex-direction: column;
 }
+
+
 
 
 /* small metadata */
@@ -214,13 +216,14 @@ html,body { height:100%; margin:0; font-family: "Segoe UI", system-ui, -apple-sy
     line-height: 1.2;
     color: #333;
 
-    height: 155px;              /* perfectly fits your white description box */
-    padding: 6px 8px;
+    height: 85px;               
+    padding: 4px 8px;
     box-sizing: border-box;
 
-    overflow-y: auto;           /* scroll only within the white box */
+    overflow-y: auto;
     word-wrap: break-word;
 }
+
 
 
 
