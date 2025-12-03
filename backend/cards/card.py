@@ -2352,7 +2352,7 @@ class ForcedMove(Card):
             small_img="static/cards/forced_move_small.png"
         )
         # No target required for this card
-        self.target_type = TargetType.NONE
+        self.target_type = TargetType.TURN
 
     @property
     def card_type(self) -> CardType:

@@ -8,6 +8,7 @@
  */
 const DECK_SIZE = 16;
 const MAX_COPIES_PER_CARD = 3;
+const DECK_STORAGE_KEY = 'arcane_chess_player_deck';
 
 /**
  * Default deck used when no custom deck is saved
@@ -63,23 +64,29 @@ const AVAILABLE_CARDS = {
 };
 
 /**
- * LocalStorage key for storing the player's deck
+ * Get the storage key for the current player's deck
+ * @param {string} playerId - The player's ID
+ * @returns {string} Storage key
  */
-const DECK_STORAGE_KEY = 'arcane_chess_player_deck';
+function getDeckStorageKey(playerId) {
+    if (!playerId) {
+        console.warn('No player ID provided, using default key');
+        return DECK_STORAGE_KEY; // Fallback to default
+    }
+    return `${DECK_STORAGE_KEY}_${playerId}`;
+}
 
-/**
- * Load the player's deck from localStorage
- * @returns {Array<string>} Array of DECK_SIZE card IDs
- */
-function loadDeck() {
+function loadDeck(playerId) {
+    const storageKey = getDeckStorageKey(playerId);
+
     try {
-        const stored = localStorage.getItem(DECK_STORAGE_KEY);
+        const stored = localStorage.getItem(storageKey);
         if (stored) {
             const deck = JSON.parse(stored);
             const validation = validateDeck(deck);
             // Validate deck
             if (validation.valid) {
-                console.log('✓ Loaded custom deck from storage:', deck);
+                console.log(`✓ Loaded custom deck for ${playerId}:`, deck);
                 return deck;
             } else {
                 console.warn('Stored deck invalid:', validation.error);
@@ -90,30 +97,30 @@ function loadDeck() {
     }
     
     // Return default deck if no valid deck stored
-    
-    console.log('Using default deck');
+    console.log(`Using default deck for ${playerId}`);
     console.warn("Invalid deck found → resetting to default deck.");
-    saveDeck(DEFAULT_DECK);
+    saveDeck(DEFAULT_DECK, playerId);  // ← Add playerId here
     return [...DEFAULT_DECK];
-    //return [...DEFAULT_DECK]; // Return copy to avoid mutation
 }
 
 /**
  * Save the player's deck to localStorage
  * @param {Array<string>} deck - Array of exactly 16 card IDs
+ * @param {string} playerId - The player's ID
  * @returns {boolean} Success status
  */
-function saveDeck(deck) {
-    // Validate deck
+function saveDeck(deck, playerId) {
     const { valid, error } = validateDeck(deck);
     if (!valid) {
         console.error('Cannot save deck:', error);
         return false;
     }
     
+    const storageKey = getDeckStorageKey(playerId);
+    
     try {
-        localStorage.setItem(DECK_STORAGE_KEY, JSON.stringify(deck));
-        console.log('✓ Deck saved to storage:', deck);
+        localStorage.setItem(storageKey, JSON.stringify(deck));
+        console.log(`Deck saved for ${playerId}:`, deck);
         return true;
     } catch (error) {
         console.error('Error saving deck to storage:', error);
@@ -126,25 +133,28 @@ function saveDeck(deck) {
  * This is the function that should be called when queueing/challenging
  * @returns {Array<string>} Array of 16 card IDs
  */
-function getDeck() {
-    return loadDeck();
+function getDeck(playerId) {
+    return loadDeck(playerId);
 }
 
 /**
  * Reset deck to default
+ * @param {string} playerId - The player's ID
  * @returns {boolean} Success status
  */
-function resetDeck() {
-    return saveDeck(DEFAULT_DECK);
+function resetDeck(playerId) {
+    return saveDeck(DEFAULT_DECK, playerId);
 }
 
 /**
  * Check if a deck is currently saved (not using default)
+ * @param {string} playerId - The player's ID
  * @returns {boolean} True if custom deck is saved
  */
-function hasCustomDeck() {
+function hasCustomDeck(playerId) {
     try {
-        const stored = localStorage.getItem(DECK_STORAGE_KEY);
+        const storageKey = getDeckStorageKey(playerId);
+        const stored = localStorage.getItem(storageKey);
         return stored !== null;
     } catch (error) {
         return false;
@@ -225,6 +235,6 @@ function validateDeck(deck) {
 }
 
 // Log that deck manager is loaded
-console.log('✓ Deck Manager loaded');
-console.log(`  Current deck: ${hasCustomDeck() ? 'Custom' : 'Default'}`);
+console.log('  Deck Manager loaded');
+// console.log(`  Current deck: ${hasCustomDeck() ? 'Custom' : 'Default'}`);
 console.log(`  Deck size: ${DECK_SIZE}, max copies per card: ${MAX_COPIES_PER_CARD}`);

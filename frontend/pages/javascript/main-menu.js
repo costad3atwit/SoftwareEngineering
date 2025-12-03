@@ -189,12 +189,12 @@ function joinQueue() {
     const message = { 
         type: 'join_queue',
         name: playerId,
-        deck: getDeck()
+        deck: getDeck(playerId)
     };
     
     console.log('Sending join_queue message:', message);
     ws.send(JSON.stringify(message));
-    console.log('✓ Message sent');
+    console.log('Message sent');
 }
 
 function showStatus(message, isError = false) {
@@ -246,7 +246,7 @@ function sendChallenge() {
         type: 'send_challenge',
         target_player_id: targetPlayerId.trim(),
         challenger_name: playerId,
-        deck: getDeck()
+        deck: getDeck(playerId)
     };
     
     ws.send(JSON.stringify(message));
@@ -336,7 +336,7 @@ function acceptChallenge(challengerId) {
         type: 'accept_challenge',
         challenger_id: challengerId,
         accepter_name: playerId,
-        deck: getDeck
+        deck: getDeck(playerId)
     };
     
     ws.send(JSON.stringify(message));
@@ -383,12 +383,10 @@ document.querySelectorAll('.menu-btn').forEach(btn => {
 });
 
 // Button click handlers
-
+let playerDeck = [];
 document.getElementById('editDeck').addEventListener('click', () => {
     console.log('Edit Deck clicked');
-    //alert('Deck builder coming soon! For now, using default deck.');
-    // TODO: Show deck builder modal
-    playerDeck = getDeck();
+    playerDeck = getDeck(playerId);
     renderDeckBuilder();
     openDeckPopup();
 });
@@ -490,7 +488,6 @@ deckBackdrop.addEventListener("click", e => {
 //];
 
 // Load saved deck or default
-let playerDeck = getDeck(); // loads 16-card deck
 //let playerDeck = JSON.parse(localStorage.getItem("player_deck") || "[]");
 //if (playerDeck.length === 0) playerDeck = ALL_CARDS.slice(0, 10);
 
@@ -563,7 +560,7 @@ document.getElementById("deck-save").addEventListener("click", () => {
     return;
   }
 
-  const result = saveDeck(playerDeck);
+  const result = saveDeck(playerDeck, playerId);
   if (!result) {
     alert("Error saving deck. Make sure all cards are valid.");
     return;

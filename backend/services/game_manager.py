@@ -7,7 +7,7 @@ GameManager - Handles the complete lifecycle of games
 """
 
 from typing import Dict, Optional, List, Tuple
-import asyncio
+import asyncio, random
 from datetime import datetime
 from backend.chess.piece import Queen, Rook, Bishop, Knight
 from backend.services.game_state import GameState, GameStatus
@@ -126,21 +126,26 @@ class GameManager:
         # Store game
         self.games[game_id] = game
         
-        print(f"✓ Game {game_id} created: {player1_name} (White) vs {player2_name} (Black)")
+        print(f"Game {game_id} created: {player1_name} (White) vs {player2_name} (Black)")
         
         return game
     
     def _create_deck_from_ids(self, card_ids: List[str]) -> Deck:
         """
         Create a Deck object from a list of card IDs.
-        TODO: Replace with actual card loading from card registry
+        Shuffles the deck before creating it.
         """
-        deck = Deck()
-        
+        cards = []
         for card_id in card_ids:
-            # TODO: Load actual card from card registry
-            # For now, create placeholder cards
             card = self._create_card_by_id(card_id)
+            cards.append(card)
+        
+        # Shuffle the cards before adding to deck
+        random.shuffle(cards)
+        
+        # Create empty deck and add shuffled cards
+        deck = Deck()
+        for card in cards:
             deck.add(card)
         
         return deck
