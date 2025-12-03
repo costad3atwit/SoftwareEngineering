@@ -36,15 +36,6 @@ let playerColor = null;
 let inMatchmakingQueue = false;
 let pendingChallenges = {}; // Store incoming challenges
 
-// Sample deck
-const sampleDeck = [
-    "forbidden_lands", "eye_for_an_eye", "summon_peon", "pawn_scout",
-    "knight_headhunter", "bishop_warlock",
-    "mine", "eye_for_an_eye", "summon_peon", "pawn_scout",
-    "knight_headhunter", "bishop_warlock",
-    "forbidden_lands", "eye_for_an_eye", "summon_peon", "pawn_scout"
-];
-
 // Get the server URL (adjust this based on your deployment)
 const SERVER_URL = window.location.hostname === 'localhost' 
     ? 'localhost:8000'
@@ -198,7 +189,7 @@ function joinQueue() {
     const message = { 
         type: 'join_queue',
         name: playerId,
-        deck: sampleDeck
+        deck: getDeck()
     };
     
     console.log('Sending join_queue message:', message);
@@ -255,7 +246,7 @@ function sendChallenge() {
         type: 'send_challenge',
         target_player_id: targetPlayerId.trim(),
         challenger_name: playerId,
-        deck: sampleDeck
+        deck: getDeck()
     };
     
     ws.send(JSON.stringify(message));
@@ -345,7 +336,7 @@ function acceptChallenge(challengerId) {
         type: 'accept_challenge',
         challenger_id: challengerId,
         accepter_name: playerId,
-        deck: sampleDeck
+        deck: getDeck
     };
     
     ws.send(JSON.stringify(message));
@@ -392,6 +383,12 @@ document.querySelectorAll('.menu-btn').forEach(btn => {
 });
 
 // Button click handlers
+
+document.getElementById('editDeck').addEventListener('click', () => {
+    console.log('Edit Deck clicked');
+    alert('Deck builder coming soon! For now, using default deck.');
+    // TODO: Show deck builder modal
+});
 document.getElementById('quickplay').addEventListener('click', () => {
     console.log('Quickplay clicked');
     joinQueue();
@@ -419,13 +416,6 @@ document.getElementById('settings').addEventListener('click', () => {
     document.getElementById("options-backdrop").style.display = "flex";
 });
 
-document.getElementById('exit').addEventListener('click', () => {
-    console.log('Exit clicked');
-    // Closes the window
-    if (confirm('Are you sure you want to exit?')) {
-        window.close();
-    }
-});
 
 document.getElementById('save').addEventListener('click', () => {
     //Add logic to check slider elements for their values

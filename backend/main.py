@@ -482,6 +482,176 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                     "type": "challenge_declined",
                     "decliner_id": client_id
                 }, challenger_id)
+            elif message_type == "leave_game":
+                # Player wants to leave their current game
+                game_id = message.get("game_id")
+                
+                logger.info(f"Leave game request: {client_id} leaving {game_id}")
+                
+                game = game_manager.get_game(game_id)
+                if not game:
+                    logger.warning(f"Leave game request for nonexistent game: {game_id}")
+                    await manager.send_personal_message({
+                        "type": "error",
+                        "message": "Game not found"
+                    }, client_id)
+                    continue
+                
+                # Verify player is in this game
+                player = game.get_player_by_id(client_id)
+                if not player:
+                    logger.warning(f"Player {client_id} tried to leave game they're not in: {game_id}")
+                    await manager.send_personal_message({
+                        "type": "error",
+                        "message": "You are not in this game"
+                    }, client_id)
+                    continue
+                
+                # Forfeit the game
+                success, message = game_manager.forfeit_game(game_id, client_id)
+                
+                if success:
+                    logger.info(f"Player {client_id} forfeited game {game_id}")
+                    
+                    # Notify both players that the game ended
+                    await manager.broadcast_to_game({
+                        "type": "game_over",
+                        "reason": "forfeit",
+                        "winner": game.winner.value if game.winner else None,
+                        "message": game.win_reason
+                    }, game)
+                    
+                    # Confirm to leaving player
+                    await manager.send_personal_message({
+                        "type": "game_left",
+                        "message": "You have left the game"
+                    }, client_id)
+                    
+                    # Try to match waiting players since a game slot opened up
+                    await try_match_waiting_players()
+                else:
+                    await manager.send_personal_message({
+                        "type": "error",
+                        "message": message
+                    }, client_id)
+            elif message_type == "acknowledge_game_end":
+                # Player acknowledges they saw the game end and is leaving
+                game_id = message.get("game_id")
+                
+                logger.info(f"Player {client_id} acknowledged end of game {game_id}")
+                
+                # Optional: Could track which players have acknowledged
+                # Could clean up the game if both players acknowledged
+                # For now, just log it
+                
+                await manager.send_personal_message({
+                    "type": "acknowledged",
+                    "message": "Game end acknowledged"
+                }, client_id)
+
+            elif message_type == "request_rematch":
+                # Player wants to rematch the same opponent
+                old_game_id = message.get("game_id")
+                opponent_id = message.get("opponent_id")
+                deck = message.get("deck", [])
+                
+                logger.info(f"Rematch request: {client_id} wants to rematch {opponent_id} from game {old_game_id}")
+                
+                # Validate deck
+                if len(deck) != 16:
+                    await manager.send_personal_message({
+                        "type": "error",
+                        "message": f"Invalid deck size: {len(deck)}"
+                    }, client_id)
+                    continue
+                
+                # Check if opponent is connected
+                if opponent_id not in manager.active_connections:
+                    await manager.send_personal_message({
+                        "type": "error",
+                        "message": "Opponent is no longer online"
+                    }, client_id)
+                    continue
+                
+                # Check server capacity
+                active_count = len(game_manager.get_all_active_games())
+                if active_count >= 20:
+                    await manager.send_personal_message({
+                        "type": "error",
+                        "message": f"Server at capacity ({active_count}/20 games)"
+                    }, client_id)
+                    continue
+                
+                # Create or update rematch request
+                rematch_key = f"rematch_{old_game_id}"
+                
+                if rematch_key not in active_challenges:
+                    # First player to request rematch
+                    active_challenges[rematch_key] = {
+                        "requester_id": client_id,
+                        "requester_deck": deck,
+                        "opponent_id": opponent_id,
+                        "old_game_id": old_game_id
+                    }
+                    
+                    # Notify opponent
+                    await manager.send_personal_message({
+                        "type": "rematch_requested"
+                    }, opponent_id)
+                    
+                    logger.info(f"Rematch request stored: {client_id} waiting for {opponent_id}")
+                    
+                else:
+                    # Second player accepted - create the game!
+                    rematch = active_challenges[rematch_key]
+                    
+                    # Determine which player is which
+                    player1_id = rematch["requester_id"]
+                    player1_deck = rematch["requester_deck"]
+                    player2_id = client_id
+                    player2_deck = deck
+                    
+                    # Notify both that rematch is accepted
+                    await manager.send_personal_message({
+                        "type": "rematch_accepted"
+                    }, player1_id)
+                    
+                    await manager.send_personal_message({
+                        "type": "rematch_accepted"
+                    }, player2_id)
+                    
+                    # Create the game
+                    game = game_manager.start_game(
+                        player1_id=player1_id,
+                        player1_name=player1_id,
+                        player1_deck_ids=player1_deck,
+                        player2_id=player2_id,
+                        player2_name=player2_id,
+                        player2_deck_ids=player2_deck
+                    )
+                    
+                    white_player = game.players[Color.WHITE]
+                    black_player = game.players[Color.BLACK]
+                    
+                    logger.info(f"REMATCH GAME CREATED: {game.game_id}")
+                    logger.info(f"  White: {white_player.id}")
+                    logger.info(f"  Black: {black_player.id}")
+                    
+                    # Notify both players
+                    await manager.send_personal_message({
+                        "type": "game_started",
+                        "game_id": game.game_id,
+                        "game_state": game.to_dict(white_player.id)
+                    }, white_player.id)
+                    
+                    await manager.send_personal_message({
+                        "type": "game_started",
+                        "game_id": game.game_id,
+                        "game_state": game.to_dict(black_player.id)
+                    }, black_player.id)
+                    
+                    # Clean up rematch request
+                    del active_challenges[rematch_key]
             elif message_type == "make_move":
                 # Handle piece movement
                 game_id = message.get("game_id")

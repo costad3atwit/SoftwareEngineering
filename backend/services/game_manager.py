@@ -188,8 +188,10 @@ class GameManager:
     def get_player_game(self, player_id: str) -> Optional[GameState]:
         """Find the active game a player is currently in"""
         for game in self.games.values():
-            if game.get_player_by_id(player_id):
-                return game
+            # Only return games that are still in progress
+            if game.status == GameStatus.IN_PROGRESS or game.status == GameStatus.CHECK:
+                if game.get_player_by_id(player_id):
+                    return game
         return None
     
     def get_all_active_games(self) -> List[GameState]:
@@ -203,6 +205,37 @@ class GameManager:
     # GAME LIFECYCLE
     # ============================================================================
     
+    def forfeit_game(self, game_id: str, player_id: str) -> Tuple[bool, str]:
+        """
+        Forfeit a game (player leaves/surrenders).
+        
+        Args:
+            game_id: The game identifier
+            player_id: The player who is forfeiting
+        
+        Returns:
+            (success, message)
+        """
+        game = self.get_game(game_id)
+        if not game:
+            return False, "Game not found"
+        
+        # Verify player is in the game
+        player = game.get_player_by_id(player_id)
+        if not player:
+            return False, "Player not in this game"
+        
+        # Determine winner (opponent of forfeiting player)
+        player_color = game.get_player_color(player_id)
+        game.winner = Color.BLACK if player_color == Color.WHITE else Color.WHITE
+        game.status = GameStatus.FORFEIT
+        game.win_reason = f"{player_color.name} forfeited the game"
+        
+        print(f"✓ Game {game_id} forfeited by {player_id} ({player_color.name})")
+        print(f"  Winner: {game.winner.name}")
+        
+        return True, "Game forfeited"
+
     def end_game(self, game_id: str) -> bool:
         """
         Mark a game as ended and perform cleanup.

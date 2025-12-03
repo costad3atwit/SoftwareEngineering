@@ -82,11 +82,36 @@
   <!-- overlay for card-play text -->
   <div id="cardPlayOverlay" class="card-play-overlay" aria-hidden="true"></div>
 
+  <div id="gameOverOverlay" class="game-over-overlay" style="display: none;">
+  <div class="game-over-modal">
+    <h1 class="game-over-title" id="gameOverTitle">GAME OVER</h1>
+    <p class="game-over-result" id="gameOverResult"></p>
+    <p class="game-over-message" id="gameOverMessage"></p>
+    
+    <div class="game-over-buttons">
+      <button class="game-over-btn rematch-same-btn" id="rematchSameBtn">
+        Rematch Same Player
+      </button>
+      <button class="game-over-btn rematch-any-btn" id="rematchAnyBtn">
+        Find New Opponent
+      </button>
+      <button class="game-over-btn menu-btn" id="returnMenuBtn">
+        Main Menu
+      </button>
+    </div>
+    <div class="rematch-status" id="rematchStatus">
+      <span class="rematch-label">Rematch?</span>
+      <span class="rematch-count" id="rematchCount">0/2</span>
+    </div>
+  </div>
+</div>
+
   <!-- audio assets -->
   <audio id="clickOn" src="../assets/sfx_menu/click-on.wav" preload="auto"></audio>
   <audio id="clickOff" src="../assets/sfx_menu/click-off.wav" preload="auto"></audio>
   <audio id="menuMusic" loop src="../assets/music/game-music-temp.mp3"></audio>
-
+  
+  <script src="../javascript/deck-manager.js"></script>
   <script src="../javascript/game.js" defer></script>
 </body>
 </html>
