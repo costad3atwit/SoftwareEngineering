@@ -45,8 +45,10 @@ const AVAILABLE_CARDS = {
     'queen_darklord': { name: 'Queen: Dark Lord', category: 'TRANSFORM' },
     'pawn_queen': { name: 'Pawn: Queen', category: 'TRANSFORM' },
     'transmute': { name: 'Transmute', category: 'TRANSFORM' },
-    'rook_cleric': { name: 'Rook: Cleric', category: 'TRANSFORM' },
-    'bishop_witch': { name: 'Bishop: Witch', category: 'TRANSFORM' },
+    //'rook_cleric': { name: 'Rook: Cleric', category: 'TRANSFORM' }, <- // Disabled for now 
+                                                                        // as it needs to be implemented yet
+    //'bishop_witch': { name: 'Bishop: Witch', category: 'TRANSFORM' }, <- // Disabled for now
+                                                                        // as it needs to be implemented yet
     
     // SUMMON CARDS
     'summon_peon': { name: 'Summon Peon', category: 'SUMMON' },
@@ -54,7 +56,8 @@ const AVAILABLE_CARDS = {
     
     // FORCED CARDS
     'forced_move': { name: 'Forced Move', category: 'FORCED' },
-    
+    'eye_of_ruin': { name: 'Eye of Ruin', category: 'FORCED' },
+
     // UNSTABLE CARDS
     'of_flesh_and_blood': { name: 'Of Flesh and Blood', category: 'UNSTABLE' }
 };
