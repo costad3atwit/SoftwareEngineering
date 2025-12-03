@@ -411,8 +411,8 @@ document.getElementById('credits').addEventListener('click', () => {
     window.location.href = '/frontend/pages/html/credits.html';
 });
 
-document.getElementById('settings').addEventListener('click', () => {
-    console.log('Settings clicked');
+document.getElementById('options').addEventListener('click', () => {
+    console.log('options clicked');
     document.getElementById("options-backdrop").style.display = "flex";
 });
 
