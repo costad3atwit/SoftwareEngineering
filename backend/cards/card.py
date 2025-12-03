@@ -846,49 +846,77 @@ class ForbiddenLands(Card):
 
 class EyeForAnEye(Card):
     """
-    Eye for an Eye - Marks a friendly and opposing piece for 5 turns.
+    Eye for an Eye - Marks a randomly selected friendly piece and a chosen opposing piece for 5 turns.
     Capturing a marked piece allows for another turn immediately.
     """
     
     def __init__(self):
-        super().__init__(id="eye_for_an_eye", name="Eye for an Eye", description="Placeholder", big_img="static/example_big.png", small_img="static/example_small.png")
+        super().__init__(
+            id="eye_for_an_eye", 
+            name="Eye for an Eye", 
+            description="Select an enemy piece to mark. A random friendly piece (excluding king) will also be marked. Capturing marked pieces grants an extra turn!",
+            big_img="static/cards/eye_for_an_eye_big.png", 
+            small_img="static/cards/eye_for_an_eye_small.png"
+        )
+        self.target_type = TargetType.PIECE
     
     @property
     def card_type(self) -> CardType:
         return CardType.CURSE
     
     def can_play(self, board: Board, player: Player) -> bool:
-        # Need at least one friendly and one enemy piece to mark
-        return True  # Simplified for now
+        # Need at least one friendly non-king piece and one enemy piece to mark
+        has_friendly = False
+        has_enemy = False
+        
+        for piece in board.squares.values():
+            if piece.color == player.color and piece.type != PieceType.KING:
+                has_friendly = True
+            elif piece.color != player.color:
+                has_enemy = True
+            
+            if has_friendly and has_enemy:
+                return True
+        
+        return False
     
     def apply_effect(self, board: Board, player: Player, target_data: Dict[str, Any]) -> tuple[bool, str]:
         """
-        Mark two pieces for 5 turns.
-        Expects target_data with 'friendly_piece' and 'enemy_piece' coordinates.
+        Mark one enemy piece (chosen by player) and one random friendly piece (excluding king) for 5 turns.
+        Expects target_data with 'target' containing the enemy piece coordinate.
         """
         
-        # Parse target coordinates
-        friendly_square = target_data.get("friendly_piece")
-        enemy_square = target_data.get("enemy_piece")
+        # Parse target coordinate (enemy piece)
+        enemy_square = target_data.get("target")
         
-        if not friendly_square or not enemy_square:
-            return False, "Must specify both friendly and enemy pieces to mark"
+        if not enemy_square:
+            return False, "Must specify an enemy piece to mark"
         
         try:
-            friendly_coord = Coordinate.from_algebraic(friendly_square)
             enemy_coord = Coordinate.from_algebraic(enemy_square)
         except Exception as e:
-            return False, f"Invalid coordinates: {e}"
+            return False, f"Invalid coordinate: {e}"
         
-        # Validate pieces exist
-        friendly_piece = board.piece_at_coord(friendly_coord)
+        # Validate enemy piece exists and is actually an enemy
         enemy_piece = board.piece_at_coord(enemy_coord)
         
-        if not friendly_piece or friendly_piece.color != player.color:
-            return False, "Invalid friendly piece selection"
+        if not enemy_piece:
+            return False, "No piece exists at the selected square"
         
-        if not enemy_piece or enemy_piece.color == player.color:
-            return False, "Invalid enemy piece selection"
+        if enemy_piece.color == player.color:
+            return False, "You must select an enemy piece to mark"
+        
+        # Find all friendly non-king pieces
+        friendly_candidates = []
+        for coord, piece in board.squares.items():
+            if piece.color == player.color and piece.type != PieceType.KING:
+                friendly_candidates.append((coord, piece))
+        
+        if not friendly_candidates:
+            return False, "No friendly pieces available to mark"
+        
+        # Randomly select a friendly piece
+        friendly_coord, friendly_piece = random.choice(friendly_candidates)
         
         # Mark both pieces visually
         friendly_piece.marked = True
@@ -897,6 +925,7 @@ class EyeForAnEye(Card):
         # Register mark effects with tracker
         if hasattr(board, 'game_state') and board.game_state:
             from backend.services.effect_tracker import EffectType
+            
             def unmark_piece(effect):
                 """Remove mark after 5 turns"""
                 piece_id = effect.metadata['piece_id']
@@ -927,7 +956,7 @@ class EyeForAnEye(Card):
                 on_expire=unmark_piece
             )
         
-        return True, f"Marked {friendly_square} and {enemy_square} for 5 turns. Capturing a marked piece grants an extra turn!"
+        return True, f"Marked {friendly_coord.to_algebraic()} (friendly) and {enemy_square} (enemy) for 5 turns. Capturing marked pieces grants an extra turn!"
 
 
 class SummonPeon(Card):
@@ -938,24 +967,107 @@ class SummonPeon(Card):
     """
     
     def __init__(self):
-        super().__init__(id="summon_peon", name="Summon Peon", description="Placeholder", big_img="static/example_big.png", small_img="static/example_small.png")
+        super().__init__(
+            id="summon_peon", 
+            name="Summon Peon", 
+            description="Summon a friendly Peon on a random safe square. Peons cannot promote but gain backward movement at their furthest rank.",
+            big_img="static/cards/summon_peon_big.png", 
+            small_img="static/cards/summon_peon_small.png"
+        )
     
     @property
     def card_type(self) -> CardType:
         return CardType.SUMMON
     
+    def _all_board_coords(self, board: Board):
+        """Get all valid board coordinates."""
+        min_f = 0 if board.dmzActive else 1
+        max_f = 9 if board.dmzActive else 8
+        coords = []
+        
+        for f in range(min_f, max_f + 1):
+            for r in range(min_f, max_f + 1):
+                c = Coordinate(f, r)
+                if board.is_in_bounds(c):
+                    coords.append(c)
+        
+        return coords
+    
+    def _is_safe_spawn(self, board: Board, coord: Coordinate, color: Color) -> bool:
+        """
+        Test if spawning a peon at this coordinate is safe.
+        Safe means it won't put the opposing king in immediate check.
+        """
+        enemy_color = Color.BLACK if color == Color.WHITE else Color.WHITE
+        
+        # Create temporary board to test
+        temp_board = board.clone()
+        temp_peon = Peon(f"temp_peon_{coord.to_algebraic()}", color)
+        temp_board.squares[coord] = temp_peon
+        
+        # Find enemy king
+        enemy_king_coord = None
+        for c, p in temp_board.squares.items():
+            if p.type == PieceType.KING and p.color == enemy_color:
+                enemy_king_coord = c
+                break
+        
+        if not enemy_king_coord:
+            return False
+        
+        # Check if peon would attack the king
+        peon_attacks = temp_peon.get_legal_captures(temp_board, coord)
+        return all(move.to_sq != enemy_king_coord for move in peon_attacks)
+    
     def can_play(self, board: Board, player: Player) -> bool:
-        # Can play if there's room on the board
-        return True
+        """Can play if there's at least one empty square on the board."""
+        empty_squares = [c for c in self._all_board_coords(board) if board.is_empty(c)]
+        return len(empty_squares) > 0
     
     def apply_effect(self, board: Board, player: Player, target_data: Dict[str, Any]) -> tuple[bool, str]:
-        # TODO: Implement peon summoning
-        # - Find random safe square (bias for not attacking/being attacked)
-        # - Cannot spawn on enemy back rank
-        # - If under checkmate threat, try to block
-        # - Create and place Peon piece
-        return True, "Peon summoned (effect not yet implemented)"
-
+        """
+        Summon a peon on a random safe square.
+        - Cannot spawn in DMZ unless DMZ is active
+        - Cannot spawn on enemy back rank
+        - Must not put opposing king in immediate check
+        """
+        color = player.color
+        enemy_color = Color.BLACK if color == Color.WHITE else Color.WHITE
+        
+        # Determine enemy back rank
+        enemy_back_rank = 1 if enemy_color == Color.WHITE else (9 if board.dmzActive else 8)
+        
+        # Find all valid spawn candidates
+        candidates = []
+        for coord in self._all_board_coords(board):
+            # Must be empty
+            if not board.is_empty(coord):
+                continue
+            
+            # Cannot be on enemy back rank
+            if coord.rank == enemy_back_rank:
+                continue
+            
+            # Must be safe (not checking enemy king)
+            if not self._is_safe_spawn(board, coord, color):
+                continue
+            
+            candidates.append(coord)
+        
+        if not candidates:
+            return False, "No safe square available to summon a Peon."
+        
+        # Choose random square from candidates
+        spawn_coord = random.choice(candidates)
+        
+        # Create unique peon ID
+        peon_id = f"{color.value}_peon_{spawn_coord.to_algebraic()}_{random.randint(1000, 9999)}"
+        peon = Peon(peon_id, color)
+        
+        # Place peon on board
+        board.squares[spawn_coord] = peon
+        
+        return True, f"Peon summoned at {spawn_coord.to_algebraic()}!"
 
 class TransformToScout(Card):
     """

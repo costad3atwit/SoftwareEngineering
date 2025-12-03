@@ -16,6 +16,8 @@ let rematchRequests = {
     opponent: false
 };
 let opponentPlayerId = null;
+let waitingForEnemyPieceTarget = null;
+
 
 // Get server URL
 const SERVER_URL = window.location.hostname === 'localhost' 
@@ -645,7 +647,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('rematchAnyBtn').disabled = true;
         document.getElementById('returnMenuBtn').disabled = true;
         
-        console.log('✓ Joined matchmaking queue from game over screen');
+        console.log('Joined matchmaking queue from game over screen');
     });
     
     // Return to main menu
@@ -1067,14 +1069,12 @@ function getPieceAt(row, col){
 }
 
 function computeLegalMovesFor(piece){
-
     console.log('=== Computing legal moves for:', piece.id, piece);
     if (!piece.moves || piece.moves.length === 0) {
         return { moves: [], captures: [] };
     }
 
     console.log('  Piece has', piece.moves.length, 'moves from server');
-
     
     const moves = [];
     const captures = [];
@@ -1082,21 +1082,29 @@ function computeLegalMovesFor(piece){
     // Convert server move format to our row/col format
     for (const move of piece.moves) {
         const toSquare = move.to;
-        // Convert {file: X, rank: Y} to algebraic
         const toAlgebraic = fileRankToAlgebraic(toSquare.file, toSquare.rank);
         const idx = algebraicToIndex(toAlgebraic);
         
         if (!idx) continue;
         
-        // Check if destination has an enemy piece (capture) or is empty (move)
-        const targetPiece = getPieceAt(idx.row, idx.col);
-        if (targetPiece && targetPiece.color !== piece.color) {
+        // Check if this is a Scout mark move
+        const isMarkMove = move.mark && move.stay_in_place;
+        
+        if (isMarkMove) {
+            // Scout mark moves show as captures (red X)
             captures.push(idx);
-        } else if (!targetPiece) {
-            moves.push(idx);
+        } else {
+            // Regular moves - check if destination has enemy piece
+            const targetPiece = getPieceAt(idx.row, idx.col);
+            if (targetPiece && targetPiece.color !== piece.color) {
+                captures.push(idx);
+            } else if (!targetPiece) {
+                moves.push(idx);
+            }
         }
     }
-    console.log('  Computed:', moves.length, 'moves,', captures.length, 'captures');
+    
+    console.log('  Computed:', moves.length, 'moves,', captures.length, 'captures/marks');
     console.log('  Move positions:', moves);
     console.log('  Capture positions:', captures);
 
@@ -1304,12 +1312,46 @@ canvas.addEventListener('mousedown', (ev) => {
     playClickOn();
     if (!cell) return;
     
+    const clickedPiece = getPieceAt(cell.row, cell.col);
+    const clickedAlgebraic = indexToAlgebraic(cell.row, cell.col);
+    
+    // Handle enemy piece targeting for Eye for an Eye
+    if (waitingForEnemyPieceTarget) {
+        const { cardData, cardElement } = waitingForEnemyPieceTarget;
+        
+        // Must click on an enemy piece
+        if (!clickedPiece) {
+            alert('Please select an enemy piece to mark!');
+            return;
+        }
+        
+        if (isSameColor(clickedPiece.color, playerColor)) {
+            alert('Please select an ENEMY piece to mark!');
+            return;
+        }
+        
+        // Valid enemy piece selected
+        const targetData = { target: clickedAlgebraic };
+        console.log('Playing Eye for an Eye with enemy target:', targetData);
+        sendPlayCard(cardData.id, targetData, cardElement, cardData);
+        
+        // Clear the waiting flag
+        waitingForEnemyPieceTarget = null;
+        
+        // Clear any piece selection
+        selectedPiece = null;
+        legalMoves = [];
+        legalCaptures = [];
+        render();
+        return;
+    }
+    
     // Handle tile targeting for cards
     if (waitingForTileTarget) {
         const { cardData, cardElement } = waitingForTileTarget;
         const targetSquare = indexToAlgebraic(cell.row, cell.col);
         
-        const targetData = { target: targetSquare };  // Change 'square' to 'target'
+        const targetData = { target: targetSquare };
         console.log('Playing card with tile target:', targetData);
         sendPlayCard(cardData.id, targetData);
         
@@ -1329,9 +1371,6 @@ canvas.addEventListener('mousedown', (ev) => {
         console.log("Not your turn!");
         return;
     }
-    
-    const clickedPiece = getPieceAt(cell.row, cell.col);
-    const clickedAlgebraic = indexToAlgebraic(cell.row, cell.col);
     
     // Case 1: Clicked on one of our pieces - select it and show moves
     if (clickedPiece && isSameColor(clickedPiece.color, playerColor)) {
@@ -1613,6 +1652,13 @@ function playCard(cardData, cardElement){
     
     const needsTarget = cardNeedsTarget(cardData.id);
     
+    // Special handling for Eye for an Eye
+    if (cardData.id === 'eye_for_an_eye') {
+        alert('Click on an ENEMY piece to mark (a friendly piece will be marked randomly)');
+        waitingForEnemyPieceTarget = { cardData, cardElement };
+        return;
+    }
+    
     if (needsTarget === 'piece') {
         if (!selectedPiece) {
             alert(`Please select a ${cardData.name === 'Pawn Scout' ? 'pawn' : 'piece'} first!`);
@@ -1651,8 +1697,6 @@ function playCard(cardData, cardElement){
         console.log('Playing card with no target');
         sendPlayCard(cardData.id, {}, cardElement, cardData);
     }
-
-    //wait for server confirmation to update hand
 }
 
 // Helper to build the right target format for each card
@@ -1693,7 +1737,8 @@ function cardNeedsTarget(cardId) {
         'transmute',
         'of_flesh_and_blood',
         'insurance',
-        'exhaustion'
+        'exhaustion',
+        'eye_for_an_eye'
     ];
     
     // Cards that target an empty square/tile
@@ -1703,7 +1748,6 @@ function cardNeedsTarget(cardId) {
     
     // Cards with special/complex targeting (need custom UI)
     const specialCards = [
-        'eye_for_an_eye',  // Needs 2 pieces (friendly + enemy)
         'eye_of_ruin'       // Needs hand interaction
     ];
     

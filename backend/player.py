@@ -23,7 +23,7 @@ class Player:
         # Captured pieces
         self.captured: List[Piece] = []
         
-        # Deal initial hand (4 cards per your requirements)
+        # Deal initial hand
         for _ in range(4):
             if self.deck.size() > 0:
                 self.draw_card()
@@ -98,6 +98,6 @@ class Player:
             "hand": [card.id for card in self.hand.cards],
             "deck_size": self.deck.size(),
             "discard_size": self.discard_pile.size(),
-            "discard_pile_top": discard_top,  # ← ADD THIS LINE
+            "discard_pile_top": discard_top, 
             "captured": [piece.id for piece in self.captured]
         }

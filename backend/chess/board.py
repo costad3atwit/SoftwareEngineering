@@ -258,6 +258,28 @@ class Board:
     
 
     def move_piece(self, move: Move) -> Optional[Piece]:
+        # Check if this is a Scout mark move
+        is_scout_mark = (
+            getattr(move, "metadata", {}).get("mark", False) and
+            getattr(move, "metadata", {}).get("stay_in_place", False)
+        )
+        
+        if is_scout_mark:
+            # Scout marking - don't move the piece, just mark the target
+            target_piece = self.piece_at_coord(move.to_sq)
+            if target_piece:
+                # Clear all existing marks
+                for piece in self.squares.values():
+                    piece.marked = False
+                
+                # Mark the target
+                target_piece.marked = True
+                print(f"Scout marked {target_piece.id} at {move.to_sq.to_algebraic()}")
+                
+            # Scout stays in place - no position change!
+            # Return early, no capture occurred
+            return None
+
         src, dest = move.from_sq, move.to_sq
         moving_piece = self.squares.get(src)
         if not moving_piece:

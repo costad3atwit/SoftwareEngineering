@@ -158,6 +158,7 @@ class Effigy(Piece):
             "id": self.id,
             "type": self.type.name,
             "color": self.color.name,
+            "marked": self.marked,
             "position": {"file": at.file, "rank": at.rank},
             "isEffigy": True,
             "effectType": self.effect_type.value,  # send enum value to frontend
@@ -184,6 +185,7 @@ class Barricade(Piece):
             "id": self.id,
             "type": self.type.name,
             "color": None,
+            "marked": self.marked,
             "position": {"file": at.file, "rank": at.rank},
             "isBarricade": True,
         }
@@ -308,6 +310,7 @@ class King(Piece):
             "id": self.id,
             "type": self.type.name,
             "color": self.color.name,
+            "marked": self.marked,
             "position": {"file": at.file, "rank": at.rank},
         }
 
@@ -387,8 +390,9 @@ class Queen(Piece):
         """
         payload = {
             "id": self.id,
-            "type": self.type.name,   # "QUEEN"
-            "color": self.color.name,       # "WHITE"/"BLACK"
+            "type": self.type.name,   
+            "color": self.color.name,   
+            "marked": self.marked,    
             "position": {"file": at.file, "rank": at.rank},
         }
         if include_moves and board is not None:
@@ -647,8 +651,9 @@ class Pawn(Piece):
         """Frontend-friendly dictionary representation."""
         data = {
             "id": self.id,
-            "type": self.type.name,  # "PAWN"
+            "type": self.type.name,  
             "color": self.color.name,
+            "marked": self.marked,
             "position": {"file": at.file, "rank": at.rank},
         }
 
@@ -759,8 +764,9 @@ class Peon(Piece):
         """Frontend-friendly dictionary representation of Peon, including backward unlock status."""
         data = {
             "id": self.id,
-            "type": self.type.name,        # "PEON"
-            "color": self.color.name,      # "WHITE"/"BLACK"
+            "type": self.type.name,        
+            "color": self.color.name,      
+            "marked": self.marked,
             "position": {"file": at.file, "rank": at.rank},
             "backwardsUnlocked": self._backwards_unlocked,
         }
@@ -785,8 +791,7 @@ class Scout(Piece):
     def get_legal_moves(self, board: 'Board', at: Coordinate) -> List[Move]:
         """
         Scouts can move like a queen, but up to 5 squares only.
-        If the destination contains an enemy piece, the Scout marks it
-        and stays in its current location instead of moving.
+        They can also mark enemy pieces within range (stay in place).
         """
         moves: List[Move] = []
         directions = [
@@ -796,46 +801,49 @@ class Scout(Piece):
 
         for dx, dy in directions:
             x, y = at.file, at.rank
-            for _ in range(5):  # limit to 5 squares
+            for step in range(1, 6):  # limit to 5 squares
                 x += dx
                 y += dy
                 next_coord = Coordinate(x, y)
                 if not board.is_in_bounds(next_coord):
                     break
 
-                if board.is_empty(next_coord):
+                target_piece = board.piece_at_coord(next_coord)
+                
+                if target_piece is None:
+                    # Empty square - can move here
                     moves.append(Move(at, next_coord, self))
                     continue
-
-                # Enemy piece encountered → mark, stay in place
-                if board.is_enemy(next_coord, self.color):
-                    move = Move(at, next_coord, self, metadata={"mark": True}) 
+                elif target_piece.color != self.color:
+                    # Enemy piece - can MARK it (stay in place)
+                    mark_move = Move(
+                        at,           # from: current position
+                        next_coord,   # to: target to mark
+                        self,
+                        metadata={"mark": True, "stay_in_place": True}
+                    )
+                    moves.append(mark_move)
+                    break  # Can't move past this piece
+                else:
+                    # Friendly piece blocks path
                     break
-
-                # Friendly piece blocks further movement
-                break
 
         # Filter forbidden land exit captures
         moves = self._filter_leaving_forbidden(board, at, moves)
         return self._filter_exhaustion(board, at, moves)
 
     def get_legal_captures(self, board: 'Board', at: Coordinate) -> List[Move]:
-        """Scouts do not perform normal captures."""
-        # --- Forbidden Lands rule: cannot capture from inside Forbidden Lands ---
+        """
+        Scouts don't perform normal captures, but we return mark moves here
+        so the frontend can display them as "capture-like" actions.
+        """
         if getattr(board, "forbidden_active", False) and board.is_forbidden(at):
             return []
 
-        return []
-
-    @staticmethod
-    def mark_target(board: 'Board', target: Coordinate):
-        """Marks the target enemy piece, clearing any existing marks."""
-        for piece in board.squares.values():
-            piece.marked = False  # clear previous marks
-        target_piece = board.piece_at_coord(target)
-        if target_piece:
-            target_piece.marked = True
-            print(f"Marked piece: {target_piece.id} at {target.file},{target.rank}")
+        # Return all moves that have the "mark" metadata
+        all_moves = self.get_legal_moves(board, at)
+        mark_moves = [m for m in all_moves if getattr(m, "metadata", {}).get("mark", False)]
+        return mark_moves
 
     def to_dict(self, at: Coordinate, include_moves: bool = False,
                 board: 'Board' = None, captures_only: bool = False) -> dict:
@@ -851,14 +859,21 @@ class Scout(Piece):
         }
 
         if include_moves and board is not None:
+            if captures_only:
+                # Only mark moves
+                moves = self.get_legal_captures(board, at)
+            else:
+                # All moves (movement + marking)
+                moves = self.get_legal_moves(board, at)
+            
             data["moves"] = [
                 {
                     "from": {"file": m.from_sq.file, "rank": m.from_sq.rank},
                     "to": {"file": m.to_sq.file, "rank": m.to_sq.rank},
                     "mark": getattr(m, "metadata", {}).get("mark", False),
-                    "target": getattr(m, "metadata", {}).get("target", None)
+                    "stay_in_place": getattr(m, "metadata", {}).get("stay_in_place", False)
                 }
-                for m in self.get_legal_moves(board, at)
+                for m in moves
             ]
         return data
 
@@ -1536,6 +1551,7 @@ class DarkLord(Piece):
             "id": self.id,
             "type": self.type.name,
             "color": self.color.name,
+            "marked": self.marked,
             "position": {"file": at.file, "rank": at.rank},
             "daylightMode": self.daylight_mode,
             "enthrallingTarget": (

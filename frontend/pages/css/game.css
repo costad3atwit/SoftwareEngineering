@@ -109,13 +109,15 @@ html,body { height:100%; margin:0; font-family: "Segoe UI", system-ui, -apple-sy
 }
 
 .game-status-area {
+  height: 95vh;
   background: var(--ui-panel);
   padding: 16px;
   border-radius: 10px;
   backdrop-filter: blur(10px);
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  justify-content: space-between;
+
 }
 
 .status-row {
