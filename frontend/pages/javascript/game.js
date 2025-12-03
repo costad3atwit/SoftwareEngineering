@@ -294,6 +294,15 @@ function updateGameState(serverGameState) {
             marked: piece.marked || false,
             moves: piece.moves || []
         }));
+        legalMarks = [];
+        for(const piece of gameState.board){
+            if(piece.marked && piece.position && piece.status === 'active'){
+                const idx = algebraicToIndex(piece.position);
+                if(idx) {
+                    legalMarks.push(idx);
+                }
+            }
+        }
     }
     
     // Update player data (reconstruct both players from server view)
