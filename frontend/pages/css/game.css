@@ -182,12 +182,67 @@ html,body { height:100%; margin:0; font-family: "Segoe UI", system-ui, -apple-sy
 /* flip the card (reveal) */
 .card.flipped .card-inner { transform: rotateY(180deg); }
 
-/* small metadata */
-.card .title { font-weight:700; font-size:14px; }
-.card .desc { font-size:12px; margin-top:8px; color:#333; }
+/* ----------------------------- */
+/* Card sizing + layout (needed) */
+/* ----------------------------- */
+.card {
+    width: 170px;          /* change size if your card art differs */
+    height: 240px;
+    position: relative;
+}
 
-/* preview row for opponent's hand (backside) */
-.preview-row .card { width: 72px; height: 96px; transform: none; }
+.card-inner {
+    width: 100%;
+    height: 100%;
+    padding: 6px;          /* keeps text within the white box margin */
+    box-sizing: border-box;
+
+    display: flex;
+    flex-direction: column;
+}
+
+.card-inner .front {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+/* ----------------------------- */
+/* TITLE (top area)              */
+/* ----------------------------- */
+.card .title {
+    font-weight: 700;
+    font-size: 14px;       /* adjust bigger/smaller if needed */
+    line-height: 1.1;
+    margin-bottom: 4px;
+    flex: 0 0 auto;        /* title stays a fixed height */
+    word-wrap: break-word;
+}
+
+/* ----------------------------- */
+/* DESCRIPTION (main white box)  */
+/* ----------------------------- */
+.card .desc {
+    font-size: 12px;       /* adjust 11px if text is tight */
+    line-height: 1.2;
+    color: #333;
+
+    flex: 1 1 auto;        /* takes all leftover vertical space */
+    overflow-y: auto;      /* text stays inside box instead of spilling */
+    word-wrap: break-word;
+    margin-top: 4px;
+}
+
+/* ----------------------------- */
+/* Opponent's hand preview       */
+/* (these will stay small)       */
+/* ----------------------------- */
+.preview-row .card {
+    width: 72px;
+    height: 96px;
+    transform: none;
+}
+
 
 /* deck / discard placeholders */
 .deck, .discard, .deck-preview {
