@@ -145,13 +145,13 @@ html,body { height:100%; margin:0; font-family: "Segoe UI", system-ui, -apple-sy
 
 /* flip inner for 3D flip */
 .card-inner {
-  width:100%;
-  height:100%;
-  border-radius:10px;
-  transform-style: preserve-3d;
-  transition: transform .6s;
-  position:relative;
+    width: 100%;
+    height: 100%;
+    padding: 0;                 /* important: no padding */
+    display: flex;
+    flex-direction: column;
 }
+
 
 /* front/back */
 .card .front, .card .back {
@@ -182,9 +182,60 @@ html,body { height:100%; margin:0; font-family: "Segoe UI", system-ui, -apple-sy
 /* flip the card (reveal) */
 .card.flipped .card-inner { transform: rotateY(180deg); }
 
+/* card content container */
+.card-inner {
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    box-sizing: border-box;
+
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+}
+
+
+
+
+
 /* small metadata */
-.card .title { font-weight:700; font-size:14px; }
-.card .desc { font-size:12px; margin-top:8px; color:#333; }
+/* TITLE GOES IN TOP WHITE BOX */
+.card .title {
+    font-weight: 700;
+    font-size: 20px;
+    text-align: center;
+
+    height: 128px;               /* exact pixel height */
+    padding: 10px;
+    box-sizing: border-box;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    overflow: hidden;
+}
+
+
+/* DESCRIPTION GOES IN LOWER WHITE BOX */
+.card .desc {
+    font-size: 14px;
+    line-height: 1.25;
+    color: #333;
+
+    height: 128px;                /* exact pixel height */
+    padding: 10px;
+    box-sizing: border-box;
+
+    overflow-y: auto;
+    word-wrap: break-word;
+}
+
+
+
+
+
+
 
 /* preview row for opponent's hand (backside) */
 .preview-row .card { width: 72px; height: 96px; transform: none; }

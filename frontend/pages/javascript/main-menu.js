@@ -384,10 +384,13 @@ document.querySelectorAll('.menu-btn').forEach(btn => {
 
 // Button click handlers
 
-document.getElementById('edit').addEventListener('click', () => {
+document.getElementById('editDeck').addEventListener('click', () => {
     console.log('Edit Deck clicked');
-    alert('Deck builder coming soon! For now, using default deck.');
+    //alert('Deck builder coming soon! For now, using default deck.');
     // TODO: Show deck builder modal
+    playerDeck = getDeck();
+    renderDeckBuilder();
+    openDeckPopup();
 });
 document.getElementById('quickplay').addEventListener('click', () => {
     console.log('Quickplay clicked');
@@ -416,6 +419,13 @@ document.getElementById('options').addEventListener('click', () => {
     document.getElementById("options-backdrop").style.display = "flex";
 });
 
+//document.getElementById('exit').addEventListener('click', () => {
+//    console.log('Exit clicked');
+    // Closes the window
+//    if (confirm('Are you sure you want to exit?')) {
+//        window.close();
+//    }
+//});
 
 document.getElementById('save').addEventListener('click', () => {
     //Add logic to check slider elements for their values
@@ -442,6 +452,134 @@ document.getElementById('back').addEventListener('click', () => {
     sfx_vol_slider.value = sfxVol*100;
     console.log('Options closed');
 });
+/** -----------------------
+ * Deck Builder Popup Logic
+ * ------------------------*/
+
+const deckBackdrop = document.getElementById("deck-backdrop");
+const deckPopup = document.getElementById("deck-popup");
+const deckClose = document.getElementById("deck-close");
+
+function openDeckPopup() {
+  deckBackdrop.classList.remove("invisible");
+  deckBackdrop.style.pointerEvents = "auto";
+  setTimeout(() => deckPopup.classList.add("is-visible"), 10);
+}
+
+function closeDeckPopup() {
+  deckPopup.classList.remove("is-visible");
+  setTimeout(() => {
+    deckBackdrop.classList.add("invisible");
+    deckBackdrop.style.pointerEvents = "none";
+  }, 250);
+}
+
+deckClose.addEventListener("click", closeDeckPopup);
+deckBackdrop.addEventListener("click", e => {
+  if (e.target === deckBackdrop) closeDeckPopup();
+});
+
+// Attach to Edit Deck button
+//document.getElementById("editDeck").addEventListener("click", openDeckPopup);
+
+// Basic fake card list (replace with real data)
+//const ALL_CARDS = [
+//  "mine","pawn_bomb","glue","shroud","insurance","eye_for_an_eye",
+//  "pawn_scout","all_seeing","knight_headhunter","bishop_warlock",
+//  "queen_darklord","pawn_queen","summon_peon","summon_barricade"
+//];
+
+// Load saved deck or default
+let playerDeck = getDeck(); // loads 16-card deck
+//let playerDeck = JSON.parse(localStorage.getItem("player_deck") || "[]");
+//if (playerDeck.length === 0) playerDeck = ALL_CARDS.slice(0, 10);
+
+// HTML elements
+const cardPoolEl = document.getElementById("deck-card-pool");
+const deckListEl = document.getElementById("deck-card-list");
+const deckCount = document.getElementById("deck-count");
+
+// Render lists
+function renderDeckBuilder() {
+    cardPoolEl.innerHTML = "";
+    deckListEl.innerHTML = "";
+    deckCount.textContent = `(${playerDeck.length}/16)`;
+
+    const allCards = getAllCards();
+
+    allCards.forEach(card => {
+        const id = card.id;
+
+        // Count copies in deck
+        const count = playerDeck.filter(c => c === id).length;
+
+        //
+        // ===== LEFT: CARD POOL =====
+        //
+        const poolCard = document.createElement("div");
+        poolCard.className = "deck-card";
+        poolCard.textContent = card.name;
+
+        poolCard.addEventListener("click", () => {
+            if (playerDeck.length >= 16) {
+                alert("Deck is full (16 cards)");
+                return;
+            }
+            if (count >= 3) {
+                alert(`You may only include up to 3 copies of ${card.name}.`);
+                return;
+            }
+            playerDeck.push(id);
+            renderDeckBuilder();
+        });
+
+        cardPoolEl.appendChild(poolCard);
+
+        //
+        // ===== RIGHT: YOUR DECK (WITH DUP COUNT) =====
+        //
+        if (count > 0) {
+            const deckEntry = document.createElement("div");
+            deckEntry.className = "deck-card";
+            deckEntry.innerHTML =
+                `${card.name} <span class="card-count">x${count}</span>`;
+
+            // Remove ONE copy on click
+            deckEntry.addEventListener("click", () => {
+                const index = playerDeck.indexOf(id);
+                if (index !== -1) playerDeck.splice(index, 1);
+                renderDeckBuilder();
+            });
+
+            deckListEl.appendChild(deckEntry);
+        }
+    });
+}
+
+// Save + clear buttons
+document.getElementById("deck-save").addEventListener("click", () => {
+  if (playerDeck.length !== 16) {
+    alert("Your deck must contain exactly 16 cards.");
+    return;
+  }
+
+  const result = saveDeck(playerDeck);
+  if (!result) {
+    alert("Error saving deck. Make sure all cards are valid.");
+    return;
+  }
+
+  alert("Deck saved!");
+  closeDeckPopup();
+});
+
+document.getElementById("deck-clear").addEventListener("click", () => {
+  playerDeck = [];
+  renderDeckBuilder();
+});
+
+// Re-render each time popup is opened
+//document.getElementById("editDeck").addEventListener("click", renderDeckBuilder);
 
 // ============================================================================
 // Slider Setup
