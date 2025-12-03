@@ -384,7 +384,7 @@ document.querySelectorAll('.menu-btn').forEach(btn => {
 
 // Button click handlers
 
-document.getElementById('editDeck').addEventListener('click', () => {
+document.getElementById('edit').addEventListener('click', () => {
     console.log('Edit Deck clicked');
     //alert('Deck builder coming soon! For now, using default deck.');
     // TODO: Show deck builder modal
@@ -414,8 +414,8 @@ document.getElementById('credits').addEventListener('click', () => {
     window.location.href = '/frontend/pages/html/credits.html';
 });
 
-document.getElementById('settings').addEventListener('click', () => {
-    console.log('Settings clicked');
+document.getElementById('options').addEventListener('click', () => {
+    console.log('options clicked');
     document.getElementById("options-backdrop").style.display = "flex";
 });
 

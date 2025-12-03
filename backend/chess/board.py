@@ -263,14 +263,25 @@ class Board:
         if not moving_piece:
             raise ValueError(f"No piece at {src}")
 
-        # --- Handle Scout mark behavior (unchanged) ---
-        from backend.chess.piece import Scout
-        if isinstance(moving_piece, Scout) and getattr(move, "metadata", {}).get("mark"):
-            target_info = move.metadata.get("target")
-            if target_info:
-                target_coord = Coordinate(target_info["file"], target_info["rank"])
-                Scout.mark_target(self, target_coord)
-            return None  # Scout does not move
+
+        # Scouts NEVER capture - any Scout "move" to an enemy piece is a mark action
+        target_piece = self.squares.get(dest)
+        
+        if moving_piece.type == PieceType.SCOUT and target_piece and target_piece.color != moving_piece.color:
+            print(f"[SCOUT] {moving_piece.id} marking {target_piece.id} at {dest.to_algebraic()}")
+            
+            # Clear all existing marks
+            for piece in self.squares.values():
+                if piece:
+                    piece.marked = False
+            
+            # Mark the target (DON'T remove it from board!)
+            target_piece.marked = True
+            
+            # Scout stays in original position - DON'T move it!
+            print(f"[SCOUT] {target_piece.id} marked. Scout remains at {src.to_algebraic()}")
+            return None  # No capture, Scout didn't move
+
 
         # --- Forbidden Lands rules ---
         src_forbidden = self.is_forbidden(src) if self.forbidden_active else False
@@ -299,13 +310,11 @@ class Board:
         if captured_piece:
             self.apply_capture_glue(moving_piece, captured_piece)
         
-        # ===== ADDITION A: Mark tile as green if capture occurred =====
+
         if captured_piece:
             # Mark the capture location as a green tile for 6 half-turns (3 full turns)
             self.green_tiles[dest] = 6
-        # ===== END ADDITION A =====
-        
-        # --- NEW: Check for Cleric protection ---
+
         if captured_piece and self._should_cleric_protect(captured_piece, dest):
             protecting_cleric = self._find_protecting_cleric(captured_piece, dest)
             if protecting_cleric:
@@ -335,7 +344,6 @@ class Board:
         # --- Check for glue trigger at destination ---
         self.check_glue_trigger(dest, moving_piece)
         
-        # ===== ADDITION B: Handle Witch leaving green tile (spawn Peon) =====
         from backend.chess.piece import Witch, Peon
         if isinstance(moving_piece, Witch):
             if getattr(move, "metadata", {}).get("leaving_green_tile"):
@@ -351,7 +359,6 @@ class Board:
                         peon_id = f"peon_{moving_piece.color.name[0].lower()}_{int(time.time() * 1000)}"
                         peon = Peon(peon_id, moving_piece.color)
                         self.squares[source_coord] = peon
-        # ===== END ADDITION B =====
         
         return captured_piece
 
@@ -510,7 +517,7 @@ class Board:
             try:
                 print(f"DEBUG: Serializing {piece.type.name} at {coord.to_algebraic()}")
                 
-                # NEW: Get filtered moves from GameState if available
+                #Get filtered moves from GameState if available
                 if game_state:
                     # Use GameState.legal_moves_for() which includes check filtering
                     legal_moves = game_state.legal_moves_for(coord)
@@ -520,7 +527,9 @@ class Board:
                             "from": {"file": m.from_sq.file, "rank": m.from_sq.rank},
                             "to": {"file": m.to_sq.file, "rank": m.to_sq.rank},
                             "promotion": m.promotion,
-                            "castle": m.metadata.get("castle") if hasattr(m, "metadata") else None
+                            "castle": m.metadata.get("castle") if hasattr(m, "metadata") else None,
+                            "mark": m.metadata.get("mark", False) if hasattr(m, "metadata") else False,
+                            "stay_in_place": m.metadata.get("stay_in_place", False) if hasattr(m, "metadata") else False
                         }
                         for m in legal_moves
                     ]

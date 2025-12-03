@@ -328,7 +328,11 @@ class GameState:
         
         # Execute the move on the board
         captured = self.board.move_piece(m)
-        
+        if captured:
+            current_player = self.players[self.turn]
+            current_player.capture_piece(captured)
+            print(f"DEBUG: {current_player.name} captured {captured.type.name} (ID: {captured.id})")
+
         # Check if this was a pawn promotion move
         piece = self.board.piece_at_coord(m.to_sq)
         if piece and piece.type == PieceType.PAWN:
@@ -486,8 +490,8 @@ class GameState:
             "created_at": self.created_at.isoformat(),
             "last_update": self.last_update.isoformat(),
             "active_effects": self.effect_tracker.to_dict(self.fullmove_number),
-            "board": self.board.to_dict(game_state=self),  # ← ONLY CHANGE: Add game_state=self
-            "move_history": [m.to_dict() for m in self.move_history[-10:]]  # Last 10 moves
+            "board": self.board.to_dict(game_state=self),  
+            "move_history": [m.to_dict() for m in self.move_history[-10:]]  
         }
         
         # If perspective is provided, add player-specific info
@@ -523,7 +527,7 @@ class GameState:
                 }
                 for piece in opponent.captured
             ]
-            # Add discard pile info - SHOW BOTH (discard piles are public information)
+
             if player.discard_pile.size() > 0:
                 top_card = player.discard_pile.top()
                 if top_card:    
