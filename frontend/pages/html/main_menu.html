@@ -19,6 +19,9 @@
       <button class="menu-btn" id="options"></button>
       <button class="menu-btn" id="credits"></button>
       <button class="menu-btn" id="tutorial"></button>
+      <button class="menu-btn" id="editDeck" >Edit Deck</button>
+      <button class="menu-btn" id="credits"></button>
+      <button class="menu-btn" id="settings"></button>
       <button class="menu-btn" id="acceptChallengeBtn"></button>
       <button class="menu-btn" id="declineChallengeBtn"></button>
       
@@ -55,6 +58,36 @@
       </div>
     </div>
   </div>
+  <!-- Deck Builder Popup -->
+  <div class="options-backdrop invisible" id="deck-backdrop">
+    <div class="menu-options-container deck-popup" id="deck-popup">
+     <div class="closing-icon" id="deck-close">&times;</div>
+      <h2 class="options-heading">Deck Builder</h2>
+
+      <p class="options-description">
+        Select which cards you want in your active deck.
+      </p>
+
+      <!-- Deck content -->
+      <div id="deck-builder-content">
+        <div class="deck-section">
+          <h3>Available Cards</h3>
+          <div class="deck-list" id="deck-card-pool"></div>
+        </div>
+
+        <div class="deck-section">
+          <h3>Your Deck <span id="deck-count"></span></h3>
+          <div class="deck-list" id="deck-card-list"></div>
+        </div>
+      </div>
+      <div class="options-button-container">
+        <button class="settings-btn" id="deck-save">Save</button>
+        <button class="settings-btn" id="deck-clear">Clear</button>
+      </div>
+
+    </div>
+  </div>
+
   <audio id="menuMusic" loop>
     <source src="../assets/music/menu-theme-temp.mp3" type="audio/mpeg">
   </audio>
