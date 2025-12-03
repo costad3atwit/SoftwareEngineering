@@ -199,10 +199,15 @@ html,body { height:100%; margin:0; font-family: "Segoe UI", system-ui, -apple-sy
     font-weight: 700;
     font-size: 14px;
     line-height: 1.1;
-    margin-bottom: 4px;
-    flex: 0 0 auto;           /* fixed top area */
-    word-wrap: break-word;
+
+    height: 40px;               /* fits inside your top white bar */
+    padding: 6px 8px 0 8px;
+    box-sizing: border-box;
+
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
+
 
 .card .desc {
     font-size: 11px;          /* slightly smaller to fit more text */
