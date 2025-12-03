@@ -210,15 +210,18 @@ html,body { height:100%; margin:0; font-family: "Segoe UI", system-ui, -apple-sy
 
 
 .card .desc {
-    font-size: 11px;          /* slightly smaller to fit more text */
+    font-size: 11px;
     line-height: 1.2;
-    margin-top: 4px;
     color: #333;
 
-    flex: 1 1 auto;           /* takes the rest of the height */
-    overflow-y: auto;         /* scroll if there is too much text */
+    height: 155px;              /* perfectly fits your white description box */
+    padding: 6px 8px;
+    box-sizing: border-box;
+
+    overflow-y: auto;           /* scroll only within the white box */
     word-wrap: break-word;
 }
+
 
 
 /* preview row for opponent's hand (backside) */
