@@ -195,8 +195,26 @@ html,body { height:100%; margin:0; font-family: "Segoe UI", system-ui, -apple-sy
 
 
 /* small metadata */
-.card .title { font-weight:700; font-size:14px; }
-.card .desc { font-size:12px; margin-top:8px; color:#333; }
+.card .title {
+    font-weight: 700;
+    font-size: 14px;
+    line-height: 1.1;
+    margin-bottom: 4px;
+    flex: 0 0 auto;           /* fixed top area */
+    word-wrap: break-word;
+}
+
+.card .desc {
+    font-size: 11px;          /* slightly smaller to fit more text */
+    line-height: 1.2;
+    margin-top: 4px;
+    color: #333;
+
+    flex: 1 1 auto;           /* takes the rest of the height */
+    overflow-y: auto;         /* scroll if there is too much text */
+    word-wrap: break-word;
+}
+
 
 /* preview row for opponent's hand (backside) */
 .preview-row .card { width: 72px; height: 96px; transform: none; }
