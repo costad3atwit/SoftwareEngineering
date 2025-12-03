@@ -202,7 +202,7 @@ html,body { height:100%; margin:0; font-family: "Segoe UI", system-ui, -apple-sy
     font-size: 14px;
     line-height: 1.1;
 
-    height: 40px;               /* fits inside your top white bar */
+    height: 36px;              /* was 40px */
     padding: 6px 8px 0 8px;
     box-sizing: border-box;
 
@@ -211,18 +211,20 @@ html,body { height:100%; margin:0; font-family: "Segoe UI", system-ui, -apple-sy
 }
 
 
+
 .card .desc {
     font-size: 11px;
     line-height: 1.2;
     color: #333;
 
-    height: 85px;               
+    height: 70px;              /* ⬅️ was larger; this keeps it above the bar */
     padding: 4px 8px;
     box-sizing: border-box;
 
-    overflow-y: auto;
+    overflow-y: auto;          /* scroll only inside this box */
     word-wrap: break-word;
 }
+
 
 
 
