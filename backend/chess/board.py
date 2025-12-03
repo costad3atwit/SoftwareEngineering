@@ -494,10 +494,9 @@ class Board:
                 yield Coordinate(f, r)
 
     def clone(self) -> 'Board':
-        """Return a deep copy of the board."""
+        """Return a copy of the board."""
         new_board = Board()
-        new_board.squares = {coord: copy.deepcopy(piece) for coord, piece in self.squares.items()}
-        print("Cloning board")
+        new_board.squares = {coord: copy.copy(piece) for coord, piece in self.squares.items()}
         return new_board
 
     def to_dict(self, game_state=None) -> dict:

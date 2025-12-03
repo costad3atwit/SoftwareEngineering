@@ -134,8 +134,12 @@ body {
   background-image: url('../assets/main_menu/btn-credits.png');
 }
 
-#settings {
-  background-image: url('../assets/main_menu/btn-settings.png');
+#edit {
+  background-image: url('../assets/main_menu/btn-edit-deck.png');
+}
+
+#options {
+  background-image: url('../assets/main_menu/btn-options.png');
 }
 
 #tutorial {

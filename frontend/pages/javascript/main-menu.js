@@ -384,7 +384,7 @@ document.querySelectorAll('.menu-btn').forEach(btn => {
 
 // Button click handlers
 
-document.getElementById('editDeck').addEventListener('click', () => {
+document.getElementById('edit').addEventListener('click', () => {
     console.log('Edit Deck clicked');
     alert('Deck builder coming soon! For now, using default deck.');
     // TODO: Show deck builder modal
