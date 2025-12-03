@@ -199,14 +199,14 @@ html,body { height:100%; margin:0; font-family: "Segoe UI", system-ui, -apple-sy
 
 
 /* small metadata */
+/* TITLE GOES IN TOP WHITE BOX */
 .card .title {
     font-weight: 700;
-    font-size: 20px;        /* bigger now that we have space */
-    line-height: 1.1;
+    font-size: 20px;
     text-align: center;
 
-    height: 85px;           /* fills the FIRST big white box */
-    padding: 10px 8px;
+    height: 128px;               /* exact pixel height */
+    padding: 10px;
     box-sizing: border-box;
 
     display: flex;
@@ -217,20 +217,20 @@ html,body { height:100%; margin:0; font-family: "Segoe UI", system-ui, -apple-sy
 }
 
 
-
-
+/* DESCRIPTION GOES IN LOWER WHITE BOX */
 .card .desc {
-    font-size: 13px;
+    font-size: 14px;
     line-height: 1.25;
     color: #333;
 
-    height: 110px;          /* fills the SECOND big white box */
-    padding: 8px;
+    height: 128px;                /* exact pixel height */
+    padding: 10px;
     box-sizing: border-box;
 
     overflow-y: auto;
     word-wrap: break-word;
 }
+
 
 
 
