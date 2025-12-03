@@ -291,6 +291,7 @@ function updateGameState(serverGameState) {
             color: piece.color,
             position: piece.position_algebraic,
             status: piece.status || 'active',
+            marked: piece.marked || false,
             moves: piece.moves || []
         }));
     }
@@ -712,11 +713,13 @@ const BOARD_PNG = `${BOARD_PATH}chessboard.png`;
 const OVERLAYS = {
     move: new Image(),
     capture: new Image(),
-    fog: new Image()
+    fog: new Image(),
+    mark: new Image()
 };
 OVERLAYS.move.src = `${BOARD_PATH}av_move.png`;
 OVERLAYS.capture.src = `${BOARD_PATH}av_attk.png`;
 OVERLAYS.fog.src = `${BOARD_PATH}fog_overlay.png`;
+OVERLAYS.mark.src = `${BOARD_PATH}av_mark.png`;
 
 // Trigger re-render when overlays load
 OVERLAYS.move.onload = () => {
@@ -1079,7 +1082,6 @@ function computeLegalMovesFor(piece){
     const moves = [];
     const captures = [];
     
-    // Convert server move format to our row/col format
     for (const move of piece.moves) {
         const toSquare = move.to;
         const toAlgebraic = fileRankToAlgebraic(toSquare.file, toSquare.rank);
@@ -1087,14 +1089,22 @@ function computeLegalMovesFor(piece){
         
         if (!idx) continue;
         
+        // DEBUG: Log each move's metadata
+        console.log(`  Move to ${toAlgebraic}:`, {
+            mark: move.mark,
+            stay_in_place: move.stay_in_place,
+            isMarkMove: move.mark && move.stay_in_place
+        });
+        
         // Check if this is a Scout mark move
-        const isMarkMove = move.mark && move.stay_in_place;
+        const isMarkMove = move.mark === true && move.stay_in_place === true;
         
         if (isMarkMove) {
             // Scout mark moves show as captures (red X)
+            console.log(`    -> Adding as MARK/CAPTURE at ${toAlgebraic}`);
             captures.push(idx);
         } else {
-            // Regular moves - check if destination has enemy piece
+            // Regular moves
             const targetPiece = getPieceAt(idx.row, idx.col);
             if (targetPiece && targetPiece.color !== piece.color) {
                 captures.push(idx);
@@ -1105,9 +1115,6 @@ function computeLegalMovesFor(piece){
     }
     
     console.log('  Computed:', moves.length, 'moves,', captures.length, 'captures/marks');
-    console.log('  Move positions:', moves);
-    console.log('  Capture positions:', captures);
-
     return { moves, captures };
 }
 
@@ -1146,6 +1153,7 @@ function reportMoveTiming() {
 let selectedPiece = null;
 let legalMoves = [];
 let legalCaptures = [];
+let legalMarks = [];
 
 // drawing
 function render(){
@@ -1231,6 +1239,14 @@ function render(){
         }
         else {
             console.log('Capture overlay image not loaded yet');}
+    }
+    for(const m of legalMarks){
+       const x = L.gridLeft + m.col*L.cellSize;
+       const y = L.gridTop + m.row*L.cellSize;
+       const img = OVERLAYS.mark;
+       if (img.complete) {
+           ctx.drawImage(img, x, y, L.cellSize, L.cellSize);
+       }
     }
     ctx.restore();
 
