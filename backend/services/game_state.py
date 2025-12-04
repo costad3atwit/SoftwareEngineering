@@ -191,6 +191,8 @@ class GameState:
         """Switch to the other player's turn"""
         self.update_timer()
         
+        if hasattr(self.board, 'active_explosions'):
+            self.board.active_explosions = []
         # Reset CHECK status back to IN_PROGRESS when switching turns
         # (will be re-evaluated after next move if needed)
         if self.status == GameStatus.CHECK:
@@ -334,6 +336,7 @@ class GameState:
             print(f"DEBUG: {current_player.name} captured {captured.type.name} (ID: {captured.id})")
 
         # Check if this was a pawn promotion move
+        # CHANGE: Re-fetch piece from destination (might have been destroyed by mine)
         piece = self.board.piece_at_coord(m.to_sq)
         if piece and piece.type == PieceType.PAWN:
             promotion_rank = 8 if piece.color == Color.WHITE else 1
@@ -348,7 +351,8 @@ class GameState:
                 return True, "promotion_required"
             
         # Update halfmove clock (resets on capture or pawn move)
-        if captured or piece.type == PieceType.PAWN:
+        # CHANGE: Add check that piece still exists before accessing piece.type
+        if captured or (piece and piece.type == PieceType.PAWN):
             self.halfmove_clock = 0
         else:
             self.halfmove_clock += 1
@@ -471,7 +475,6 @@ class GameState:
         
         return self.status
 
-    # --- Serialization ---
     def to_dict(self, perspective_player_id: Optional[str] = None) -> dict:
         """
         Convert game state to dictionary for JSON serialization.
@@ -490,7 +493,7 @@ class GameState:
             "created_at": self.created_at.isoformat(),
             "last_update": self.last_update.isoformat(),
             "active_effects": self.effect_tracker.to_dict(self.fullmove_number),
-            "board": self.board.to_dict(game_state=self),  
+            "board": self.board.to_dict(game_state=self, viewing_player_id=perspective_player_id),  # CHANGED: Pass viewing_player_id
             "move_history": [m.to_dict() for m in self.move_history[-10:]]  
         }
         
@@ -501,48 +504,48 @@ class GameState:
             opponent_color = Color.BLACK if player_color == Color.WHITE else Color.WHITE
             opponent = self.players[opponent_color]
             
-        if player:
-            base_dict["your_color"] = player_color.value
-            base_dict["your_turn"] = self.is_players_turn(perspective_player_id)
-            base_dict["your_hand"] = player.get_hand()
-            base_dict["your_deck_size"] = player.deck_size()
-            base_dict["opponent_hand_size"] = opponent.hand_size()
-            base_dict["opponent_deck_size"] = opponent.deck_size()
-            base_dict["opponent_id"] = opponent.id
-            base_dict["your_captured"] = [
-                {
-                    "id": piece.id,
-                    "type": piece.type.name,
-                    "color": piece.color.name,
-                    "value": piece.value
-                }
-                for piece in player.captured
-            ]
-            base_dict["opponent_captured"] = [
-                {
-                    "id": piece.id,
-                    "type": piece.type.name,
-                    "color": piece.color.name,
-                    "value": piece.value
-                }
-                for piece in opponent.captured
-            ]
+            if player:
+                base_dict["your_color"] = player_color.value
+                base_dict["your_turn"] = self.is_players_turn(perspective_player_id)
+                base_dict["your_hand"] = player.get_hand()
+                base_dict["your_deck_size"] = player.deck_size()
+                base_dict["opponent_hand_size"] = opponent.hand_size()
+                base_dict["opponent_deck_size"] = opponent.deck_size()
+                base_dict["opponent_id"] = opponent.id
+                base_dict["your_captured"] = [
+                    {
+                        "id": piece.id,
+                        "type": piece.type.name,
+                        "color": piece.color.name,
+                        "value": piece.value
+                    }
+                    for piece in player.captured
+                ]
+                base_dict["opponent_captured"] = [
+                    {
+                        "id": piece.id,
+                        "type": piece.type.name,
+                        "color": piece.color.name,
+                        "value": piece.value
+                    }
+                    for piece in opponent.captured
+                ]
 
-            if player.discard_pile.size() > 0:
-                top_card = player.discard_pile.top()
-                if top_card:    
-                    base_dict["your_discard_top"] = top_card.to_dict()
-            else:
-                base_dict["your_discard_top"] = None
-            
-            # Also send opponent's discard top (public information)
-            if opponent.discard_pile.size() > 0:
-                opp_top_card = opponent.discard_pile.top()
-                if opp_top_card:
-                    base_dict["opponent_discard_top"] = opp_top_card.to_dict()
-            else:
-                base_dict["opponent_discard_top"] = None
-            
-            base_dict["opponent_discard_size"] = opponent.discard_pile.size()
+                if player.discard_pile.size() > 0:
+                    top_card = player.discard_pile.top()
+                    if top_card:    
+                        base_dict["your_discard_top"] = top_card.to_dict()
+                else:
+                    base_dict["your_discard_top"] = None
+                
+                # Also send opponent's discard top (public information)
+                if opponent.discard_pile.size() > 0:
+                    opp_top_card = opponent.discard_pile.top()
+                    if opp_top_card:
+                        base_dict["opponent_discard_top"] = opp_top_card.to_dict()
+                else:
+                    base_dict["opponent_discard_top"] = None
+                
+                base_dict["opponent_discard_size"] = opponent.discard_pile.size()
         
         return base_dict

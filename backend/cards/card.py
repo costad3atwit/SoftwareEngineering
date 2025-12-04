@@ -169,14 +169,16 @@ class Mine(Card):
             return False, "No suitable empty space to place a mine safely."
 
         chosen_tile = random.choice(possible_tiles)
-        board.place_mine(chosen_tile, player.color)
+        board.place_mine(chosen_tile, player.color, player.id)
         
         # Register auto-detonation effect with tracker
         if hasattr(board, 'game_state') and board.game_state:
             from backend.services.effect_tracker import EffectType
             def detonate_mine(effect):
                 """Auto-detonation callback after 4 turns"""
-                mine_coord = effect.metadata['coordinate']
+                # Reconstruct coordinate from algebraic string
+                mine_coord_str = effect.metadata['coordinate']
+                mine_coord = Coordinate.from_algebraic(mine_coord_str)
                 # Explode the mine - capture all pieces within 1 tile radius
                 print(f"Mine at {mine_coord} auto-detonated after 4 turns!")
                 board.detonate_mine(mine_coord)
@@ -185,10 +187,11 @@ class Mine(Card):
                 effect_type=EffectType.MINE,
                 start_turn=board.game_state.fullmove_number,
                 duration=4,
-                target=chosen_tile,
+                target=chosen_tile.to_algebraic(),
                 metadata={
-                    'coordinate': chosen_tile,
-                    'owner_color': player.color.name
+                    'coordinate': chosen_tile.to_algebraic(),
+                    'owner_color': player.color.name,
+                    'owner_player_id': player.id
                 },
                 on_expire=detonate_mine
             )
@@ -1201,7 +1204,134 @@ class TransformToHeadhunter(Card):
 
         return True, f"Knight at {target_square} transformed into Headhunter!"
 
+class TransformToCleric(Card):
+    """
+    Rook: Cleric - Select one rook to transform into a cleric.
+    Clerics move like rooks but heal adjacent friendly pieces.
+    Value: 3.
+    """
 
+    def __init__(self):
+        super().__init__(
+            id="rook_cleric",
+            name="Rook: Cleric",
+            description="Transform a rook into a cleric. Clerics move like rooks and can heal adjacent friendly pieces.",
+            big_img="static/example_big.png",
+            small_img="static/example_small.png"
+        )
+        self.target_type = TargetType.PIECE
+
+    @property
+    def card_type(self) -> CardType:
+        return CardType.TRANSFORM
+
+    def can_play(self, board: Board, player: Player) -> bool:
+        """Check if player has any rooks to transform"""
+        for coord, piece in board.squares.items():
+            if piece.color == player.color and piece.type == PieceType.ROOK:
+                return True
+        return False
+
+    def apply_effect(self, board: Board, player: Player, target_data: Dict[str, Any]) -> tuple[bool, str]:
+        """
+        Transform a rook at the target coordinate into a cleric.
+        Expects target_data['target'] as algebraic like 'a1'.
+        """
+
+        target_square = target_data.get("target")
+        if not target_square:
+            return False, "No target square provided"
+
+        # Parse coordinate
+        try:
+            target_coord = Coordinate.from_algebraic(target_square)
+        except Exception:
+            return False, f"Invalid coordinate: {target_square}"
+
+        # Validate piece existence & ownership
+        piece = board.piece_at_coord(target_coord)
+        if not piece:
+            return False, f"No piece at {target_square}"
+        if piece.color != player.color:
+            return False, "That's not your piece"
+
+        # Ensure it's a Rook
+        if piece.type != PieceType.ROOK:
+            return False, "Can only transform rooks into clerics"
+
+        # Create Cleric with a unique ID and same owner/color
+        cleric_id = f"cleric_{player.color.value}_{target_coord.to_algebraic()}"
+        cleric = Cleric(cleric_id, player.color)
+
+        # Replace the Rook with the Cleric in-place
+        board.squares[target_coord] = cleric
+
+        return True, f"Rook at {target_square} transformed into Cleric!"
+
+
+class TransformToWitch(Card):
+    """
+    Bishop: Witch - Select one bishop to transform into a witch.
+    Witches move like bishops and can curse enemy pieces.
+    Value: 5.
+    """
+
+    def __init__(self):
+        super().__init__(
+            id="bishop_witch",
+            name="Bishop: Witch",
+            description="Transform a bishop into a witch. Witches move like bishops and can curse enemy pieces.",
+            big_img="static/example_big.png",
+            small_img="static/example_small.png"
+        )
+        self.target_type = TargetType.PIECE
+
+    @property
+    def card_type(self) -> CardType:
+        return CardType.TRANSFORM
+
+    def can_play(self, board: Board, player: Player) -> bool:
+        """Check if player has any bishops to transform"""
+        for coord, piece in board.squares.items():
+            if piece.color == player.color and piece.type == PieceType.BISHOP:
+                return True
+        return False
+
+    def apply_effect(self, board: Board, player: Player, target_data: Dict[str, Any]) -> tuple[bool, str]:
+        """
+        Transform a bishop at the target coordinate into a witch.
+        Expects target_data['target'] as algebraic like 'c1'.
+        """
+
+        target_square = target_data.get("target")
+        if not target_square:
+            return False, "No target square provided"
+
+        # Parse coordinate
+        try:
+            target_coord = Coordinate.from_algebraic(target_square)
+        except Exception:
+            return False, f"Invalid coordinate: {target_square}"
+
+        # Validate piece existence & ownership
+        piece = board.piece_at_coord(target_coord)
+        if not piece:
+            return False, f"No piece at {target_square}"
+        if piece.color != player.color:
+            return False, "That's not your piece"
+
+        # Ensure it's a Bishop
+        if piece.type != PieceType.BISHOP:
+            return False, "Can only transform bishops into witches"
+
+        # Create Witch with a unique ID and same owner/color
+        witch_id = f"witch_{player.color.value}_{target_coord.to_algebraic()}"
+        witch = Witch(witch_id, player.color)
+
+        # Replace the Bishop with the Witch in-place
+        board.squares[target_coord] = witch
+
+        return True, f"Bishop at {target_square} transformed into Witch!"
 
 class TransformToWarlock(Card):
     """
@@ -2485,6 +2615,8 @@ CARD_REGISTRY = {
     "knight_headhunter": TransformToHeadhunter,
     "bishop_warlock": TransformToWarlock,
     "queen_darklord": TransformToDarkLord,
+    "rook_cleric": TransformToCleric,
+    "bishop_witch": TransformToWitch,
     "forbidden_lands": ForbiddenLands,
     "pawn_queen": PawnQueen,
     "pawn_bomb": PawnBomb,
@@ -2496,7 +2628,7 @@ CARD_REGISTRY = {
     "of_flesh_and_blood": OfFleshAndBlood,
     "exhaustion": Exhaustion,
     "forced_move": ForcedMove,
-    "eye_of_ruin": EyeOfRuin
+    "eye_of_ruin": EyeOfRuin,
 
 }
 

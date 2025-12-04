@@ -13,10 +13,12 @@ class Board:
         self.forbidden_active = False
         self.forbidden_positions = set()
         self.mines = []
+        self.active_explosions = []
         self.glue_tiles = []     # List of dicts: {"coord": Coordinate, "owner": Color, "timer": int}
         self.glued_pieces = {}   # { piece_id: turns_remaining }
         self.green_tiles: Dict[Coordinate, int] = {}
         self.game_state = None
+ 
 
     # ================================================================
     # Forbidden Lands Mechanics
@@ -50,10 +52,15 @@ class Board:
     # ================================================================
     # Mine Mechanics
     # ================================================================
-    def place_mine(self, coord: Coordinate, owner_color: Color):
+    def place_mine(self, coord: Coordinate, owner_color: Color, owner_player_id: str):
         """Place a mine on the board with a 4-turn lifespan."""
-        self.mines.append({"coord": coord, "owner": owner_color, "timer": 4})
-        print(f"Mine placed at {coord.file},{coord.rank} by {owner_color.name}")
+        self.mines.append({
+            "coord": coord, 
+            "owner": owner_color, 
+            "owner_player_id": owner_player_id,  # NEW: Store player ID
+            "timer": 4
+        })
+        print(f"Mine placed at {coord.file},{coord.rank} by {owner_color.name} (player {owner_player_id})")
 
     def remove_mine(self, coordinate: Coordinate):
         """Remove a mine at the specified coordinate."""
@@ -63,26 +70,51 @@ class Board:
     def explode_mine(self, coordinate: Coordinate):
         '''Explode mine at coordinate, capturing nearby pieces'''
         # Capture all pieces within 1 tile radius except kings
+        captured_pieces = []
+        explosion_tiles = []  
+        
         for file_offset in [-1, 0, 1]:
             for rank_offset in [-1, 0, 1]:
                 target = Coordinate(coordinate.file + file_offset, 
                                 coordinate.rank + rank_offset)
+                
+
+                if self.is_in_bounds(target):
+                    explosion_tiles.append(target)
+                    print(f"[EXPLOSION DEBUG] Added explosion tile: {target.to_algebraic()}")
+
+                
                 if target in self.squares:
                     piece = self.squares[target]
                     if piece.type != PieceType.KING:
+                        captured_pieces.append((target, piece))
                         del self.squares[target]
                         print(f"Mine explosion captured {piece.id}")
         
         # Remove mine from board
         self.remove_mine(coordinate)
+        
+        print(f"[EXPLOSION DEBUG] hasattr active_explosions: {hasattr(self, 'active_explosions')}")
+        if hasattr(self, 'active_explosions'):
+            self.active_explosions.append({
+                'tiles': explosion_tiles,
+                'timestamp': None  # Will be set when sent to frontend
+            })
+            print(f"[EXPLOSION DEBUG] Added to active_explosions. Total: {len(self.active_explosions)}")
+        else:
+            print(f"[EXPLOSION DEBUG] ERROR - active_explosions attribute not found!")
+        return captured_pieces
 
-    def check_mine_trigger(self, dest: Coordinate):
-        """Check if a move lands on a mine and trigger explosion if so."""
+    def check_mine_trigger(self, dest: Coordinate) -> bool:
+        """
+        Check if a move lands on a mine and trigger explosion if so.
+        Returns True if a mine exploded, False otherwise.
+        """
         for mine in list(self.mines):
             if mine["coord"] == dest:
                 self.explode_mine(mine["coord"])
-                break
-
+                return True  
+        return False  
     # ================================================================
     # Glue Mechanics
     # ================================================================
@@ -499,13 +531,14 @@ class Board:
         new_board.squares = {coord: copy.copy(piece) for coord, piece in self.squares.items()}
         return new_board
 
-    def to_dict(self, game_state=None) -> dict:
+    def to_dict(self, game_state=None, viewing_player_id=None) -> dict:
         """
         Convert the current board state into a JSON-serializable dictionary.
         Includes all piece data and board settings for frontend rendering.
         
         Args:
             game_state: Optional GameState to use for filtering legal moves with check validation
+            viewing_player_id: Optional player ID - if provided, only shows mines placed by this player
         """
         board_data = {
             "dmzActive": self.dmzActive,
@@ -589,16 +622,29 @@ class Board:
             for coord, half_turns in self.green_tiles.items()
         ]
         
-        # Include mine info if present
-        board_data["mines"] = [
-            {
-                "file": m["coord"].file,
-                "rank": m["coord"].rank,
-                "owner": m["owner"].name,
-                "timer": m["timer"],
-            }
-            for m in self.mines
-        ]
+        # Include mine info - ONLY for the player who placed them
+        if viewing_player_id:
+            board_data["mines"] = [
+                {
+                    "file": m["coord"].file,
+                    "rank": m["coord"].rank,
+                    "owner": m["owner"].name,
+                    "timer": m["timer"],
+                }
+                for m in self.mines
+                if m.get("owner_player_id") == viewing_player_id  # CHANGED: Filter by player ID
+            ]
+        else:
+            # If no viewing_player_id provided, show all mines (backwards compatibility)
+            board_data["mines"] = [
+                {
+                    "file": m["coord"].file,
+                    "rank": m["coord"].rank,
+                    "owner": m["owner"].name,
+                    "timer": m["timer"],
+                }
+                for m in self.mines
+            ]
 
         # Include glue tile info
         board_data["glueTiles"] = [
@@ -611,6 +657,19 @@ class Board:
         ]
 
         board_data["gluedPieces"] = list(self.glued_pieces.keys())
+
+        print(f"[EXPLOSION DEBUG] to_dict: active_explosions count = {len(self.active_explosions)}")
+        board_data["explosions"] = [
+        {
+            "tiles": [{"file": coord.file, "rank": coord.rank} for coord in exp['tiles']]
+        }
+        for exp in self.active_explosions
+        ]
+        print(f"[EXPLOSION DEBUG] to_dict: Serialized explosions = {board_data['explosions']}")
+
+    
+        # Clear explosions after sending (they're one-time events)
+        self.active_explosions = []
 
         return board_data
 #------------------------------
