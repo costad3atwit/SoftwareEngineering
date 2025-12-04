@@ -17,7 +17,7 @@ let rematchRequests = {
 };
 let opponentPlayerId = null;
 let waitingForEnemyPieceTarget = null;
-
+let activeExplosions = [];
 
 // Get server URL
 const SERVER_URL = window.location.hostname === 'localhost' 
@@ -346,10 +346,32 @@ function updateGameState(serverGameState) {
     
     // Store special tiles if present
     if (serverGameState.board) {
+        console.log('[EXPLOSION DEBUG] Board data received:', serverGameState.board);
+        console.log('[EXPLOSION DEBUG] Explosions in board data:', serverGameState.board.explosions);
+
         gameState.greenTiles = serverGameState.board.greenTiles || [];
         gameState.forbiddenTiles = serverGameState.board.forbiddenTiles || [];
         gameState.mines = serverGameState.board.mines || [];
         gameState.glueTiles = serverGameState.board.glueTiles || [];
+        if (serverGameState.board.explosions && serverGameState.board.explosions.length > 0) {
+            console.log('[EXPLOSION DEBUG] Processing explosions:', serverGameState.board.explosions);
+            activeExplosions = serverGameState.board.explosions.map(exp => ({
+                tiles: exp.tiles,
+                startTime: Date.now(),
+                duration: 800  // Animation duration in ms
+            }));
+            console.log('[EXPLOSION DEBUG] Active explosions set:', activeExplosions);
+            // Re-render immediately to show explosion
+            render();
+            
+            // Clear explosions after animation duration
+            setTimeout(() => {
+                console.log('[EXPLOSION DEBUG] Clearing explosions after timeout');
+                activeExplosions = [];
+                render();
+            }, 800);
+        } else {console.log('[EXPLOSION DEBUG] No explosions in this update');}
+
     }
     
     console.log('Game state updated:', gameState);
@@ -723,12 +745,16 @@ const OVERLAYS = {
     move: new Image(),
     capture: new Image(),
     fog: new Image(),
-    mark: new Image()
+    mark: new Image(),
+    mine: new Image(),
+    explosion: new Image(),
 };
 OVERLAYS.move.src = `${BOARD_PATH}av_move.png`;
 OVERLAYS.capture.src = `${BOARD_PATH}av_attk.png`;
 OVERLAYS.fog.src = `${BOARD_PATH}fog_overlay.png`;
 OVERLAYS.mark.src = `${BOARD_PATH}av_mark.png`;
+OVERLAYS.mine.src = `${BOARD_PATH}mine_overlay.png`;
+OVERLAYS.explosion.src = `${BOARD_PATH}mine_overlay.png`;
 
 // Trigger re-render when overlays load
 OVERLAYS.move.onload = () => {
@@ -739,8 +765,23 @@ OVERLAYS.capture.onload = () => {
     console.log('Capture overlay loaded');
     render();
 };
+OVERLAYS.mine.onload = () => {
+    console.log('Mine overlay loaded');
+    render();
+};
+OVERLAYS.explosion.onload = () => {
+    console.log('Explosion overlay loaded');
+    render();
+};
+OVERLAYS.mark.onload = () => {
+    console.log('Mark overlay loaded');
+    render();
+};
+OVERLAYS.mark.onerror = () => console.error('Failed to load mark overlay:', OVERLAYS.mark.src);
+OVERLAYS.mine.onerror = () => console.error('Failed to load mine overlay:', OVERLAYS.mine.src);
 OVERLAYS.move.onerror = () => console.error('Failed to load move overlay:', OVERLAYS.move.src);
 OVERLAYS.capture.onerror = () => console.error('Failed to load capture overlay:', OVERLAYS.capture.src);
+OVERLAYS.explosion.onerror = () => console.error('Failed to load explosion overlay:', OVERLAYS.explosion.src);
 
 const PIECE_SPRITE = (color, type) => `${PIECES_PATH}${color.toLowerCase()}_${type.toLowerCase()}_temp.png`;
 
@@ -1083,13 +1124,14 @@ function getPieceAt(row, col){
 function computeLegalMovesFor(piece){
     console.log('=== Computing legal moves for:', piece.id, piece);
     if (!piece.moves || piece.moves.length === 0) {
-        return { moves: [], captures: [] };
+        return { moves: [], captures: [], marks: [] };
     }
 
     console.log('  Piece has', piece.moves.length, 'moves from server');
     
     const moves = [];
     const captures = [];
+    const marks = []; 
     
     for (const move of piece.moves) {
         const toSquare = move.to;
@@ -1098,22 +1140,13 @@ function computeLegalMovesFor(piece){
         
         if (!idx) continue;
         
-        // DEBUG: Log each move's metadata
-        console.log(`  Move to ${toAlgebraic}:`, {
-            mark: move.mark,
-            stay_in_place: move.stay_in_place,
-            isMarkMove: move.mark && move.stay_in_place
-        });
-        
-        // Check if this is a Scout mark move
-        const isMarkMove = move.mark === true && move.stay_in_place === true;
-        
-        if (isMarkMove) {
-            // Scout mark moves show as captures (red X)
-            console.log(`    -> Adding as MARK/CAPTURE at ${toAlgebraic}`);
-            captures.push(idx);
+        // Check if this is a mark move
+        if (move.is_mark === true) {
+            // Mark moves get their own array
+            console.log(`    -> Adding MARK move at ${toAlgebraic}`);
+            marks.push(idx);  // CHANGED: Add to marks instead of captures
         } else {
-            // Regular moves
+            // Regular moves and captures
             const targetPiece = getPieceAt(idx.row, idx.col);
             if (targetPiece && targetPiece.color !== piece.color) {
                 captures.push(idx);
@@ -1123,8 +1156,8 @@ function computeLegalMovesFor(piece){
         }
     }
     
-    console.log('  Computed:', moves.length, 'moves,', captures.length, 'captures/marks');
-    return { moves, captures };
+    console.log('  Computed:', moves.length, 'moves,', captures.length, 'captures,', marks.length, 'marks');
+    return { moves, captures, marks };
 }
 
 // Helper function to convert file/rank to algebraic notation  
@@ -1218,7 +1251,68 @@ function render(){
         
         ctx.restore();
     }
+    
+    if (gameState.mines && gameState.mines.length > 0 && OVERLAYS.mine.complete) {
+        console.log('Rendering mines:', gameState.mines);
+        ctx.save();
+        ctx.globalCompositeOperation = 'source-over';
+        
+        for (const mine of gameState.mines) {
+            // Convert mine coordinates to grid position
+            const mineAlgebraic = fileRankToAlgebraic(mine.file, mine.rank);
+            const idx = algebraicToIndex(mineAlgebraic);
+            
+            if (idx) {
+                const x = L.gridLeft + idx.col * L.cellSize;
+                const y = L.gridTop + idx.row * L.cellSize;
+                
+                // Draw mine overlay
+                ctx.drawImage(OVERLAYS.mine, x, y, L.cellSize, L.cellSize);
+                console.log(`Drew mine overlay at ${mineAlgebraic} (${x}, ${y})`);
+            }
+        }
+        
+        ctx.restore();
+    }
 
+    if (activeExplosions.length > 0 && OVERLAYS.explosion.complete) {
+        console.log('Rendering explosions:', activeExplosions.length);
+        ctx.save();
+        
+        const now = Date.now();
+        
+        for (const explosion of activeExplosions) {
+            const elapsed = now - explosion.startTime;
+            const progress = Math.min(elapsed / explosion.duration, 1);
+            
+            // Fade out the explosion over time
+            ctx.globalAlpha = 1 - progress;
+            
+            for (const tile of explosion.tiles) {
+                const tileAlgebraic = fileRankToAlgebraic(tile.file, tile.rank);
+                const idx = algebraicToIndex(tileAlgebraic);
+                
+                if (idx) {
+                    const x = L.gridLeft + idx.col * L.cellSize;
+                    const y = L.gridTop + idx.row * L.cellSize;
+                    
+                    // Scale the explosion slightly during animation
+                    const scale = 1 + (progress * 0.2);  // Grow 20% during animation
+                    const offset = (L.cellSize * (scale - 1)) / 2;
+                    
+                    ctx.drawImage(
+                        OVERLAYS.explosion, 
+                        x - offset, 
+                        y - offset, 
+                        L.cellSize * scale, 
+                        L.cellSize * scale
+                    );
+                }
+            }
+        }
+        
+        ctx.restore();
+    }
     // draw legal moves overlays
     console.log('Rendering overlays - legalMoves:', legalMoves.length, 'legalCaptures:', legalCaptures.length);
     ctx.save();
@@ -1403,6 +1497,7 @@ canvas.addEventListener('mousedown', (ev) => {
         const legal = computeLegalMovesFor(clickedPiece);
         legalMoves = legal.moves;
         legalCaptures = legal.captures;
+        legalMarks = legal.marks || [];
         console.log('Selected piece:', selectedPiece.id, 'Legal moves:', legalMoves.length);
         render();
         return;
@@ -1413,8 +1508,9 @@ canvas.addEventListener('mousedown', (ev) => {
         // Check if this is a legal move destination
         const isLegalMove = legalMoves.some(m => m.row === cell.row && m.col === cell.col);
         const isLegalCapture = legalCaptures.some(m => m.row === cell.row && m.col === cell.col);
+        const isLegalMark = legalMarks.some(m => m.row === cell.row && m.col === cell.col)
         
-        if (isLegalMove || isLegalCapture) {
+        if (isLegalMove || isLegalCapture || isLegalMark) {
             // This is a valid move - send it to server
             const fromAlgebraic = selectedPiece.position;
             const toAlgebraic = clickedAlgebraic;
@@ -1426,6 +1522,7 @@ canvas.addEventListener('mousedown', (ev) => {
             selectedPiece = null;
             legalMoves = [];
             legalCaptures = [];
+            legalMarks = [];
             render();
         } else {
             // Not a legal move - deselect
@@ -1433,6 +1530,7 @@ canvas.addEventListener('mousedown', (ev) => {
             selectedPiece = null;
             legalMoves = [];
             legalCaptures = [];
+            legalMarks = [];
             render();
         }
         return;

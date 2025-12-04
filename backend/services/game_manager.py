@@ -316,14 +316,23 @@ class GameManager:
             if piece.color != player_color:
                 return False, "That's not your piece", game
             
-            # Create Move object
-            move = Move(from_coord, to_coord, piece)
+            # CHANGED: Determine if this should be a mark move (Scout marking enemy)
+            is_mark = False
+            if piece.type == PieceType.SCOUT:
+                target = game.board.piece_at_coord(to_coord)
+                if target and target.color != piece.color:
+                    is_mark = True
+                    print(f"DEBUG: Scout mark move detected: {from_square} marking {to_square}")
+            
+            # Create Move object with correct is_mark flag
+            move = Move(from_coord, to_coord, piece, is_mark=is_mark)
             
             # Get legal moves for debugging
             legal_moves = game.legal_moves_for(from_coord)
             print(f"DEBUG: Legal moves from {from_square}:")
             for m in legal_moves:
-                print(f"  -> {m.to_sq.to_algebraic()}")
+                mark_str = " [MARK]" if m.is_mark else ""
+                print(f"  -> {m.to_sq.to_algebraic()}{mark_str}")
             
             # Apply the move
             success, message = game.apply_move(player_id, move)

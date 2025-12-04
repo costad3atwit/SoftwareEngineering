@@ -7,12 +7,13 @@ from backend.chess.coordinate import Coordinate
 if TYPE_CHECKING:
     from backend.chess.piece import Piece
 class Move:
-    def __init__(self, from_sq: Coordinate, to_sq: Coordinate, piece: Piece,promotion: Piece =None, card_play_id=None, metadata=None):
+    def __init__(self, from_sq: Coordinate, to_sq: Coordinate, piece: Piece,promotion: Piece =None, card_play_id=None, is_mark: bool = False, metadata=None):
         self.from_sq = from_sq
         self.to_sq = to_sq
         self.piece = piece
         self.promotion = promotion if promotion else None
         self.card_play_id = card_play_id
+        self.is_mark = is_mark
         self.metadata = metadata or {}
 
     def __eq__(self, other):
@@ -21,7 +22,8 @@ class Move:
             return False
         return (self.from_sq == other.from_sq and 
                 self.to_sq == other.to_sq and
-                self.promotion == other.promotion)
+                self.promotion == other.promotion and
+                self.is_mark == other.is_mark)
     
     def __hash__(self):
         """Allow Move to be used in sets"""
@@ -41,5 +43,6 @@ class Move:
             "to_sq": {"file": self.to_sq.file, "rank": self.to_sq.rank},
             "promotion": self.promotion,
             "card_play_id": self.card_play_id,
+            "is_mark": self.is_mark,
             "metadata": self.metadata
         }

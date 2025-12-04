@@ -791,7 +791,7 @@ class Scout(Piece):
     def get_legal_moves(self, board: 'Board', at: Coordinate) -> List[Move]:
         """
         Scouts can move like a queen, but up to 5 squares only.
-        They can also mark enemy pieces within range (stay in place).
+        They can also mark enemy pieces within range.
         """
         moves: List[Move] = []
         directions = [
@@ -816,12 +816,7 @@ class Scout(Piece):
                     continue
                 elif target_piece.color != self.color:
                     # Enemy piece - can MARK it (stay in place)
-                    mark_move = Move(
-                        at,           # from: current position
-                        next_coord,   # to: target to mark
-                        self,
-                        metadata={"mark": True, "stay_in_place": True}
-                    )
+                    mark_move = Move(at, next_coord, self, is_mark=True)  # CHANGED: Use is_mark flag
                     moves.append(mark_move)
                     break  # Can't move past this piece
                 else:
@@ -834,15 +829,14 @@ class Scout(Piece):
 
     def get_legal_captures(self, board: 'Board', at: Coordinate) -> List[Move]:
         """
-        Scouts don't perform normal captures, but we return mark moves here
-        so the frontend can display them as "capture-like" actions.
+        Return mark moves (displayed as capture-like actions in frontend).
         """
         if getattr(board, "forbidden_active", False) and board.is_forbidden(at):
             return []
 
-        # Return all moves that have the "mark" metadata
+        # Return all moves that are mark moves
         all_moves = self.get_legal_moves(board, at)
-        mark_moves = [m for m in all_moves if getattr(m, "metadata", {}).get("mark", False)]
+        mark_moves = [m for m in all_moves if m.is_mark]
         return mark_moves
 
     def to_dict(self, at: Coordinate, include_moves: bool = False,
@@ -870,8 +864,7 @@ class Scout(Piece):
                 {
                     "from": {"file": m.from_sq.file, "rank": m.from_sq.rank},
                     "to": {"file": m.to_sq.file, "rank": m.to_sq.rank},
-                    "mark": getattr(m, "metadata", {}).get("mark", False),
-                    "stay_in_place": getattr(m, "metadata", {}).get("stay_in_place", False)
+                    "is_mark": m.is_mark  # CHANGED: Use is_mark flag
                 }
                 for m in moves
             ]
