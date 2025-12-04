@@ -1,8 +1,8 @@
 :root{
   --bg: #24336a;
   --ui-panel: rgba(255,255,255,0.06);
-  --card-w: 120px;
-  --card-h: 168px;
+  --card-w: min(18vw, 180px);
+  --card-h: calc(var(--card-w) * 1.25);
   --accent: rgba(150,80,255,0.9);
   --capture-overlay: rgba(255,80,80,0.45);
   --move-overlay: rgba(80,200,255,0.25);
@@ -80,7 +80,7 @@ html,body { height:100%; margin:0; font-family: "Segoe UI", system-ui, -apple-sy
 
 /* RIGHT: UI column (cards, timers, deck) */
 .right-column {
-  width: 568px;
+  width: 800px;
   display:flex;
   flex-direction: column;
   gap:12px;
@@ -94,6 +94,7 @@ html,body { height:100%; margin:0; font-family: "Segoe UI", system-ui, -apple-sy
 }
 
 .card-area {
+  width: 100%;
   margin-top: auto;
   background: color(white);
   padding: 12px;
