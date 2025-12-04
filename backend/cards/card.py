@@ -122,7 +122,7 @@ class Mine(Card):
                 "pieces except kings. Dismantles after 4 turns if untouched."
             ),
             big_img="static/cards/mine_big.png",
-            small_img="static/cards/mine_small.png"
+            small_img="frontend/pages/assets/game/game_cards/mine.PNG"
         )    
     @property
     def card_type(self) -> CardType:
@@ -214,7 +214,7 @@ class Glue(Card):
                 "Glue tiles dry after 4 turns. Multiple glues may exist at once."
             ),
             big_img="static/cards/glue_big.png",
-            small_img="static/cards/glue_small.png"
+            small_img="frontend/pages/assets/game/game_cards/glue.PNG"
         )
 
     @property
@@ -316,7 +316,7 @@ class Insurance(Card):
                 "that would check the enemy king once unglued."
             ),
             big_img="static/cards/insurance_big.png",
-            small_img="static/cards/insurance_small.png"
+            small_img="frontend/pages/assets/game/game_cards/Insurance.PNG"
         )
         self.target_type = TargetType.PIECE
 
@@ -486,7 +486,7 @@ class AllSeeing(Card):
             name="All-Seeing",
             description="Summons an Effigy far from the enemy king. Every 3 turns marks a random enemy piece for 1 turn.",
             big_img="static/cards/allseeing_big.png",
-            small_img="static/cards/allseeing_small.png"
+            small_img="frontend/pages/assets/game/game_cards/All_Seeing.PNG"
         )
 
     @property
@@ -696,7 +696,7 @@ class EyeOfRuin(Card):
                 "Then choose one of your own cards, which the opponent must immediately play."
             ),
             big_img="static/cards/eye_ruin_big.png",
-            small_img="static/cards/eye_ruin_small.png"
+            small_img="frontend/pages/assets/game/game_cards/Eye_of_Ruin.PNG"
         )
         self.target_type = TargetType.PIECE  # not strictly needed, but UI may use it
 
@@ -804,7 +804,7 @@ class ForbiddenLands(Card):
                 "in your back forbidden rank."
             ),
             big_img="static/cards/forbidden_lands_big.png",
-            small_img="static/cards/forbidden_lands_small.png"
+            small_img="frontend/pages/assets/game/game_cards/Forbidden_Land.PNG"
         )
 
     @property
@@ -856,7 +856,7 @@ class EyeForAnEye(Card):
             name="Eye for an Eye", 
             description="Select an enemy piece to mark. A random friendly piece (excluding king) will also be marked. Capturing marked pieces grants an extra turn!",
             big_img="static/cards/eye_for_an_eye_big.png", 
-            small_img="static/cards/eye_for_an_eye_small.png"
+            small_img="frontend/pages/assets/game/game_cards/Eye_For_An_Eye.PNG"
         )
         self.target_type = TargetType.PIECE
     
@@ -972,7 +972,7 @@ class SummonPeon(Card):
             name="Summon Peon", 
             description="Summon a friendly Peon on a random safe square. Peons cannot promote but gain backward movement at their furthest rank.",
             big_img="static/cards/summon_peon_big.png", 
-            small_img="static/cards/summon_peon_small.png"
+            small_img="frontend/pages/assets/game/game_cards/Summon_Peon.PNG"
         )
     
     @property
@@ -1083,7 +1083,7 @@ class TransformToScout(Card):
             name="Pawn: Scout", 
             description="Transform a pawn into a scout. Scouts move 5 squares in any direction and can mark enemy pieces.",
             big_img="static/example_big.png", 
-            small_img="static/example_small.png"
+            small_img="frontend/pages/assets/game/game_cards/Summon_Scout.PNG"
         )
         self.target_type = TargetType.PIECE
     
@@ -1149,7 +1149,7 @@ class TransformToHeadhunter(Card):
             name="Knight: Headhunter",
             description="Transform a knight into a headhunter. Headhunters move like a king and project an attack 3 squares forward.",
             big_img="static/example_big.png",
-            small_img="static/example_small.png"
+            small_img="frontend/pages/assets/game/game_cards/TransformToHeadhunter.PNG"
         )
         self.target_type = TargetType.PIECE
 
@@ -1217,7 +1217,7 @@ class TransformToWarlock(Card):
             name="Bishop: Warlock",
             description="Transform a bishop into a warlock. Warlocks blink to same-colored tiles (r=3), can step back 1, and gain Knight+Rook for 2 turns when an effigy dies.",
             big_img="static/example_big.png",
-            small_img="static/example_small.png"
+            small_img="frontend/pages/assets/game/game_cards/TransformToWarlock.PNG"
         )
         self.target_type = TargetType.PIECE
 
@@ -1307,7 +1307,7 @@ class TransformToDarkLord(Card):
                 "and suffers from daylight every 2 turns. Dies if enemy value ≤ 10."
             ),
             big_img="static/cards/queen_darklord_big.png",
-            small_img="static/cards/queen_darklord_small.png"
+            small_img="frontend/pages/assets/game/game_cards/TransformToDarkLord.PNG"
         )
         self.target_type = TargetType.PIECE
 
@@ -1369,7 +1369,7 @@ class PawnQueen(Card):
                 "it becomes a peon; otherwise, it reverts to a pawn."
             ),
             big_img="static/cards/pawn_queen_big.png",
-            small_img="static/cards/pawn_queen_small.png",
+            small_img="frontend/pages/assets/game/game_cards/PawnQueen.PNG",
         )
 
     @property
@@ -1540,7 +1540,7 @@ class PawnBomb(Card):
                 "fuse shortens to 4 turns and it is revealed to you."
             ),
             big_img="static/cards/pawn_bomb_big.png",
-            small_img="static/cards/pawn_bomb_small.png",
+            small_img="frontend/pages/assets/game/game_cards/PawnBomb.PNG",
         )
 
     @property
@@ -1657,7 +1657,7 @@ class Shroud(Card):
                 "Never swaps a king into check."
             ),
             big_img="static/cards/shroud_big.png",
-            small_img="static/cards/shroud_small.png"
+            small_img="frontend/pages/assets/game/game_cards/Shroud.PNG"
         )
 
     @property
@@ -1860,7 +1860,7 @@ class SummonBarricade(Card):
                 "Barricades block all movement and last for 5 turns."
             ),
             big_img="static/cards/summon_barricade_big.png",
-            small_img="static/cards/summon_barricade_small.png"
+            small_img="frontend/pages/assets/game/game_cards/SummonBarricade.PNG"
         )
     
     @property
@@ -1963,7 +1963,7 @@ class Transmute(Card):
                 "Cannot transmute Kings, Effigies, or Barricades."
             ),
             big_img="static/cards/transmute_big.png",
-            small_img="static/cards/transmute_small.png"
+            small_img="frontend/pages/assets/game/game_cards/Transmute.PNG"
         )
         self.target_type = TargetType.PIECE
 
@@ -2131,7 +2131,7 @@ class Exhaustion(Card):
                 "to moving within 4 tiles (Manhattan distance). Ends if the effigy dies."
             ),
             big_img="static/cards/exhaustion_big.png",
-            small_img="static/cards/exhaustion_small.png"
+            small_img="frontend/pages/assets/game/game_cards/Exhaustion.PNG"
         )
 
     @property
@@ -2271,7 +2271,7 @@ class OfFleshAndBlood(Card):
                 "square it leaves behind."
             ),
             big_img="static/cards/of_flesh_and_blood_big.png",
-            small_img="static/cards/of_flesh_and_blood_small.png"
+            small_img="frontend/pages/assets/game/game_cards/OfFleshAndBlood.PNG"
         )
 
     @property
@@ -2349,7 +2349,7 @@ class ForcedMove(Card):
                 "board move before playing any cards."
             ),
             big_img="static/cards/forced_move_big.png",
-            small_img="static/cards/forced_move_small.png"
+            small_img="frontend/pages/assets/game/game_cards/ForcedMove.PNG"
         )
         # No target required for this card
         self.target_type = TargetType.TURN
