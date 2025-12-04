@@ -330,14 +330,32 @@ class GameState:
         
         # Execute the move on the board
         captured = self.board.move_piece(m)
+        
+        # Check for extra turn BEFORE processing capture
+        extra_turn_granted = False
         if captured:
             current_player = self.players[self.turn]
+            
+            # IMPORTANT: Check if captured piece was marked (Scout mark or Eye for an Eye)
+            was_marked = captured.marked
+            
+            # Also check effect tracker for Eye for an Eye marks
+            effect_grants_turn = self.on_piece_captured(captured.id)
+            
+            # Grant extra turn if either mark type was present
+            extra_turn_granted = was_marked or effect_grants_turn
+            
+            # Add to captured pieces
             current_player.capture_piece(captured)
             print(f"DEBUG: {current_player.name} captured {captured.type.name} (ID: {captured.id})")
+            
+            if extra_turn_granted:
+                print(f"DEBUG: Extra turn granted! Player {self.turn.name} gets another turn.")
 
-        # Check if this was a pawn promotion move
-        # CHANGE: Re-fetch piece from destination (might have been destroyed by mine)
+        # Re-fetch piece from destination (might have been destroyed by mine)
         piece = self.board.piece_at_coord(m.to_sq)
+        
+        # Check if this was a pawn promotion move (only if piece still exists)
         if piece and piece.type == PieceType.PAWN:
             promotion_rank = 8 if piece.color == Color.WHITE else 1
             if m.to_sq.rank == promotion_rank:
@@ -349,9 +367,8 @@ class GameState:
                     "color": piece.color.name
                 }
                 return True, "promotion_required"
-            
+        
         # Update halfmove clock (resets on capture or pawn move)
-        # CHANGE: Add check that piece still exists before accessing piece.type
         if captured or (piece and piece.type == PieceType.PAWN):
             self.halfmove_clock = 0
         else:
@@ -362,7 +379,6 @@ class GameState:
         self.last_update = datetime.now()
         
         # Check for game-ending conditions BEFORE checking for check
-        # (This will update to CHECKMATE if appropriate)
         self.check_end_conditions()
         
         # If still in progress, check if opponent is now in check
@@ -373,10 +389,15 @@ class GameState:
                 print(f"CHECK! {opponent_color.name} king is in check")
         
         # Switch turns if game is still in progress or check (but not checkmate)
+        # UNLESS an extra turn was granted from capturing a marked piece
         if self.status in [GameStatus.IN_PROGRESS, GameStatus.CHECK]:
-            self.switch_turn()
+            if not extra_turn_granted:
+                self.switch_turn()
+            else:
+                print(f"DEBUG: Player {self.turn.name} keeps turn after capturing marked piece!")
         
         return True, "Move successful"
+
     # --- Card Methods ---
     def play_card(self, player_id: str, card_id: str, target) -> tuple[bool, str]:
         """

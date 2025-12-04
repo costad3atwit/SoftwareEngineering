@@ -1124,13 +1124,14 @@ function getPieceAt(row, col){
 function computeLegalMovesFor(piece){
     console.log('=== Computing legal moves for:', piece.id, piece);
     if (!piece.moves || piece.moves.length === 0) {
-        return { moves: [], captures: [] };
+        return { moves: [], captures: [], marks: [] };
     }
 
     console.log('  Piece has', piece.moves.length, 'moves from server');
     
     const moves = [];
     const captures = [];
+    const marks = []; 
     
     for (const move of piece.moves) {
         const toSquare = move.to;
@@ -1139,22 +1140,13 @@ function computeLegalMovesFor(piece){
         
         if (!idx) continue;
         
-        // DEBUG: Log each move's metadata
-        console.log(`  Move to ${toAlgebraic}:`, {
-            mark: move.mark,
-            stay_in_place: move.stay_in_place,
-            isMarkMove: move.mark && move.stay_in_place
-        });
-        
-        // Check if this is a Scout mark move
-        const isMarkMove = move.mark === true && move.stay_in_place === true;
-        
-        if (isMarkMove) {
-            // Scout mark moves show as captures (red X)
-            console.log(`    -> Adding as MARK/CAPTURE at ${toAlgebraic}`);
-            captures.push(idx);
+        // Check if this is a mark move
+        if (move.is_mark === true) {
+            // Mark moves get their own array
+            console.log(`    -> Adding MARK move at ${toAlgebraic}`);
+            marks.push(idx);  // CHANGED: Add to marks instead of captures
         } else {
-            // Regular moves
+            // Regular moves and captures
             const targetPiece = getPieceAt(idx.row, idx.col);
             if (targetPiece && targetPiece.color !== piece.color) {
                 captures.push(idx);
@@ -1164,8 +1156,8 @@ function computeLegalMovesFor(piece){
         }
     }
     
-    console.log('  Computed:', moves.length, 'moves,', captures.length, 'captures/marks');
-    return { moves, captures };
+    console.log('  Computed:', moves.length, 'moves,', captures.length, 'captures,', marks.length, 'marks');
+    return { moves, captures, marks };
 }
 
 // Helper function to convert file/rank to algebraic notation  
@@ -1505,6 +1497,7 @@ canvas.addEventListener('mousedown', (ev) => {
         const legal = computeLegalMovesFor(clickedPiece);
         legalMoves = legal.moves;
         legalCaptures = legal.captures;
+        legalMarks = legal.marks || [];
         console.log('Selected piece:', selectedPiece.id, 'Legal moves:', legalMoves.length);
         render();
         return;
@@ -1515,8 +1508,9 @@ canvas.addEventListener('mousedown', (ev) => {
         // Check if this is a legal move destination
         const isLegalMove = legalMoves.some(m => m.row === cell.row && m.col === cell.col);
         const isLegalCapture = legalCaptures.some(m => m.row === cell.row && m.col === cell.col);
+        const isLegalMark = legalMarks.some(m => m.row === cell.row && m.col === cell.col)
         
-        if (isLegalMove || isLegalCapture) {
+        if (isLegalMove || isLegalCapture || isLegalMark) {
             // This is a valid move - send it to server
             const fromAlgebraic = selectedPiece.position;
             const toAlgebraic = clickedAlgebraic;
@@ -1528,6 +1522,7 @@ canvas.addEventListener('mousedown', (ev) => {
             selectedPiece = null;
             legalMoves = [];
             legalCaptures = [];
+            legalMarks = [];
             render();
         } else {
             // Not a legal move - deselect
@@ -1535,6 +1530,7 @@ canvas.addEventListener('mousedown', (ev) => {
             selectedPiece = null;
             legalMoves = [];
             legalCaptures = [];
+            legalMarks = [];
             render();
         }
         return;

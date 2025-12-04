@@ -295,31 +295,25 @@ class Board:
         if not moving_piece:
             raise ValueError(f"No piece at {src}")
 
-
-        # Scouts NEVER capture - any Scout "move" to an enemy piece is a mark action
-        target_piece = self.squares.get(dest)
-        
-        if moving_piece.type == PieceType.SCOUT and target_piece and target_piece.color != moving_piece.color:
-            print(f"[SCOUT] {moving_piece.id} marking {target_piece.id} at {dest.to_algebraic()}")
+        # HANDLE SCOUT MARK MOVES - Scout marks target and stays in place
+        if move.is_mark:
+            target_piece = self.squares.get(dest)
+            if not target_piece:
+                print(f"[MARK] No piece to mark at {dest.to_algebraic()}")
+                return None
             
-            # Clear all existing marks
-            for piece in self.squares.values():
-                if piece:
-                    piece.marked = False
-            
-            # Mark the target (DON'T remove it from board!)
+            # Mark the target piece
             target_piece.marked = True
+            print(f"[SCOUT MARK] {moving_piece.id} marked {target_piece.id} at {dest.to_algebraic()}")
             
-            # Scout stays in original position - DON'T move it!
-            print(f"[SCOUT] {target_piece.id} marked. Scout remains at {src.to_algebraic()}")
-            return None  # No capture, Scout didn't move
-
-
+            # Scout stays in place - no actual movement
+            return None
+        
         # --- Forbidden Lands rules ---
         src_forbidden = self.is_forbidden(src) if self.forbidden_active else False
         dest_forbidden = self.is_forbidden(dest) if self.forbidden_active else False
 
-        captured_piece = None
+        captured_piece = None  
 
         if self.forbidden_active:
             # Case 1: destination is forbidden → cannot capture
@@ -342,7 +336,6 @@ class Board:
         if captured_piece:
             self.apply_capture_glue(moving_piece, captured_piece)
         
-
         if captured_piece:
             # Mark the capture location as a green tile for 6 half-turns (3 full turns)
             self.green_tiles[dest] = 6
@@ -365,10 +358,19 @@ class Board:
         self.squares[dest] = moving_piece
         moving_piece.has_moved = True
 
-        # --- Clear all marks if a capture occurs ---
-        if captured_piece:
+        # --- Clear all marks ONLY if the captured piece was marked ---
+        if captured_piece and captured_piece.marked:
+            print(f"[MARK CLEAR] Marked piece {captured_piece.id} captured - clearing all marks")
             for p in self.squares.values():
-                p.marked = False
+                if p:
+                    p.marked = False
+            
+            # Also clear Eye for an Eye mark effects from effect tracker
+            if self.game_state:
+                mark_effects = self.game_state.effect_tracker.get_effects_by_type(EffectType.PIECE_MARK)
+                for effect in mark_effects:
+                    self.game_state.effect_tracker.remove_effect(effect.effect_id)
+                    print(f"[MARK CLEAR] Removed effect tracker mark: {effect.effect_id}")
         
         # --- Check for mine trigger at destination ---
         self.check_mine_trigger(dest)
