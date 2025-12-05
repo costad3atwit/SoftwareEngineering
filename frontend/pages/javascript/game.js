@@ -792,37 +792,37 @@ const CARD_DATABASE = {
         id: 'mine',
         name: 'Mine',
         description: 'Places a hidden mine on a random empty square. Explodes when any piece steps on it, capturing all nearby pieces except kings. Dismantles after 4 turns if untouched.',
-        image: 'mine.png'
+        image: `${CARDS_PATH}mine.png`
     },
     'glue': {
         id: 'glue',
         name: 'Glue Trap',
         description: 'Place glue on a random tile. Any piece that lands on it becomes immobilized for 2 turns. Glue dries after 4 turns if unused.',
-        image: 'glue.png'
+        image: `${CARDS_PATH}glue.png`
     },
     'forbidden_lands': {
         id: 'forbidden_lands',
         name: 'Forbidden Lands',
         description: 'Creates a protective ring of tiles. Pieces inside cannot be captured; kings cannot enter; pieces leaving the zone cannot capture. Playing again while active summons a pawn in your back forbidden rank.',
-        image: 'forbidden_lands.png'
+        image: `${CARDS_PATH}Forbidden_Land.png`
     },
     'pawn_bomb': {
         id: 'pawn_bomb',
         name: 'Pawn Bomb',
         description: 'A random friendly pawn becomes a hidden bomb for up to 8 turns. If captured or its fuse runs out, it explodes in a 1-tile radius, capturing all nearby pieces. On its first move, the fuse shortens to 4 turns and it is revealed to you.',
-        image: 'pawn_bomb.png'
+        image: `${CARDS_PATH}PawnBomb.png`
     },
     'shroud': {
         id: 'shroud',
         name: 'Shroud',
         description: 'Swap two random friendly pieces\' position and appearance for 3 turns. If you have fewer than 2 pieces, summon a Peon safely first. Never swaps a king into check.',
-        image: 'shroud.png'
+        image: `${CARDS_PATH}shroud.png`
     },
     'insurance': {
         id: 'insurance',
         name: 'Insurance',
         description: 'Select a piece to insure. When it is captured, summon glued Peons equal to half its value (rounded up). Peons cannot spawn in positions that would check the enemy king once unglued.',
-        image: 'insurance.png'
+        image: `${CARDS_PATH}insurance.png`
     },
     
     // CURSE CARDS
@@ -830,13 +830,13 @@ const CARD_DATABASE = {
         id: 'eye_for_an_eye',
         name: 'Eye for an Eye',
         description: 'Marks a friendly and opposing piece for 5 turns. Capturing a marked piece grants an extra turn immediately.',
-        image: 'eye_for_an_eye.png'
+        image: `${CARDS_PATH}Eye_for_AN_Eye.png`
     },
     'all_seeing': {
         id: 'all_seeing',
         name: 'All-Seeing',
         description: 'Summons an Effigy far from the enemy king. Every 3 turns it marks a random enemy piece for 1 turn.',
-        image: 'all_seeing.png'
+        image: `${CARDS_PATH}All_Seeing.PNG`
     },
     
     // TRANSFORM CARDS
@@ -844,31 +844,31 @@ const CARD_DATABASE = {
         id: 'pawn_scout',
         name: 'Pawn: Scout',
         description: 'Transform a pawn into a scout. Scouts move 5 squares in any direction and can mark enemy pieces. Capturing a marked piece grants an extra turn!',
-        image: 'pawn_scout.png'
+        image: `${CARDS_PATH}Summon_Scout.PNG`
     },
     'knight_headhunter': {
         id: 'knight_headhunter',
         name: 'Knight: Headhunter',
         description: 'Transform a knight into a headhunter. Headhunters move like a king and project an attack 3 squares forward.',
-        image: 'knight_headhunter.png'
+        image: `${CARDS_PATH}TransformToHeadhunter.PNG`
     },
     'bishop_warlock': {
         id: 'bishop_warlock',
         name: 'Bishop: Warlock',
         description: 'Transform a bishop into a warlock. Warlocks blink to same-colored tiles (r=3), can step back 1, and gain Knight+Rook for 2 turns when an effigy dies.',
-        image: 'bishop_warlock.png'
+        image: `${CARDS_PATH}TransformToWarlock.PNG`
     },
     'queen_darklord': {
         id: 'queen_darklord',
         name: 'Queen: Dark Lord',
         description: 'Transform a Queen into a Dark Lord. The Dark Lord can enthrall nearby enemies (turning them into an ally) and suffers from daylight every 2 turns. Dies if enemy value ≤ 10.',
-        image: 'queen_darklord.png'
+        image: `${CARDS_PATH}TransformToDarkLord.PNG`
     },
     'pawn_queen': {
         id: 'pawn_queen',
         name: 'Pawn: Queen',
         description: 'The pawn furthest from the enemy king transforms into a queen for 2 turns. After 2 turns, if on the last 3 ranks it becomes a peon; otherwise reverts to a pawn.',
-        image: 'pawn_queen.png'
+        image: `${CARDS_PATH}PawnQueen.PNG`
     },
     
     // SUMMON CARDS
@@ -876,13 +876,13 @@ const CARD_DATABASE = {
         id: 'summon_peon',
         name: 'Summon Peon',
         description: 'Summons a friendly peon on a random square. Peons act like pawns but cannot promote.',
-        image: 'summon_peon.png'
+        image: `${CARDS_PATH}Summon_Peon.PNG`
     },
     'summon_barricade': {
         id: 'summon_barricade',
         name: 'Summon Barricade',
         description: 'Place an uncapturable barricade on an empty square. Barricades block all movement and last for 5 turns.',
-        image: 'summon_barricade.png'
+        image: `${CARDS_PATH}SummonBarricade.PNG`
     }
 
     //ADD ANY NEW CARDS WE IMPLEMENT HERE
@@ -1624,6 +1624,7 @@ function renderHands(){
             <div class="card-inner">
                 <div class="front">
                     <div class="title">${cardData.name}</div>
+                    <img src="${cardData.image}" alt="${cardData.name}" class="card-image" />
                     <div class="desc">${cardData.description}</div>
                 </div>
             </div>`;

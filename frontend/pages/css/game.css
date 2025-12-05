@@ -2,7 +2,7 @@
   --bg: #24336a;
   --ui-panel: rgba(255,255,255,0.06);
   --card-w: min(18vw, 180px);
-  --card-h: calc(var(--card-w) * 1.25);
+  --card-h: calc(var(--card-w) * 2.35);
   --accent: rgba(150,80,255,0.9);
   --capture-overlay: rgba(255,80,80,0.45);
   --move-overlay: rgba(80,200,255,0.25);
@@ -109,6 +109,7 @@ html,body { height:100%; margin:0; font-family: "Segoe UI", system-ui, -apple-sy
   margin-top: 10px;
 }
 
+
 .game-status-area {
   height: 95vh;
   background: var(--ui-panel);
@@ -167,8 +168,18 @@ html,body { height:100%; margin:0; font-family: "Segoe UI", system-ui, -apple-sy
   padding:8px;
   box-sizing:border-box;
 }
-.card .front { z-index:2; }
+.card .front { 
+  padding: 0; 
+  padding-top: 0px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+
+  box-sizing: border-box;
+}
 .card .back {
+  padding: 8px;
   transform: rotateY(180deg);
   background: linear-gradient(180deg,#fff,#efe6dc);
 }
@@ -196,18 +207,26 @@ html,body { height:100%; margin:0; font-family: "Segoe UI", system-ui, -apple-sy
 }
 
 
-
+.card .front .card-image {
+    height: calc(var(--card-h) * 0.42);  /* Approx 165px of 405px */
+    width: 100%;
+    object-fit: cover;
+    object-position: center;
+    border-radius: 6px;
+    margin-top: 0px;
+}
 
 
 /* small metadata */
 /* TITLE GOES IN TOP WHITE BOX */
 .card .title {
     font-weight: 700;
-    font-size: 20px;
+    font-size: 15px;
     text-align: center;
 
-    height: 128px;               /* exact pixel height */
-    padding: 10px;
+    line-height: 1.1;
+    height: calc(var(--card-h) * 0.135);               /* exact pixel height */
+    padding: 2px;
     box-sizing: border-box;
 
     display: flex;
@@ -215,6 +234,9 @@ html,body { height:100%; margin:0; font-family: "Segoe UI", system-ui, -apple-sy
     justify-content: center;
 
     overflow: hidden;
+
+    margin-top: 0;
+    margin-bottom: 0;
 }
 
 
@@ -224,7 +246,7 @@ html,body { height:100%; margin:0; font-family: "Segoe UI", system-ui, -apple-sy
     line-height: 1.25;
     color: #333;
 
-    height: 128px;                /* exact pixel height */
+    height: calc(var(--card-h) * 0.41);                /* exact pixel height */
     padding: 10px;
     box-sizing: border-box;
 
