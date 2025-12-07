@@ -14,7 +14,7 @@ class Piece(ABC):
         self.id = id
         self.color = color
         self.type = piece_type
-        self.value = -1
+        self.value = value
         self.has_moved = False
         self.marked = False
 
