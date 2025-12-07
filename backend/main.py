@@ -880,7 +880,7 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
         logger.error(f"Error with client {client_id}: {e}", exc_info=True)
         manager.disconnect(client_id)
 
-if __name__ == "__main__":
-    import uvicorn
-    logger.info("Starting server on http://0.0.0.0:8000")
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+
+import uvicorn
+logger.info("Starting server on http://0.0.0.0:8000")
+uvicorn.run(app, host="0.0.0.0", port=8000)
