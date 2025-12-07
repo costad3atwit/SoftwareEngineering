@@ -181,7 +181,7 @@ class Mine(Card):
                 mine_coord = Coordinate.from_algebraic(mine_coord_str)
                 # Explode the mine - capture all pieces within 1 tile radius
                 print(f"Mine at {mine_coord} auto-detonated after 4 turns!")
-                board.detonate_mine(mine_coord)
+                board.explode_mine(mine_coord)
             
             board.game_state.effect_tracker.add_effect(
                 effect_type=EffectType.MINE,
@@ -262,17 +262,19 @@ class Glue(Card):
             from backend.services.effect_tracker import EffectType
             def dry_glue(effect):
                 """Glue dries after 4 turns"""
-                glue_coord = effect.metadata['coordinate']
-                print(f"Glue at {glue_coord} has dried after 4 turns.")
+                glue_coord_str = effect.metadata['coordinate'] 
+                print(f"Glue at {glue_coord_str} has dried after 4 turns.")
+                # Convert string back to Coordinate
+                glue_coord = Coordinate.from_algebraic(glue_coord_str)
                 board.remove_glue(glue_coord)
             
             board.game_state.effect_tracker.add_effect(
                 effect_type=EffectType.GLUE_TRAP,
                 start_turn=board.game_state.fullmove_number,
                 duration=4,
-                target=chosen,
+                target=chosen.to_algebraic(),
                 metadata={
-                    'coordinate': chosen,
+                    'coordinate': chosen.to_algebraic(),
                     'owner_color': player.color.name
                 },
                 on_expire=dry_glue
@@ -1944,15 +1946,16 @@ class Shroud(Card):
     # MAIN LOGIC
     # --------------------------------------------------------------
     def apply_effect(self, board: Board, player: Player, target_data: Dict[str, Any]) -> tuple[bool, str]:
-
+        """
+        Applies Shroud effect to the board.
+        If already active, summons a pawn in player's back forbidden rank.
+        """
         color = player.color
         opp_color = Color.WHITE if color == Color.BLACK else Color.BLACK
 
         pieces = self._get_player_pieces(board, color)
 
-        # ----------------------------------------------
         # 1. Ensure 2 friendly pieces (summon peon if needed)
-        # ----------------------------------------------
         if len(pieces) < 2:
             spawned = self._summon_peon_safe(board, color)
             if not spawned:
@@ -1961,9 +1964,7 @@ class Shroud(Card):
             if len(pieces) < 2:
                 return False, "Shroud: Still not enough pieces to perform swap."
 
-        # ----------------------------------------------
         # 2. Try to find a safe swap pair (no king enters check)
-        # ----------------------------------------------
         random.shuffle(pieces)
         swap_pair = None
 
@@ -1987,9 +1988,7 @@ class Shroud(Card):
             if swap_pair:
                 break
 
-        # ----------------------------------------------
         # 3. If no safe swap → summon a peon instead (fallback)
-        # ----------------------------------------------
         if not swap_pair:
             spawned = self._summon_peon_safe(board, color)
             if not spawned:
@@ -1998,26 +1997,20 @@ class Shroud(Card):
 
         coord_a, piece_a, coord_b, piece_b = swap_pair
 
-        # ----------------------------------------------
         # 4. Execute REAL swap
-        # ----------------------------------------------
         board.squares.pop(coord_a)
         board.squares.pop(coord_b)
         board.squares[coord_a] = piece_b
         board.squares[coord_b] = piece_a
 
-        # ----------------------------------------------
-        # 5. Swap appearance (their piece types)
-        # ----------------------------------------------
-        original_a = piece_a.piece_type
-        original_b = piece_b.piece_type
+        # 5. Swap appearance (their types)
+        original_a = piece_a.type
+        original_b = piece_b.type
 
-        piece_a.piece_type = original_b
-        piece_b.piece_type = original_a
+        piece_a.type = original_b
+        piece_b.type = original_a
 
-        # ----------------------------------------------
         # 6. Register 3-turn restoration effect
-        # ----------------------------------------------
         if board.game_state:
             tracker = board.game_state.effect_tracker
 
@@ -2025,14 +2018,15 @@ class Shroud(Card):
                 meta = effect.metadata
                 a_id = meta["piece_a"]
                 b_id = meta["piece_b"]
-                a_type = meta["a_type"]
-                b_type = meta["b_type"]
+                # Convert string names back to PieceType enums
+                a_type = PieceType[meta["a_type"]]
+                b_type = PieceType[meta["b_type"]]
 
                 for p in board.squares.values():
                     if p.id == a_id:
-                        p.piece_type = a_type
+                        p.type = a_type
                     elif p.id == b_id:
-                        p.piece_type = b_type
+                        p.type = b_type
 
             tracker.add_effect(
                 effect_type=EffectType.SHROUD,
@@ -2042,8 +2036,9 @@ class Shroud(Card):
                 metadata={
                     "piece_a": piece_a.id,
                     "piece_b": piece_b.id,
-                    "a_type": original_a,
-                    "b_type": original_b,
+                    # Store enum NAMES as strings (JSON serializable)
+                    "a_type": original_a.name,  # Changed: use .name instead of enum object
+                    "b_type": original_b.name,  # Changed: use .name instead of enum object
                 },
                 on_expire=undo_swap
             )

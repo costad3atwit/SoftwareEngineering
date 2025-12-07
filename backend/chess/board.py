@@ -14,8 +14,7 @@ class Board:
         self.forbidden_positions = set()
         self.mines = []
         self.active_explosions = []
-        self.glue_tiles = []     # List of dicts: {"coord": Coordinate, "owner": Color, "timer": int}
-        self.glued_pieces = {}   # { piece_id: turns_remaining }
+        self.glue_tiles = []
         self.green_tiles: Dict[Coordinate, int] = {}
         self.game_state = None
  
@@ -134,8 +133,9 @@ class Board:
             if glue["coord"] == dest:
                 print(f"Piece {moving_piece.id} stepped on glue at {dest.file},{dest.rank}!")
                 
+                # Only use EffectTracker
                 if self.game_state:
-                    from backend.services.effect_tracker import EffectType
+
                     
                     def release_piece(effect):
                         print(f"Piece {effect.target} is no longer glued.")
@@ -143,24 +143,53 @@ class Board:
                     self.game_state.effect_tracker.add_effect(
                         effect_type=EffectType.PIECE_IMMOBILIZED,
                         start_turn=self.game_state.fullmove_number,
-                        duration=2,
+                        duration=3,  # Changed to 3 as discussed
                         target=moving_piece.id,
                         metadata={'piece_id': moving_piece.id},
                         on_expire=release_piece
                     )
                 else:
-                    self.glued_pieces[moving_piece.id] = 2
+                    print(f"[GLUE WARNING] No game_state available - cannot apply glue effect!")
                 
                 self.glue_tiles.remove(glue)
                 break
 
     def apply_capture_glue(self, captor: 'Piece', captured: 'Piece'):
         """When a glued piece is captured, captor becomes glued."""
-        if captured.id in self.glued_pieces:
-            print(f"Captor {captor.id} glued for 2 turns (captured glued piece).")
-            self.glued_pieces[captor.id] = 2
-            del self.glued_pieces[captured.id]
-    
+        if not self.game_state:
+            return
+        
+
+        
+        # Find immobilization effects on the captured piece
+        immobilized_effects = [
+            e for e in self.game_state.effect_tracker.get_effects_by_target(captured.id)
+            if e.effect_type == EffectType.PIECE_IMMOBILIZED
+        ]
+        
+        if immobilized_effects:
+            # Transfer the glue to the captor
+            for effect in immobilized_effects:
+                turns_remaining = effect.turns_remaining(self.game_state.fullmove_number)
+                
+                print(f"[GLUE TRANSFER] {captor.id} inherits glue from {captured.id} ({turns_remaining} turns remaining)")
+                
+                # Create new immobilization effect on captor
+                def release_captor(eff):
+                    print(f"Piece {eff.target} is no longer glued.")
+                
+                self.game_state.effect_tracker.add_effect(
+                    effect_type=EffectType.PIECE_IMMOBILIZED,
+                    start_turn=self.game_state.fullmove_number,
+                    duration=turns_remaining,
+                    target=captor.id,
+                    metadata={'piece_id': captor.id, 'transferred': True},
+                    on_expire=release_captor
+                )
+                
+                # Remove effect from captured piece
+                self.game_state.effect_tracker.remove_effect(effect.effect_id)
+
     def tick_traps(self):
         """Advance all trap timers (mines and glue) by one turn and remove expired ones."""
         # Tick down mines
@@ -173,37 +202,17 @@ class Board:
             print(f"Mine at {mine['coord'].to_algebraic()} dismantled (timer expired).")
             self.remove_mine(mine["coord"])
     
-        # Tick down glue tiles
-        expired_glue = []
-        for glue in list(self.glue_tiles):
-            glue["timer"] -= 1
-            if glue["timer"] <= 0:
-                expired_glue.append(glue)
-        for glue in expired_glue:
-            print(f"Glue at {glue['coord'].to_algebraic()} dried up.")
-            self.remove_glue(glue["coord"])
-    
-        # Tick glued pieces
-        to_release = []
-        for pid, turns in self.glued_pieces.items():
-            self.glued_pieces[pid] = turns - 1
-            if self.glued_pieces[pid] <= 0:
-                to_release.append(pid)
-        for pid in to_release:
-            del self.glued_pieces[pid]
-            print(f"Piece {pid} is no longer glued.")
-    
     def is_glued(self, piece: 'Piece') -> bool:
-        # Local glue (legacy)
-        if piece.id in self.glued_pieces:
-            return True
-    
-        # EffectTracker-based glue
-        if self.game_state:
-            for ef in self.game_state.effect_tracker.get_effects_by_target(piece.id):
-                if ef.effect_type == EffectType.PIECE_IMMOBILIZED:
-                    return True
-    
+        """Check if piece has an active immobilization effect."""
+        if not self.game_state:
+            return False
+        
+        # Only check EffectTracker
+
+        for ef in self.game_state.effect_tracker.get_effects_by_target(piece.id):
+            if ef.effect_type == EffectType.PIECE_IMMOBILIZED:
+                return True
+        
         return False
     
     def setup_standard(self):
@@ -396,7 +405,7 @@ class Board:
         # --- Check for glue trigger at destination ---
         self.check_glue_trigger(dest, moving_piece)
         
-        from backend.chess.piece import Witch, Peon
+
         if isinstance(moving_piece, Witch):
             if getattr(move, "metadata", {}).get("leaving_green_tile"):
                 # Get the source coordinate where the Witch was
@@ -436,7 +445,7 @@ class Board:
         1. Captured piece has value > 1 (greater than pawn)
         2. There's a friendly cleric within range
         """
-        from backend.chess.piece import Cleric
+
         
         # Only protect pieces with value > 1
         if not hasattr(captured_piece, 'value') or captured_piece.value <= 1:
@@ -450,7 +459,7 @@ class Board:
         Find a friendly cleric that can protect the captured piece.
         Returns the first cleric found within range, or None.
         """
-        from backend.chess.piece import Cleric
+
         
         for coord, piece in self.squares.items():
             # Check if it's a friendly cleric
@@ -488,7 +497,7 @@ class Board:
             
             # CRITICAL: Skip the king to avoid infinite recursion
             # Kings don't check if their own moves put them in check
-            from backend.enums import PieceType
+
             if piece.type == PieceType.KING:
                 continue
 
@@ -713,7 +722,12 @@ class Board:
             } for g in self.glue_tiles
         ]
 
-        board_data["gluedPieces"] = list(self.glued_pieces.keys())
+        glued_piece_ids = []
+        if self.game_state:
+            immobilized_effects = self.game_state.effect_tracker.get_effects_by_type(EffectType.PIECE_IMMOBILIZED)
+            glued_piece_ids = [effect.target for effect in immobilized_effects]
+
+        board_data["gluedPieces"] = glued_piece_ids
 
         print(f"[EXPLOSION DEBUG] to_dict: active_explosions count = {len(self.active_explosions)}")
         board_data["explosions"] = [

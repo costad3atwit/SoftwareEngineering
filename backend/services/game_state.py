@@ -253,6 +253,10 @@ class GameState:
         if not piece:
             return []
         
+        if self.board.is_glued(piece):
+            print(f"[GLUE] Piece {piece.id} is glued and cannot move!")
+            return []  # No moves allowed while glued
+
         # Get pseudo-legal moves from the piece
         moves = piece.get_legal_moves(self.board, coord)
         

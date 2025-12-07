@@ -354,6 +354,7 @@ function updateGameState(serverGameState) {
         gameState.mines = serverGameState.board.mines || [];
         gameState.pawn_bombs = serverGameState.board.pawn_bombs || [];
         gameState.glueTiles = serverGameState.board.glueTiles || [];
+        gameState.gluedPieces = serverGameState.board.gluedPieces || [];
         if (serverGameState.board.explosions && serverGameState.board.explosions.length > 0) {
     console.log('[EXPLOSION DEBUG] Processing explosions:', serverGameState.board.explosions);
     const now = Date.now();
@@ -748,6 +749,7 @@ const OVERLAYS = {
     mark: new Image(),
     mine: new Image(),
     explosion: new Image(),
+    glue: new Image(),
 };
 OVERLAYS.move.src = `${BOARD_PATH}av_move.png`;
 OVERLAYS.capture.src = `${BOARD_PATH}av_attk.png`;
@@ -755,6 +757,7 @@ OVERLAYS.fog.src = `${BOARD_PATH}fog_overlay.png`;
 OVERLAYS.mark.src = `${BOARD_PATH}av_mark.png`;
 OVERLAYS.mine.src = `${BOARD_PATH}mine_overlay.png`;
 OVERLAYS.explosion.src = `${BOARD_PATH}mine_overlay.png`;
+OVERLAYS.glue.src = `${BOARD_PATH}glue_overlay.png`;
 
 // Trigger re-render when overlays load
 OVERLAYS.move.onload = () => {
@@ -777,6 +780,11 @@ OVERLAYS.mark.onload = () => {
     console.log('Mark overlay loaded');
     render();
 };
+OVERLAYS.glue.onload = () => {
+    console.log('Glue overlay loaded');
+    render();
+};
+OVERLAYS.glue.onerror = () => console.error('Failed to load glue overlay:', OVERLAYS.glue.src);
 OVERLAYS.mark.onerror = () => console.error('Failed to load mark overlay:', OVERLAYS.mark.src);
 OVERLAYS.mine.onerror = () => console.error('Failed to load mine overlay:', OVERLAYS.mine.src);
 OVERLAYS.move.onerror = () => console.error('Failed to load move overlay:', OVERLAYS.move.src);
@@ -1269,6 +1277,63 @@ function render(){
                 // Draw mine overlay
                 ctx.drawImage(OVERLAYS.mine, x, y, L.cellSize, L.cellSize);
                 console.log(`Drew mine overlay at ${mineAlgebraic} (${x}, ${y})`);
+            }
+        }
+        
+        ctx.restore();
+    }
+    // Render glue tiles AND glued pieces
+    const glueTilesToRender = [];
+
+    // Add actual glue tiles on empty squares
+    if (gameState.glueTiles && gameState.glueTiles.length > 0) {
+        console.log('[GLUE RENDER] Processing glue tiles:', gameState.glueTiles);
+        for (const glue of gameState.glueTiles) {
+            glueTilesToRender.push({
+                file: glue.file,
+                rank: glue.rank
+            });
+        }
+    }
+
+    // Add positions of glued pieces (show glue under them)
+    if (gameState.gluedPieces && gameState.gluedPieces.length > 0) {
+        console.log('[GLUE RENDER] Processing glued pieces:', gameState.gluedPieces);
+        for (const pieceId of gameState.gluedPieces) {
+            // Find the piece on the board
+            const piece = gameState.board.find(p => p.id === pieceId);
+            if (piece) {
+                console.log(`[GLUE RENDER] Found glued piece ${pieceId} at position:`, piece.position);
+                // piece.position is algebraic like "b6"
+                const file = piece.position.charCodeAt(0) - 'a'.charCodeAt(0);
+                const rank = parseInt(piece.position.charAt(1)) - 1;
+                
+                glueTilesToRender.push({ file, rank });
+                console.log(`[GLUE RENDER] Adding glue sprite under ${pieceId} at file=${file}, rank=${rank}`);
+            } else {
+                console.warn(`[GLUE RENDER] Could not find piece ${pieceId} on board`);
+            }
+        }
+    }
+
+    // Now render all glue sprites
+    if (glueTilesToRender.length > 0 && OVERLAYS.glue.complete) {
+        console.log('[GLUE RENDER] Rendering', glueTilesToRender.length, 'glue sprites');
+        ctx.save();
+        ctx.globalCompositeOperation = 'source-over';
+        
+        for (const gluePos of glueTilesToRender) {
+            // Convert file/rank to algebraic
+            const algebraic = String.fromCharCode('a'.charCodeAt(0) + gluePos.file) + (gluePos.rank + 1);
+            const idx = algebraicToIndex(algebraic);
+            
+            if (idx) {
+                const x = L.gridLeft + idx.col * L.cellSize;
+                const y = L.gridTop + idx.row * L.cellSize;
+                
+                // Draw glue overlay
+                ctx.drawImage(OVERLAYS.glue, x, y, L.cellSize, L.cellSize);
+                console.log(`[GLUE RENDER] Drew glue overlay at ${algebraic} (${x}, ${y})`);
             }
         }
         
