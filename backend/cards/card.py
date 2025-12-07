@@ -1654,7 +1654,7 @@ class PawnBomb(Card):
     Hidden: Pawn Bomb (8-turn fuse, shortened to 4 after moving).
     A random friendly pawn becomes a hidden bomb. Upon capture, it explodes,
     capturing all pieces within 1 tile (friend or foe). If not captured within
-    8 turns, it explodes automatically. On its first move after this card is
+    8 turns, it explodes automatically. On the pawn's first move after this card is
     played, remaining fuse is truncated to 4 turns and it is revealed to the
     friendly player as the bomb pawn.
     """
@@ -1670,7 +1670,7 @@ class PawnBomb(Card):
                 "fuse shortens to 4 turns and it is revealed to you."
             ),
             big_img="static/cards/pawn_bomb_big.png",
-            small_img="frontend/pages/assets/game/game_cards/PawnBomb.PNG",
+            small_img="static/cards/pawn_bomb_small.png",
         )
 
     @property
@@ -1694,22 +1694,39 @@ class PawnBomb(Card):
                 return coord
         return None
 
-    def _explode_pawn_bomb(self, board: Board, center: Coordinate) -> None:
-        """
-        Detonate the bomb at `center`.
-        Here we just reuse the mine's explosion logic if available.
-        """
-        if hasattr(board, "detonate_mine"):
-            board.detonate_mine(center)
-        else:
-            # Fallback: capture all pieces in 1-tile radius (including the pawn itself)
-            for df in (-1, 0, 1):
-                for dr in (-1, 0, 1):
-                    c = Coordinate(center.file + df, center.rank + dr)
-                    if not board.is_in_bounds(c):
-                        continue
-                    if not board.is_empty(c):
-                        board.remove_piece(c)
+    def _explode_pawn_bomb(self, board, center):
+        """Explode pawn bomb at center coordinate, capturing all pieces in radius except kings."""
+        print(f"[PAWN BOMB] *** EXPLOSION at {center.to_algebraic()}! ***")
+        
+        captured_count = 0
+        explosion_tiles = []  # Track all tiles in explosion radius
+        
+        # Capture all pieces within 1-tile radius (3x3 grid) except kings
+        for file_offset in [-1, 0, 1]:
+            for rank_offset in [-1, 0, 1]:
+                target = Coordinate(center.file + file_offset, center.rank + rank_offset)
+                
+                # Add to explosion visual tiles if in bounds
+                if board.is_in_bounds(target):
+                    explosion_tiles.append(target)
+                
+                # Capture pieces (except kings)
+                if target in board.squares:
+                    piece = board.squares[target]
+                    if piece.type != PieceType.KING:
+                        del board.squares[target]
+                        captured_count += 1
+                        print(f"[PAWN BOMB] Explosion captured {piece.id} at {target.to_algebraic()}")
+        
+        print(f"[PAWN BOMB] Explosion captured {captured_count} pieces")
+        
+        # Add explosion visual effect
+        if hasattr(board, 'active_explosions'):
+            board.active_explosions.append({
+                'tiles': explosion_tiles,
+                'timestamp': None  # Will be set when sent to frontend
+            })
+            print(f"[PAWN BOMB] Added explosion visual with {len(explosion_tiles)} tiles")
 
     def can_play(self, board: Board, player: Player) -> bool:
         """Can be played if the player controls at least one pawn."""
@@ -1732,6 +1749,15 @@ class PawnBomb(Card):
         pawn_coord, pawn_piece = random.choice(pawns)
         bomb_pawn_id = pawn_piece.id
 
+        print(f"[PAWN BOMB] ========================================")
+        print(f"[PAWN BOMB] PAWN BOMB ARMED!")
+        print(f"[PAWN BOMB] Pawn ID: {bomb_pawn_id}")
+        print(f"[PAWN BOMB] Position: {pawn_coord.to_algebraic()}")
+        print(f"[PAWN BOMB] Owner: {color.name}")
+        print(f"[PAWN BOMB] Initial fuse: 8 turns")
+        print(f"[PAWN BOMB] Status: HIDDEN (not visible to either player)")
+        print(f"[PAWN BOMB] ========================================")
+
         # Register 8-turn fuse in effect tracker
         if hasattr(board, "game_state") and board.game_state:
             from backend.services.effect_tracker import EffectType
@@ -1741,34 +1767,84 @@ class PawnBomb(Card):
                 Called when the fuse runs out.
                 If pawn is still on the board, explode at its current location.
                 """
+                print(f"[PAWN BOMB] Timer expired for pawn {effect.target}!")
                 pid = effect.target
                 coord = self._find_piece_coord_by_id(board, pid)
                 if coord is not None:
+                    print(f"[PAWN BOMB] Detonating bomb at {coord.to_algebraic()}")
                     self._explode_pawn_bomb(board, coord)
+                else:
+                    print(f"[PAWN BOMB] Bomb pawn {pid} not found on board (already captured or removed)")
+            
+            def on_tick(effect, current_turn):
+                """
+                Called each turn to monitor bomb status and handle fuse shortening.
+                """
+                pawn_id = effect.target
+                
+                # Find the pawn on the board
+                pawn = None
+                pawn_coord = None
+                for coord, piece in board.squares.items():
+                    if piece and getattr(piece, "id", None) == pawn_id:
+                        pawn = piece
+                        pawn_coord = coord
+                        break
+                
+                if not pawn:
+                    print(f"[PAWN BOMB] Turn {current_turn}: Pawn {pawn_id} no longer on board")
+                    return
+                
+                # Check if pawn has moved and hasn't been shortened yet
+                if pawn.has_moved and not effect.metadata.get('fuse_shortened', False):
+                    print(f"[PAWN BOMB] *** PAWN MOVED! Shortening fuse ***")
+                    print(f"[PAWN BOMB] Pawn {pawn_id} at {pawn_coord.to_algebraic()} has been moved!")
+                    
+                    # Calculate new duration (4 turns from NOW)
+                    turns_elapsed = current_turn - effect.start_turn
+                    new_duration = turns_elapsed + 4
+                    
+                    # Modify the effect duration
+                    if board.game_state:
+                        board.game_state.effect_tracker.modify_duration(effect.effect_id, new_duration)
+                        effect.metadata['fuse_shortened'] = True
+                        effect.metadata['revealed_to_owner'] = True
+                        effect.metadata['shortened_at_turn'] = current_turn
+                        
+                        print(f"[PAWN BOMB] Fuse shortened from 8 to 4 turns")
+                        print(f"[PAWN BOMB] Bomb is now REVEALED to {color.name}")
+                        print(f"[PAWN BOMB] Will detonate at turn {current_turn + 4}")
+                
+                # Log current status
+                turns_left = effect.turns_remaining(current_turn)
+                revealed_status = "REVEALED" if effect.metadata.get('revealed_to_owner', False) else "HIDDEN"
+                shortened_status = "SHORTENED" if effect.metadata.get('fuse_shortened', False) else "FULL"
+                
+                print(f"[PAWN BOMB] Turn {current_turn}: Pawn {pawn_id} | Status: {revealed_status} | Fuse: {shortened_status} | Turns left: {turns_left}")
 
-            board.game_state.effect_tracker.add_effect(
-                effect_type=EffectType.PAWN_BOMB,          # define in EffectType enum
+            effect_id = board.game_state.effect_tracker.add_effect(
+                effect_type=EffectType.PAWN_BOMB,
                 start_turn=board.game_state.fullmove_number,
                 duration=8,
-                target=bomb_pawn_id,                       # tie effect to pawn id
+                target=bomb_pawn_id,
                 metadata={
                     "owner_color": color.name,
                     "revealed_to_owner": False,
                     "fuse_shortened": False,
-                    # movement hook elsewhere can use these flags
+                    "initial_position": pawn_coord.to_algebraic(),
+                    "effect_id": None  # Will be set after creation
                 },
                 on_expire=on_expire,
+                on_tick=on_tick
             )
-
-        # NOTE: explosion on capture and fuse-shortening on first move
-        # should be handled in your move/capture logic by:
-        # - checking for an active EffectType.PAWN_BOMB on the moving/captured pawn
-        # - if pawn moves for the first time: reduce remaining turns to 4,
-        #   set metadata["fuse_shortened"] = True and metadata["revealed_to_owner"] = True
-        # - if pawn is captured: immediately call _explode_pawn_bomb at its square.
+            
+            # Store effect_id in metadata for easy access
+            effect = board.game_state.effect_tracker.get_effect(effect_id)
+            if effect:
+                effect.metadata["effect_id"] = effect_id
 
         return True, "A random pawn has become a hidden bomb with an 8-turn fuse."
-
+    
 class Shroud(Card):
     """
     Hidden: Shroud (3-turn duration)

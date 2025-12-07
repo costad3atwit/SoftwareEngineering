@@ -352,25 +352,25 @@ function updateGameState(serverGameState) {
         gameState.greenTiles = serverGameState.board.greenTiles || [];
         gameState.forbiddenTiles = serverGameState.board.forbiddenTiles || [];
         gameState.mines = serverGameState.board.mines || [];
+        gameState.pawn_bombs = serverGameState.board.pawn_bombs || [];
         gameState.glueTiles = serverGameState.board.glueTiles || [];
         if (serverGameState.board.explosions && serverGameState.board.explosions.length > 0) {
-            console.log('[EXPLOSION DEBUG] Processing explosions:', serverGameState.board.explosions);
-            activeExplosions = serverGameState.board.explosions.map(exp => ({
-                tiles: exp.tiles,
-                startTime: Date.now(),
-                duration: 800  // Animation duration in ms
-            }));
-            console.log('[EXPLOSION DEBUG] Active explosions set:', activeExplosions);
-            // Re-render immediately to show explosion
-            render();
-            
-            // Clear explosions after animation duration
-            setTimeout(() => {
-                console.log('[EXPLOSION DEBUG] Clearing explosions after timeout');
-                activeExplosions = [];
-                render();
-            }, 800);
-        } else {console.log('[EXPLOSION DEBUG] No explosions in this update');}
+    console.log('[EXPLOSION DEBUG] Processing explosions:', serverGameState.board.explosions);
+    const now = Date.now();
+    
+    // Add new explosions to the array (don't replace, add to existing)
+    for (const exp of serverGameState.board.explosions) {
+        activeExplosions.push({
+            tiles: exp.tiles,
+            startTime: now,
+            duration: 1000  // 1 second animation
+        });
+    }
+    
+    console.log('[EXPLOSION DEBUG] Active explosions:', activeExplosions.length);
+} else {
+    console.log('[EXPLOSION DEBUG] No explosions in this update');
+}
 
     }
     
@@ -1274,9 +1274,33 @@ function render(){
         
         ctx.restore();
     }
+    // Render pawn bomb overlays (for revealed bombs only - uses same sprite as mines)
+    if (gameState.pawn_bombs && gameState.pawn_bombs.length > 0 && OVERLAYS.mine.complete) {
+        console.log('Rendering pawn bombs:', gameState.pawn_bombs);
+        ctx.save();
+        ctx.globalCompositeOperation = 'source-over';
+        
+        for (const bomb of gameState.pawn_bombs) {
+            // Convert bomb coordinates to grid position
+            const bombAlgebraic = fileRankToAlgebraic(bomb.file, bomb.rank);
+            const idx = algebraicToIndex(bombAlgebraic);
+            
+            if (idx) {
+                const x = L.gridLeft + idx.col * L.cellSize;
+                const y = L.gridTop + idx.row * L.cellSize;
+                
+                // Draw mine overlay (same sprite for bombs)
+                ctx.drawImage(OVERLAYS.mine, x, y, L.cellSize, L.cellSize);
+                console.log(`Drew bomb overlay at ${bombAlgebraic} (${x}, ${y}), turns left: ${bomb.turns_remaining}`);
+            }
+        }
+        
+        ctx.restore();
+    }
 
+        // Then draw explosions ON TOP of pieces
     if (activeExplosions.length > 0 && OVERLAYS.explosion.complete) {
-        console.log('Rendering explosions:', activeExplosions.length);
+        console.log('[EXPLOSION] Rendering', activeExplosions.length, 'explosions');
         ctx.save();
         
         const now = Date.now();

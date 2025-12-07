@@ -332,6 +332,24 @@ class Board:
             # Forbidden Lands inactive → normal chess capture
             captured_piece = self.squares.pop(dest, None)
 
+        # Check for Pawn Bomb on piece capture
+        if captured_piece and self.game_state:
+            # Check if captured piece is a pawn bomb
+            bomb_effects = [e for e in self.game_state.effect_tracker.get_effects_by_target(captured_piece.id) 
+                        if e.effect_type == EffectType.PAWN_BOMB]
+            
+            if bomb_effects:
+                print(f"[PAWN BOMB] Bomb pawn {captured_piece.id} was captured - DETONATING!")
+                # Find the PawnBomb card to use its explosion method
+                from backend.cards.card import PawnBomb
+                bomb_card = PawnBomb()
+                bomb_card._explode_pawn_bomb(self, dest)
+                
+                # Remove the bomb effect
+                for effect in bomb_effects:
+                    self.game_state.effect_tracker.remove_effect(effect.effect_id)
+                
+
         # --- Apply glue from captured piece to capturing piece ---
         if captured_piece:
             self.apply_capture_glue(moving_piece, captured_piece)
@@ -637,7 +655,7 @@ class Board:
                 if m.get("owner_player_id") == viewing_player_id  # CHANGED: Filter by player ID
             ]
         else:
-            # If no viewing_player_id provided, show all mines (backwards compatibility)
+        # If no viewing_player_id provided, show all mines (backwards compatibility)
             board_data["mines"] = [
                 {
                     "file": m["coord"].file,
@@ -647,7 +665,44 @@ class Board:
                 }
                 for m in self.mines
             ]
-
+        # Include pawn bomb overlays for revealed bombs (uses same sprite as mines)
+        if self.game_state and viewing_player_id:
+            print(f"[PAWN BOMB] Checking for revealed bombs for player {viewing_player_id}")
+            player_color = None
+            # Find player's color
+            for color, player in self.game_state.players.items():
+                if player.id == viewing_player_id:
+                    player_color = color
+                    print(f"[PAWN BOMB] Found player color: {player_color.name}")
+                    break
+            
+            revealed_bombs = []
+            if player_color:
+                bomb_effects = self.game_state.effect_tracker.get_effects_by_type(EffectType.PAWN_BOMB)
+                print(f"[PAWN BOMB] Found {len(bomb_effects)} bomb effects")
+                for effect in bomb_effects:
+                    print(f"[PAWN BOMB] Checking effect: revealed={effect.metadata.get('revealed_to_owner')}, owner={effect.metadata.get('owner_color')}, player={player_color.name}")
+                    # Only show if revealed and owned by this player
+                    if (effect.metadata.get('revealed_to_owner', False) and 
+                        effect.metadata.get('owner_color') == player_color.name):
+                        # Find the pawn's current position
+                        pawn_id = effect.target
+                        print(f"[PAWN BOMB] Looking for pawn {pawn_id}")
+                        for coord, piece in self.squares.items():
+                            if piece and getattr(piece, 'id', None) == pawn_id:
+                                revealed_bombs.append({
+                                    "file": coord.file,
+                                    "rank": coord.rank,
+                                    "turns_remaining": effect.turns_remaining(self.game_state.fullmove_number)
+                                })
+                                print(f"[PAWN BOMB] Added revealed bomb at {coord.to_algebraic()} with {effect.turns_remaining(self.game_state.fullmove_number)} turns remaining")
+                                break
+            
+            print(f"[PAWN BOMB] Serializing {len(revealed_bombs)} revealed bombs")
+            board_data["pawn_bombs"] = revealed_bombs
+        else:
+            print(f"[PAWN BOMB] No game_state or viewing_player_id, setting empty pawn_bombs array")
+            board_data["pawn_bombs"] = []
         # Include glue tile info
         board_data["glueTiles"] = [
             {
